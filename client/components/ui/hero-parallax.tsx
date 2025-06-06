@@ -10,6 +10,8 @@ import {
 import { ContainerTextFlip } from "@/components/ui/container-text-flip";
 import { cn } from "@/lib/utils";
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
+import GoogleSignInButton from "@/components/ui/google-signin-button";
+import LearnMoreButton from "@/components/ui/learn-more-button";
 
 export const HeroParallax = ({
   products,
@@ -148,7 +150,10 @@ export const Header = () => {
         whileInView={{
           opacity: 1,
         }}
-        className="relative mb-6 text-2xl md:text-7xl font-bold dark:text-white"
+        className="relative mb-6 text-2xl md:text-7xl font-bold dark:text-white text-shadow-lg drop-shadow-2xl"
+        style={{
+          textShadow: "0 4px 8px rgba(0, 0, 0, 0.3), 0 0 20px rgba(59, 130, 246, 0.3)"
+        }}
         layout
       >
         <div className="inline-block">
@@ -156,10 +161,18 @@ export const Header = () => {
           <br />10x <ContainerTextFlip words={words} />
         </div>
       </motion.h1>
-      <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200">
+      <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200 drop-shadow-lg"
+         style={{
+           textShadow: "0 2px 4px rgba(0, 0, 0, 0.5)"
+         }}>
         AI-powered learning that adapts to your style for faster, more effective
         education.
       </p>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-4 mt-8 relative pointer-events-none">
+        <GoogleSignInButton />
+        <LearnMoreButton />
+      </div>
     </div>
   );
 };
