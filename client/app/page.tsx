@@ -5,7 +5,7 @@ import { HeroParallax } from "@/components/ui/hero-parallax";
 import { CustomNavbar } from "@/components/custom/CustomNavbar";
 import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
 import { CustomFeatures } from "@/components/custom/CustomFeatures";
-import { CustomTimeline } from "@/components/custom/CustomTimeline";
+import { FeaturesSectionDemo } from "@/components/custom/FeaturesSectionDemo";
 
 interface ApiResponse {
   message: string;
@@ -30,102 +30,100 @@ export default function Home() {
         <HeroParallax products={products} />
       </div>
       <CustomFeatures />
-      <div className="mt-20">
-        <CustomTimeline />
-      </div>
+      <FeaturesSectionDemo />
     </div>
   );
 }
 
 export const products = [
   {
-    title: "Moonbeam",
-    link: "https://gomoonbeam.com",
+    title: "AI Learning Maps",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/moonbeam.png",
+      "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Cursor",
-    link: "https://cursor.so",
+    title: "Personalized Study Paths",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/cursor.png",
+      "https://images.unsplash.com/photo-1509475826633-fed577a2c71b?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Rogue",
-    link: "https://userogue.com",
+    title: "Interactive Lessons",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/rogue.png",
+      "https://images.unsplash.com/photo-1568952433726-3896e3881c65?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Editorially",
-    link: "https://editorially.org",
+    title: "Knowledge Assessment",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/editorially.png",
+      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Editrix AI",
-    link: "https://editrix.ai",
+    title: "AI Tutor Assistant",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/editrix.png",
+      "https://images.unsplash.com/photo-1531746790731-6c087fecd65a?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Pixel Perfect",
-    link: "https://app.pixelperfect.quest",
+    title: "Skill Mapping",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/pixelperfect.png",
+      "https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Algochurn",
-    link: "https://algochurn.com",
+    title: "Collaborative Learning",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/algochurn.png",
+      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Aceternity UI",
-    link: "https://ui.aceternity.com",
+    title: "Progress Analytics",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/aceternityui.png",
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Tailwind Master Kit",
-    link: "https://tailwindmasterkit.com",
+    title: "Adaptive Learning",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/tailwindmasterkit.png",
+      "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "SmartBridge",
-    link: "https://smartbridgetech.com",
+    title: "Knowledge Graphs",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/smartbridge.png",
+      "https://images.unsplash.com/photo-1610986602538-431d65df4385?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Renderwork Studio",
-    link: "https://renderwork.studio",
+    title: "Study Groups",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/renderwork.png",
+      "https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Creme Digital",
-    link: "https://cremedigital.com",
+    title: "Mind Mapping Tools",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/cremedigital.png",
+      "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Golden Bells Academy",
-    link: "https://goldenbellsacademy.com",
+    title: "Subject Mastery",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/goldenbellsacademy.png",
+      "https://images.unsplash.com/photo-1501504905252-473c47e087f8?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "Invoker Labs",
-    link: "https://invoker.lol",
+    title: "Virtual Classrooms",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/invoker.png",
+      "https://images.unsplash.com/photo-1531260824084-d58c8a173dec?q=80&w=800&auto=format&fit=crop",
   },
   {
-    title: "E Free Invoice",
-    link: "https://efreeinvoice.com",
+    title: "Learning Analytics",
+    link: "#features",
     thumbnail:
-      "https://aceternity.com/images/products/thumbnails/new/efreeinvoice.png",
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=800&auto=format&fit=crop",
   },
 ];
