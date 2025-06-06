@@ -7,6 +7,7 @@ import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
 import { CustomFeatures } from "@/components/custom/CustomFeatures";
 import { FeaturesSectionDemo } from "@/components/custom/FeaturesSectionDemo";
 import { InfiniteMovingCardsDemo } from "@/components/custom/InfiniteMovingCardsDemo";
+import { FAQSection } from "@/components/custom/FAQSection";
 
 interface ApiResponse {
   message: string;
@@ -33,6 +34,7 @@ export default function Home() {
       <CustomFeatures />
       <FeaturesSectionDemo />
       <InfiniteMovingCardsDemo />
+      <FAQSection />
     </div>
   );
 }
