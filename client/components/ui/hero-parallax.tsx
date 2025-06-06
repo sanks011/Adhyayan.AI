@@ -7,6 +7,8 @@ import {
   useSpring,
   MotionValue,
 } from "motion/react";
+import { ContainerTextFlip } from "@/components/ui/container-text-flip";
+import { cn } from "@/lib/utils";
 
 
 
@@ -102,15 +104,27 @@ export const HeroParallax = ({
 };
 
 export const Header = () => {
+  // Educational-themed words for flipping
+  const words = ["smarter", "efficiently", "intuitively", "confidently", "successfully"];
+  
   return (
-    <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full  left-0 top-0">
-      <h1 className="text-2xl md:text-7xl font-bold dark:text-white">
-        The Ultimate <br /> development studio
-      </h1>
+    <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
+      <motion.h1
+        initial={{
+          opacity: 0,
+        }}
+        whileInView={{
+          opacity: 1,
+        }}
+        className="relative mb-6 text-2xl md:text-7xl font-bold dark:text-white"
+        layout
+      >
+        <div className="inline-block">
+          Master any subject<br />10x <ContainerTextFlip words={words} />
+        </div>
+      </motion.h1>
       <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200">
-        We build beautiful products with the latest technologies and frameworks.
-        We are a team of passionate developers and designers that love to build
-        amazing products.
+        AI-powered learning that adapts to your style for faster, more effective education.
       </p>
     </div>
   );
