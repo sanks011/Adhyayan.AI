@@ -6,6 +6,7 @@ import { CustomNavbar } from "@/components/custom/CustomNavbar";
 import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
 import { CustomFeatures } from "@/components/custom/CustomFeatures";
 import { FeaturesSectionDemo } from "@/components/custom/FeaturesSectionDemo";
+import { InfiniteMovingCardsDemo } from "@/components/custom/InfiniteMovingCardsDemo";
 
 interface ApiResponse {
   message: string;
@@ -31,6 +32,7 @@ export default function Home() {
       </div>
       <CustomFeatures />
       <FeaturesSectionDemo />
+      <InfiniteMovingCardsDemo />
     </div>
   );
 }
