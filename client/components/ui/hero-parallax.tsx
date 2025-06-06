@@ -9,8 +9,7 @@ import {
 } from "motion/react";
 import { ContainerTextFlip } from "@/components/ui/container-text-flip";
 import { cn } from "@/lib/utils";
-
-
+import { HoverBorderGradient } from "@/components/ui/hover-border-gradient";
 
 export const HeroParallax = ({
   products,
@@ -105,10 +104,43 @@ export const HeroParallax = ({
 
 export const Header = () => {
   // Educational-themed words for flipping
-  const words = ["smarter", "efficiently", "intuitively", "confidently", "successfully"];
-  
+  const words = [
+    "smarter",
+    "efficiently",
+    "intuitively",
+    "confidently",
+    "successfully",
+  ];
+
   return (
-    <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
+    <div className="max-w-7xl relative mx-auto py-10 md:py-20 px-4 w-full left-0 top-0">
+      <div className="flex justify-start mb-6">
+        <HoverBorderGradient
+          containerClassName="rounded-full"
+          as="div"
+          className="dark:bg-black bg-white text-black dark:text-white flex items-center space-x-2 px-3 py-1.5 text-sm"
+        >
+          <div className="flex items-center space-x-1">
+            <span className="text-black dark:text-white text-xs">
+              Powered by OpenAI
+            </span>
+          </div>
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="12" 
+            height="12" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className="ml-1 text-gray-600 dark:text-gray-300"
+          >
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+        </HoverBorderGradient>
+      </div>
       <motion.h1
         initial={{
           opacity: 0,
@@ -120,11 +152,13 @@ export const Header = () => {
         layout
       >
         <div className="inline-block">
-          Master any subject<br />10x <ContainerTextFlip words={words} />
+          Master any subject
+          <br />10x <ContainerTextFlip words={words} />
         </div>
       </motion.h1>
       <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200">
-        AI-powered learning that adapts to your style for faster, more effective education.
+        AI-powered learning that adapts to your style for faster, more effective
+        education.
       </p>
     </div>
   );
@@ -171,3 +205,4 @@ export const ProductCard = ({
     </motion.div>
   );
 };
+
