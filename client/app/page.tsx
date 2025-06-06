@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { HeroParallax } from "@/components/ui/hero-parallax";
 import { CustomNavbar } from "@/components/custom/CustomNavbar";
 import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
+import { CustomFeatures } from "@/components/custom/CustomFeatures";
+import { CustomTimeline } from "@/components/custom/CustomTimeline";
 
 interface ApiResponse {
   message: string;
@@ -24,7 +26,13 @@ export default function Home() {
     <div className="relative flex w-full flex-col overflow-y-auto">
       <CustomStickyBanner />
       <CustomNavbar />
-      <HeroParallax products={products} />
+      <div className="mt-[-3.5rem]">
+        <HeroParallax products={products} />
+      </div>
+      <CustomFeatures />
+      <div className="mt-20">
+        <CustomTimeline />
+      </div>
     </div>
   );
 }
