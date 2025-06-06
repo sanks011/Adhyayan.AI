@@ -38,9 +38,8 @@ export const CustomNavbar = ({ items = navItems }: CustomNavbarProps) => {
       {/* Desktop Navigation */}
       <NavBody>
         <NavbarLogo />
-        <NavItems items={items} />
-        <div className="flex items-center gap-4">
-          <ThemeToggle className="h-10 w-10 rounded-full bg-neutral-100 shadow-md transition-all hover:shadow-lg dark:bg-neutral-800" />
+        <NavItems items={items} />        <div className="flex items-center gap-4">
+          <ThemeToggle className="h-10 w-10 transition-all" />
         </div>
       </NavBody>
 
@@ -67,9 +66,8 @@ export const CustomNavbar = ({ items = navItems }: CustomNavbarProps) => {
             >
               <span className="block">{item.name}</span>
             </a>
-          ))}
-          <div className="flex w-full items-center justify-center py-4">
-            <ThemeToggle className="h-12 w-12 rounded-full bg-neutral-100 shadow-md transition-all hover:shadow-lg dark:bg-neutral-800" />
+          ))}          <div className="flex w-full items-center justify-center py-4">
+            <ThemeToggle className="h-12 w-12 transition-all" />
           </div>
         </MobileNavMenu>
       </MobileNav>
