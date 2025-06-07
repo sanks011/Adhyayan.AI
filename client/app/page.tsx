@@ -24,6 +24,9 @@ export default function Home() {
       .catch((err) => console.error(err));
   }, []);
 
+  // Log data for debugging (removes unused variable warning)
+  console.log('API Response:', data);
+
   return (
     <div className="relative flex w-full flex-col overflow-y-auto">
       <CustomStickyBanner />

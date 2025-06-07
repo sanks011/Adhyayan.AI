@@ -2,11 +2,9 @@
 
 import {
   Navbar,
-  NavBody,
-  NavItems,
+  NavBody,  NavItems,
   MobileNav,
   NavbarLogo,
-  NavbarButton,
   MobileNavHeader,
   MobileNavToggle,
   MobileNavMenu,

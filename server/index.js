@@ -17,7 +17,8 @@ const pool = new Pool({
 });
 
 // Test route
-app.get('/api/test', async (req, res) => {  try {
+app.get('/api/test', async (req, res) => {
+  try {
     const result = await pool.query('SELECT NOW()');
     res.json({ message: 'Backend connected', time: result.rows[0].now });
   } catch (error) {

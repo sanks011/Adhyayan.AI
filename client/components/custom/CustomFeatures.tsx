@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Lock, Search, Settings, Sparkles, BookOpen, Map, MessageSquare, Headphones, Share2, Users } from "lucide-react";
+import { BookOpen, Map, MessageSquare, Headphones, Users } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 export function CustomFeatures() {
@@ -10,7 +10,7 @@ export function CustomFeatures() {
         <div className="text-center mb-6 md:mb-8">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Revolutionary Learning Experience</h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Transform how you learn with Adhyayan AI's innovative features, designed to make studying engaging, 
+            Transform how you learn with Adhyayan AI&apos;s innovative features, designed to make studying engaging, 
             personalized, and effective.
           </p>
         </div>
