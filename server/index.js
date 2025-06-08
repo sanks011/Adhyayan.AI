@@ -388,7 +388,11 @@ app.get('/api/mindmap/:id', verifyToken, async (req, res) => {
 // Temporary CORS setup for initial deployment
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? true  // Allow all origins temporarily until we get frontend URL
+    ? [
+        'https://adhyayan-ai.vercel.app',
+        'https://adhyayan-ai-git-main.vercel.app', 
+        'https://adhyayan-ai-git-main-sanks011.vercel.app' 
+      ]
     : ['http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
