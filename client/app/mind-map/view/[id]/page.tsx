@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { FloatingDock } from "@/components/ui/floating-dock";
@@ -21,7 +21,8 @@ import {
   Handle,
   Position,
   NodeToolbar,
-  useReactFlow
+  useReactFlow,
+  ReactFlowProvider
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
@@ -36,13 +37,28 @@ import {
   IconMinus,
 } from "@tabler/icons-react";
 
+// Define the data structure for the custom node
+type CustomNodeData = {
+  label: string;
+  expanded?: boolean;
+  hasChildren?: boolean;
+  isRoot?: boolean;
+  isRead?: boolean;
+  parentNode?: string;
+  isSelected?: boolean;
+  onToggleReadStatus?: (nodeId: string) => void;
+  onNodeClick?: (nodeId: string) => void;
+}
+
 // Custom node component for expandable/collapsible behavior
 const CustomNode = ({ data, id }: NodeProps) => {
-  const { setNodes, getNodes } = useReactFlow();
+  const { setNodes, getNodes, setCenter, getZoom } = useReactFlow();
+  const nodeData = data as CustomNodeData;
   
   // Function to handle expand/collapse
   const toggleExpanded = useCallback(() => {
     const targetNodeId = id;
+    
     setNodes((nds) => {
       return nds.map((node) => {
         // Toggle the expanded state of clicked node
@@ -64,9 +80,62 @@ const CustomNode = ({ data, id }: NodeProps) => {
         }
         return node;
       });
-    });
-  }, [id, setNodes]);
+    });    // Center view on the expanded area after a slight delay to allow for node updates
+    setTimeout(() => {
+      const updatedNodes = getNodes();
+      const expandedNode = updatedNodes.find(n => n.id === targetNodeId);
+      
+      if (expandedNode && expandedNode.data.expanded) {
+        // Find all child nodes of the expanded node
+        const childNodes = updatedNodes.filter(n => 
+          n.data.parentNode === targetNodeId && !n.hidden
+        );
+        
+        if (childNodes.length > 0) {
+          // Calculate the center point of the child nodes area
+          const childPositions = childNodes.map(n => ({ x: n.position.x, y: n.position.y }));
+          const avgX = childPositions.reduce((sum, pos) => sum + pos.x, 0) / childPositions.length;
+          const avgY = childPositions.reduce((sum, pos) => sum + pos.y, 0) / childPositions.length;
+          
+          // Center the view on the child nodes area with smooth animation
+          setCenter(avgX, avgY, { zoom: getZoom(), duration: 800 });
+        } else {
+          // Fallback: center on the parent node if no child nodes found
+          setCenter(expandedNode.position.x, expandedNode.position.y, { zoom: getZoom(), duration: 800 });
+        }
+      }
+    }, 100);
+  }, [id, setNodes, getNodes, setCenter, getZoom]);
+  // Function to toggle read status
+  const toggleReadStatus = useCallback(() => {
+    if (nodeData.isRoot) return; // Don't toggle for root node
+    
+    // Call the onToggleReadStatus function from data
+    if (nodeData.onToggleReadStatus) {
+      nodeData.onToggleReadStatus(id);
+    }
+  }, [nodeData, id]);
+
+  // Function to handle node click for selection
+  const handleNodeClick = useCallback(() => {
+    if (nodeData.onNodeClick) {
+      nodeData.onNodeClick(id);
+    }
+  }, [nodeData, id]);
   
+  // Determine border color based on read status and selection
+  const getBorderColor = () => {
+    if (nodeData.isSelected) return "border-white border-2"; // White border for selected nodes
+    if (nodeData.isRoot) return "border-blue-500";
+    return nodeData.isRead ? "border-green-500" : "border-neutral-700";
+  };
+  
+  // Determine background color
+  const getBackgroundColor = () => {
+    if (nodeData.isRoot) return "bg-neutral-900";
+    return nodeData.isRead ? "bg-neutral-800" : "bg-neutral-900";
+  };
+
   return (
     <>
       {/* Expandable button for nodes with children */}
@@ -82,25 +151,51 @@ const CustomNode = ({ data, id }: NodeProps) => {
             <IconPlus className="h-3 w-3 text-white" />
           )}
         </div>
-      )}
-      
-      {/* Main node container */}      <div className={cn(
-        "px-4 py-2 min-w-32 rounded-md flex items-center justify-center border border-neutral-700 bg-neutral-900",
-        data.isRoot ? "font-semibold" : "font-normal"
-      )}>
-        <div className="text-sm text-white">{data.label as string}</div>
+      )}      {/* Main node container */}
+      <div 
+        className={cn(
+          "px-4 py-2 min-w-32 rounded-md flex items-center justify-center border cursor-pointer",
+          getBorderColor(),
+          getBackgroundColor(),
+          nodeData.isRoot ? "font-semibold" : "font-normal"
+        )}
+        onClick={handleNodeClick}
+      >
+        {/* Read status indicator/toggle button for non-root nodes - more subtle design */}
+        {!nodeData.isRoot && (
+          <div 
+            className={cn(
+              "absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1/4 w-3 h-3 rounded-full flex items-center justify-center cursor-pointer",
+              nodeData.isRead ? "bg-green-500" : "bg-neutral-700",
+              "hover:opacity-80 transition-opacity border border-black"
+            )}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent triggering other node events
+              toggleReadStatus();
+            }}
+            title={nodeData.isRead ? "Mark as unread" : "Mark as read"}
+            style={{ zIndex: 5 }}
+          >
+            {nodeData.isRead && (
+              <div className="h-1.5 w-1.5 bg-white rounded-full"></div>
+            )}
+          </div>
+        )}
+        
+        <div className="text-sm text-white">{nodeData.label}</div>
       </div>
-      
-      {/* Connection points */}
+        {/* Connection points - making them nearly invisible */}
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="w-2 h-2 border-2 border-neutral-700 bg-neutral-800" 
+        className="w-1 h-1 border-0 bg-transparent" 
+        style={{ opacity: 0 }}
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="w-2 h-2 border-2 border-neutral-700 bg-neutral-800" 
+        className="w-1 h-1 border-0 bg-transparent" 
+        style={{ opacity: 0 }}
       />
     </>
   );
@@ -114,9 +209,32 @@ const nodeTypes = {
 export default function MindMapView() {
   const router = useRouter();
   const { user, loading, isAuthenticated, logout } = useAuth();
-  const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
-  // Mind map topics data - structured for the MindMapSidebar component
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    router.push('/');
+    return null;
+  }
+
+  return (
+    <ReactFlowProvider>
+      <MindMapContent />
+    </ReactFlowProvider>
+  );
+}
+
+// Separate component that uses ReactFlow hooks
+function MindMapContent() {
+  const router = useRouter();
+  const { logout } = useAuth();
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);  // Mind map topics data - structured for both the MindMapSidebar and the mind map visualization
   const mindMapData = [
     {
       id: 'photosynthesis',
@@ -157,133 +275,267 @@ export default function MindMapView() {
       subtopics: []
     },
   ];
-
+  
+  // Track expanded topics in the mind map
+  const [expandedTopics, setExpandedTopics] = useState<string[]>(['central']);
+  
+  // Track selected/focused node
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  
+  // React Flow instance ref for controlling view
+  const { getNodes, setCenter, getZoom } = useReactFlow();
+    // Handle topic selection from sidebar
   const handleTopicSelect = (topicId: string) => {
     console.log('Topic selected:', topicId);
-    // Handle topic selection logic here
+    
+    // Set the selected node
+    setSelectedNode(topicId);
+    
+    // Find the node in the mind map and center on it
+    const nodes = getNodes();
+    const selectedNodeData = nodes.find(node => node.id === topicId);
+    if (selectedNodeData) {
+      // Center the view on the selected node with smooth animation
+      setCenter(selectedNodeData.position.x, selectedNodeData.position.y, { zoom: getZoom(), duration: 800 });
+    }
   };
-  
+    // Handle subtopic selection from sidebar
   const handleSubtopicSelect = (topicId: string, subtopicId: string) => {
     console.log('Subtopic selected:', topicId, subtopicId);
-    // Handle subtopic selection logic here
+    
+    // Set the selected node
+    setSelectedNode(subtopicId);
+    
+    // First ensure parent topic is expanded
+    setNodes((nds) => {
+      return nds.map((node) => {
+        // Expand the parent node
+        if (node.id === topicId) {
+          return {
+            ...node,
+            data: { ...node.data, expanded: true }
+          };
+        }
+        
+        // Show this subtopic and other subtopics of the parent
+        if (node.data.parentNode === topicId) {
+          return {
+            ...node,
+            hidden: false,
+          };
+        }
+        return node;
+      });
+    });
+    
+    // Add parent to expanded topics
+    if (!expandedTopics.includes(topicId)) {
+      setExpandedTopics(prev => [...prev, topicId]);
+    }
+    
+    // Focus on the selected subtopic after a short delay to ensure nodes are rendered
+    setTimeout(() => {
+      const nodes = getNodes();
+      const selectedNodeData = nodes.find(node => node.id === subtopicId);
+      if (selectedNodeData && !selectedNodeData.hidden) {
+        setCenter(selectedNodeData.position.x, selectedNodeData.position.y, { zoom: getZoom(), duration: 800 });
+      }
+    }, 100);
   };
+
+  // Handle node click for selection and centering
+  const handleNodeClick = useCallback((nodeId: string) => {
+    console.log('Node clicked:', nodeId);
+    
+    // Set the selected node
+    setSelectedNode(nodeId);
+    
+    // Find the node in the mind map and center on it
+    const nodes = getNodes();
+    const selectedNodeData = nodes.find(node => node.id === nodeId);
+    if (selectedNodeData && !selectedNodeData.hidden) {
+      // Center the view on the selected node with smooth animation
+      setCenter(selectedNodeData.position.x, selectedNodeData.position.y, { zoom: getZoom(), duration: 800 });
+    }
+  }, [getNodes, setCenter, getZoom]);
+
+  // State for the actual mind map data (to allow updating read status)
+  const [localMindMapData, setLocalMindMapData] = useState(mindMapData);
   
+  // State for tracking topic/subtopic read status
+  const [topicsReadStatus, setTopicsReadStatus] = useState(() => {
+    // Initialize from mindMapData
+    const initialStatus: Record<string, boolean> = {};
+    
+    // Add main topics
+    mindMapData.forEach(topic => {
+      initialStatus[topic.id] = topic.isRead;
+      
+      // Add subtopics
+      topic.subtopics.forEach(subtopic => {
+        initialStatus[subtopic.id] = subtopic.isRead;
+      });
+    });
+    
+    return initialStatus;
+  });
+  
+  // Function to toggle read status of a node
+  const handleToggleReadStatus = useCallback((nodeId: string) => {
+    // Update the read status in state
+    setTopicsReadStatus(prev => ({
+      ...prev,
+      [nodeId]: !prev[nodeId]
+    }));
+    
+    // Update the mindMapData state too (for sidebar)
+    setLocalMindMapData(prevData => {
+      return prevData.map(topic => {
+        // Check if this is the topic being updated
+        if (topic.id === nodeId) {
+          return {
+            ...topic,
+            isRead: !topicsReadStatus[nodeId]
+          };
+        }
+        
+        // Check if one of this topic's subtopics is being updated
+        if (topic.subtopics.some(sub => sub.id === nodeId)) {
+          return {
+            ...topic,
+            subtopics: topic.subtopics.map(subtopic => {
+              if (subtopic.id === nodeId) {
+                return {
+                  ...subtopic,
+                  isRead: !topicsReadStatus[nodeId]
+                };
+              }
+              return subtopic;
+            })
+          };
+        }
+        
+        return topic;
+      });
+    });
+  }, [topicsReadStatus]);
   // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];
 
-    // Central node for the main topic
+    // Central node for the main topic - root node
     flowNodes.push({
       id: 'central',
       type: 'customNode',
-      position: { x: 300, y: 200 },
-      data: { 
+      position: { x: 300, y: 200 },      data: { 
         label: 'Photosynthesis', 
         expanded: true,
-        hasChildren: true,
+        hasChildren: mindMapData.length > 0,
         isRoot: true,
+        isSelected: selectedNode === 'central',
+        onToggleReadStatus: handleToggleReadStatus,
+        onNodeClick: handleNodeClick
       },
       draggable: true,
     });
 
-    // Create topic nodes (first level)
-    const topics = [
-      { 
-        id: 'light-dependent', 
-        label: 'Light-Dependent Reactions',
-        position: { x: 600, y: 100 }
-      },
-      { 
-        id: 'light-independent', 
-        label: 'Light-Independent Reactions (Calvin Cycle)',
-        position: { x: 600, y: 200 }
-      },
-      { 
-        id: 'factors', 
-        label: 'Factors Affecting Photosynthesis',
-        position: { x: 600, y: 300 }
-      }
-    ];
+    // Calculate positions for main topic nodes
+    const mainTopicsCount = mindMapData.length;
+    const mainTopicYStep = 100;
+    const mainTopicStartY = 200 - ((mainTopicsCount - 1) * mainTopicYStep) / 2;
     
-    topics.forEach(topic => {
-      flowNodes.push({
+    // Create main topic nodes from mindMapData (first level)
+    mindMapData.forEach((topic, topicIndex) => {
+      // Position topics with even spacing vertically
+      const yPos = mainTopicStartY + topicIndex * mainTopicYStep;
+        flowNodes.push({
         id: topic.id,
         type: 'customNode',
-        position: topic.position,
+        position: { x: 600, y: yPos },
         data: { 
-          label: topic.label, 
-          expanded: false,
-          hasChildren: topic.id === 'factors',
-          parentNode: 'central'
+          label: topic.title, 
+          expanded: false,          hasChildren: topic.subtopics.length > 0,
+          parentNode: 'central',
+          isRead: topicsReadStatus[topic.id],
+          isSelected: selectedNode === topic.id,
+          onToggleReadStatus: handleToggleReadStatus,
+          onNodeClick: handleNodeClick
         },
         draggable: true,
       });
-    });
-    
-    // Add factors subtopics (second level)
-    const factorsSubtopics = [
-      { id: 'light-intensity', label: 'Light Intensity', position: { x: 900, y: 250 } },
-      { id: 'temperature', label: 'Temperature', position: { x: 900, y: 300 } },
-      { id: 'co2', label: 'CO₂ Concentration', position: { x: 900, y: 350 } },
-      { id: 'water', label: 'Water Availability', position: { x: 900, y: 400 } }
-    ];
-    
-    factorsSubtopics.forEach(subtopic => {
-      flowNodes.push({
-        id: subtopic.id,
-        type: 'customNode',
-        position: subtopic.position,
-        data: { 
-          label: subtopic.label, 
-          expanded: false,
-          hasChildren: false,
-          parentNode: 'factors'
-        },
-        hidden: true, // Initially hidden until parent is expanded
-        draggable: true,
-      });
+      
+      // Add subtopic nodes for this topic
+      if (topic.subtopics.length > 0) {
+        const subtopicsCount = topic.subtopics.length;
+        const subtopicYStep = 50;
+        const subtopicStartY = yPos - ((subtopicsCount - 1) * subtopicYStep) / 2;
+        
+        topic.subtopics.forEach((subtopic, subtopicIndex) => {
+          // Position subtopics with even spacing
+          const subYPos = subtopicStartY + subtopicIndex * subtopicYStep;
+          
+          flowNodes.push({
+            id: subtopic.id,
+            type: 'customNode',
+            position: { x: 900, y: subYPos },
+            data: { 
+              label: subtopic.title, 
+              expanded: false,
+              hasChildren: false,
+              parentNode: topic.id,
+              isRead: topicsReadStatus[subtopic.id],              isSelected: selectedNode === subtopic.id,
+              onToggleReadStatus: handleToggleReadStatus,
+              onNodeClick: handleNodeClick
+            },
+            hidden: true, // Initially hidden until parent is expanded
+            draggable: true,
+          });
+        });
+      }
     });
 
     return flowNodes;
-  }, []);
-  
-  // Create initial edges
+  }, [mindMapData, selectedNode, topicsReadStatus, handleToggleReadStatus, handleNodeClick]);
+  // Create initial edges from the mindMapData structure
   const initialEdges = useMemo(() => {
     const flowEdges: Edge[] = [];
-      // Central node to topics
-    const topics = ['light-dependent', 'light-independent', 'factors'];    topics.forEach(topicId => {
+    
+    // Create edges from central node to main topics
+    mindMapData.forEach(topic => {
       flowEdges.push({
-        id: `central-${topicId}`,
+        id: `central-${topic.id}`,
         source: 'central',
-        target: topicId,
-        type: 'bezier', // Changed to bezier for more curved edges
+        target: topic.id,
+        type: 'bezier',
         animated: false,
         style: { 
           stroke: '#333', 
           strokeWidth: 1,
         },
-        // Add curvature for more pronounced curves
+        markerEnd: undefined, // Remove endpoint markers
+        markerStart: undefined, // Remove startpoint markers
         data: {
           curvature: 0.8
         }
       });
-    });
-      // Factors to subtopics
-    const factorsSubtopics = ['light-intensity', 'temperature', 'co2', 'water'];    factorsSubtopics.forEach(subtopicId => {
-      flowEdges.push({
-        id: `factors-${subtopicId}`,
-        source: 'factors',
-        target: subtopicId,
-        type: 'bezier', // Changed to bezier for more curved edges
-        animated: false,
-        style: { 
-          stroke: '#333', 
-          strokeWidth: 1,
-        },
-        // Add curvature for more pronounced curves 
-        data: {
-          curvature: 0.8
-        }
+        // Create edges from topics to their subtopics
+      topic.subtopics.forEach(subtopic => {
+        flowEdges.push({
+          id: `${topic.id}-${subtopic.id}`,
+          source: topic.id,
+          target: subtopic.id,
+          type: 'bezier',
+          animated: false,
+          style: { 
+            stroke: '#333', 
+            strokeWidth: 1,
+          },
+          markerEnd: undefined, // Remove endpoint markers
+          markerStart: undefined, // Remove startpoint markers
+          data: {
+            curvature: 0.8
+          }
+        });
       });
     });
 
@@ -292,8 +544,9 @@ export default function MindMapView() {
   // Set up state hooks for nodes and edges
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-    // Handle edge connections
-  const onConnect = useCallback(    (connection: Connection) => {
+  // Handle edge connections
+  const onConnect = useCallback(
+    (connection: Connection) => {
       setEdges(eds => addEdge({
         ...connection,
         type: 'bezier',
@@ -302,6 +555,8 @@ export default function MindMapView() {
           stroke: '#333', 
           strokeWidth: 1,
         },
+        markerEnd: undefined, // Remove endpoint markers
+        markerStart: undefined, // Remove startpoint markers
         data: {
           curvature: 0.8
         }
@@ -309,7 +564,31 @@ export default function MindMapView() {
     },
     [setEdges]
   );
-
+    // Sync the expanded topics and selected node between sidebar and mind map visualization
+  useEffect(() => {
+    // Update node expansion state and selection based on expandedTopics and selectedNode
+    setNodes(nds => nds.map(node => {
+      let updatedNode = { ...node };
+        // Update selection state
+      updatedNode.data = { 
+        ...updatedNode.data, 
+        isSelected: selectedNode === node.id,
+        onNodeClick: handleNodeClick
+      };
+      
+      // Update expansion state
+      if (expandedTopics.includes(node.id)) {
+        updatedNode.data = { ...updatedNode.data, expanded: true };
+      }
+        // Show/hide nodes based on parent expansion
+      const nodeData = node.data as CustomNodeData;
+      if (nodeData.parentNode && expandedTopics.includes(nodeData.parentNode)) {
+        updatedNode.hidden = false;
+      }
+      
+      return updatedNode;
+    }));
+  }, [expandedTopics, selectedNode, setNodes, handleNodeClick]);
   const handleSignOut = async () => {
     try {
       await logout();
@@ -318,19 +597,6 @@ export default function MindMapView() {
       console.error('Error signing out:', error);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !user) {
-    router.push('/');
-    return null;
-  }
 
   const dockLinks = [
     {
@@ -368,10 +634,10 @@ export default function MindMapView() {
   
   return (
     <div className="h-screen bg-black flex">
-      {/* Sidebar */}
+      {/* Sidebar */}      
       <div className="h-full">
         <MindMapSidebar 
-          mindMapData={mindMapData}
+          mindMapData={localMindMapData}
           onTopicSelect={handleTopicSelect}
           onSubtopicSelect={handleSubtopicSelect}
         />
@@ -385,8 +651,7 @@ export default function MindMapView() {
             <h1 className="text-2xl font-bold text-white">Photosynthesis Mind Map</h1>
             <p className="text-neutral-400 mt-1">Interactive learning visualization</p>
           </div>
-          
-          {/* ReactFlow component */}
+            {/* ReactFlow component */}
           <div className="flex-1" ref={reactFlowWrapper}>
             <ReactFlow 
               nodes={nodes} 
@@ -399,10 +664,13 @@ export default function MindMapView() {
               className="bg-black"
               nodesDraggable={true}
               zoomOnScroll={true}
-              panOnScroll={true}              defaultEdgeOptions={{
+              panOnScroll={true}              
+              defaultEdgeOptions={{
                 type: 'bezier',
                 animated: false,
                 style: { strokeWidth: 1, stroke: '#333' },
+                markerEnd: undefined,
+                markerStart: undefined,
                 data: { curvature: 0.8 }
               }}
             >
