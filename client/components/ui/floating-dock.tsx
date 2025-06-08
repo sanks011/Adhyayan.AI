@@ -9,21 +9,23 @@ import {
   useTransform,
 } from "motion/react";
 
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 
 export const FloatingDock = ({
   items,
   desktopClassName,
   mobileClassName,
+  activeItem,
 }: {
   items: { title: string; icon: React.ReactNode; href: string; onClick?: () => void }[];
   desktopClassName?: string;
   mobileClassName?: string;
+  activeItem?: string;
 }) => {
   return (
     <>
-      <FloatingDockDesktop items={items} className={desktopClassName} />
-      <FloatingDockMobile items={items} className={mobileClassName} />
+      <FloatingDockDesktop items={items} className={desktopClassName} activeItem={activeItem} />
+      <FloatingDockMobile items={items} className={mobileClassName} activeItem={activeItem} />
     </>
   );
 };
@@ -31,9 +33,11 @@ export const FloatingDock = ({
 const FloatingDockMobile = ({
   items,
   className,
+  activeItem,
 }: {
   items: { title: string; icon: React.ReactNode; href: string; onClick?: () => void }[];
   className?: string;
+  activeItem?: string;
 }) => {
   const [open, setOpen] = useState(false);
   return (
@@ -70,9 +74,21 @@ const FloatingDockMobile = ({
                       item.onClick();
                     }
                   }}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 dark:bg-neutral-900"
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-full",
+                    activeItem === item.href
+                      ? "bg-gradient-to-r from-orange-500 to-red-600 shadow-lg shadow-orange-500/25"
+                      : "bg-gray-50 dark:bg-neutral-900"
+                  )}
                 >
-                  <div className="h-4 w-4">{item.icon}</div>
+                  <div className={cn(
+                    "h-4 w-4",
+                    activeItem === item.href 
+                      ? "text-white" 
+                      : "text-neutral-500 dark:text-neutral-300"
+                  )}>
+                    {item.icon}
+                  </div>
                 </a>
               </motion.div>
             ))}
@@ -92,9 +108,11 @@ const FloatingDockMobile = ({
 const FloatingDockDesktop = ({
   items,
   className,
+  activeItem,
 }: {
   items: { title: string; icon: React.ReactNode; href: string; onClick?: () => void }[];
   className?: string;
+  activeItem?: string;
 }) => {
   let mouseX = useMotionValue(Infinity);
   return (
@@ -107,7 +125,12 @@ const FloatingDockDesktop = ({
       )}
     >
       {items.map((item) => (
-        <IconContainer mouseX={mouseX} key={item.title} {...item} />
+        <IconContainer 
+          mouseX={mouseX} 
+          key={item.title} 
+          {...item} 
+          isActive={activeItem === item.href}
+        />
       ))}
     </motion.div>
   );
@@ -119,12 +142,14 @@ function IconContainer({
   icon,
   href,
   onClick,
+  isActive,
 }: {
   mouseX: MotionValue;
   title: string;
   icon: React.ReactNode;
   href: string;
   onClick?: () => void;
+  isActive?: boolean;
 }) {
   let ref = useRef<HTMLDivElement>(null);
 
@@ -182,7 +207,12 @@ function IconContainer({
         style={{ width, height }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="relative flex aspect-square items-center justify-center rounded-full bg-gray-200 dark:bg-neutral-800"
+        className={cn(
+          "relative flex aspect-square items-center justify-center rounded-full",
+          isActive 
+            ? "bg-gradient-to-r from-orange-500 to-red-600 shadow-lg shadow-orange-500/25" 
+            : "bg-gray-200 dark:bg-neutral-800"
+        )}
       >
         <AnimatePresence>
           {hovered && (
@@ -198,7 +228,10 @@ function IconContainer({
         </AnimatePresence>
         <motion.div
           style={{ width: widthIcon, height: heightIcon }}
-          className="flex items-center justify-center"
+          className={cn(
+            "flex items-center justify-center",
+            isActive ? "text-white" : "text-neutral-500 dark:text-neutral-300"
+          )}
         >
           {icon}
         </motion.div>

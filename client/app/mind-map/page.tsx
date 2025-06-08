@@ -231,6 +231,7 @@ export default function MindMap() {
           <FloatingDock
             mobileClassName="translate-y-20"
             items={dockLinks}
+            activeItem="/mind-map"
           />
         </div>
 
