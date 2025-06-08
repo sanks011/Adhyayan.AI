@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { MindMapSidebar } from "@/components/custom/MindMapSidebar";
+import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
 import { cn } from "@/lib/utils";
 import Head from 'next/head';
 import { 
@@ -282,8 +283,7 @@ function MindMapContent() {
   // Track expanded topics in the mind map
   const [expandedTopics, setExpandedTopics] = useState<string[]>(['central']);
     // Track selected/focused node
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  // Track podcast generation state
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);  // Track podcast generation state
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
   const [generatedPodcastUrl, setGeneratedPodcastUrl] = useState<string | null>(null);
   
@@ -291,12 +291,17 @@ function MindMapContent() {
   const [sidebarWidth, setSidebarWidth] = useState(480);
   const [isResizing, setIsResizing] = useState(false);
   
+  // Track chat messages for AI interaction
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  
   // React Flow instance ref for controlling view
   const { getNodes, setCenter, getZoom } = useReactFlow();
-    // Reset podcast state when switching between nodes
+  // Reset podcast state when switching between nodes
   useEffect(() => {
     setIsGeneratingPodcast(false);
     setGeneratedPodcastUrl(null);
+    setChatMessages([]); // Reset chat when switching nodes
   }, [selectedNode]);
 
   // Handle sidebar resizing
@@ -473,7 +478,6 @@ function MindMapContent() {
       });
     });
   }, [topicsReadStatus]);
-
   // Function to generate podcast for selected topic
   const handleGeneratePodcast = useCallback(async () => {
     if (!selectedNode) return;
@@ -501,6 +505,125 @@ function MindMapContent() {
       setIsGeneratingPodcast(false);
     }
   }, [selectedNode]);
+
+  // Function to get topic-specific placeholders for AI chat
+  const getTopicPlaceholders = useCallback((nodeId: string | null) => {
+    if (!nodeId) return [];
+    
+    // TODO: Replace with API call to get topic-specific questions
+    const topicQuestions: Record<string, string[]> = {
+      'photosynthesis': [
+        "What is the chemical equation for photosynthesis?",
+        "How does light affect the rate of photosynthesis?",
+        "What are the two main stages of photosynthesis?",
+        "Why is photosynthesis important for life on Earth?",
+        "What factors can limit photosynthesis?"
+      ],
+      'light-dependent': [
+        "Where do light-dependent reactions occur?",
+        "What is the role of chlorophyll in light reactions?",
+        "How is ATP produced in light-dependent reactions?",
+        "What happens to water molecules during light reactions?",
+        "What is photolysis?"
+      ],
+      'light-independent': [
+        "What is the Calvin Cycle?",
+        "Where do light-independent reactions take place?",
+        "How is CO2 fixed in the Calvin Cycle?",
+        "What is RuBisCO and what does it do?",
+        "How many CO2 molecules are needed to make glucose?"
+      ],
+      'factors-affecting': [
+        "How does temperature affect photosynthesis?",
+        "What is the optimal light intensity for photosynthesis?",
+        "How does CO2 concentration impact photosynthesis?",
+        "What is a limiting factor in photosynthesis?",
+        "How do plants adapt to low light conditions?"
+      ],
+      'central': [
+        "What is photosynthesis in simple terms?",
+        "Why do plants need sunlight to grow?",
+        "How do plants make their own food?",
+        "What gas do plants take in during photosynthesis?",
+        "What do plants release as a byproduct?"
+      ]
+    };
+    
+    return topicQuestions[nodeId] || [
+      "Tell me more about this topic",
+      "What are the key concepts here?",
+      "How does this relate to photosynthesis?",
+      "Can you explain this in simple terms?",
+      "What should I focus on learning?"
+    ];
+  }, []);
+  // Function to handle AI chat submission
+  const handleChatSubmit = useCallback(async (userMessage: string) => {
+    if (!userMessage.trim() || !selectedNode) return;
+    
+    setIsAiTyping(true);
+    
+    try {
+      // TODO: Replace with actual API call to your AI backend
+      // const response = await fetch('/api/chat', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ 
+      //     message: userMessage, 
+      //     topic: selectedNode,
+      //     chatHistory: chatMessages 
+      //   })
+      // });
+      // const data = await response.json();
+      
+      // Simulate AI response for now
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const aiResponses: Record<string, string[]> = {
+        'photosynthesis': [
+          "Photosynthesis is the process by which plants convert light energy into chemical energy (glucose) using carbon dioxide and water.",
+          "This process is fundamental to life on Earth as it produces oxygen and forms the base of most food chains.",
+          "The process involves two main stages: light-dependent reactions and light-independent reactions (Calvin Cycle)."
+        ],
+        'light-dependent': [
+          "Light-dependent reactions occur in the thylakoid membranes of chloroplasts where chlorophyll absorbs light energy.",
+          "These reactions produce ATP and NADPH, which are energy carriers used in the Calvin Cycle.",
+          "Water molecules are split (photolysis) to replace electrons lost by chlorophyll, releasing oxygen as a byproduct."
+        ],
+        'light-independent': [
+          "The Calvin Cycle takes place in the stroma of chloroplasts and doesn't directly require light.",
+          "CO2 is fixed by the enzyme RuBisCO and through a series of reactions, glucose is produced.",
+          "This cycle requires the ATP and NADPH produced during light-dependent reactions."
+        ]
+      };
+      
+      const responses = aiResponses[selectedNode] || [
+        "That's an interesting question about this topic! Let me help you understand it better.",
+        "This concept is important for understanding how photosynthesis works.",
+        "I'd be happy to explain more about this aspect of the topic."
+      ];
+      
+      const aiMsgId = (Date.now() + 1).toString();
+      setChatMessages(prev => [...prev, {
+        id: aiMsgId,
+        type: 'ai',
+        content: responses[Math.floor(Math.random() * responses.length)],
+        timestamp: new Date()
+      }]);
+      
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorMsgId = (Date.now() + 1).toString();
+      setChatMessages(prev => [...prev, {
+        id: errorMsgId,
+        type: 'ai',
+        content: "I'm sorry, I'm having trouble responding right now. Please try again.",
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsAiTyping(false);
+    }
+  }, [selectedNode, chatMessages]);
   // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];
@@ -831,11 +954,10 @@ function MindMapContent() {
                   </audio>
                 </div>
               )}
-            </div>
-            
-            {/* Content area - this will be populated by API call later */}
-            <div className="flex-1 p-6 overflow-y-auto">
-              <div className="text-neutral-300 leading-relaxed">
+            </div>              {/* Content area - this will be populated by API call later */}
+            <div className="flex-1 p-6 overflow-y-auto flex flex-col">
+              {/* Topic Content Section */}
+              <div className="text-neutral-300 leading-relaxed space-y-4">
                 <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
                   <div className="animate-pulse">
                     <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
@@ -846,6 +968,49 @@ function MindMapContent() {
                     Detailed content for this topic will be loaded here from the backend...
                   </p>
                 </div>
+
+                {/* AI Responses - shown inline with content */}
+                {chatMessages.map((message) => (
+                  message.type === 'ai' && (
+                    <div key={message.id} className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+                      <p className="text-neutral-200">{message.content}</p>
+                      <span className="text-xs text-neutral-400 mt-2 block">
+                        {message.timestamp.toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )
+                ))}
+
+                {/* AI Typing Indicator */}
+                {isAiTyping && (
+                  <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span className="text-xs text-neutral-400">AI is generating response...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Input at bottom */}
+              <div className="mt-6">
+                <PlaceholdersAndVanishInput
+                  placeholders={getTopicPlaceholders(selectedNode)}
+                  onChange={() => {}} // No need to handle onChange for this use case
+                  onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const message = formData.get('input') as string;
+                    if (message?.trim()) {
+                      handleChatSubmit(message);
+                      e.currentTarget.reset();
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>
