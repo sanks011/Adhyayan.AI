@@ -1,20 +1,117 @@
 "use client";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
+import { WavyBackground } from "@/components/ui/wavy-background";
+import { Textarea, Input, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
 import {
   IconHome,
   IconUsers,
   IconBrain,
   IconSettings,
   IconLogout,
-  IconMap
+  IconMap,
+  IconMicrophone,
+  IconMicrophoneOff,
+  IconPlus
 } from "@tabler/icons-react";
+
+// Extend Window interface for Speech Recognition
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+  }
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: (event: any) => void;
+  onerror: (event: any) => void;
+  onend: () => void;
+}
 
 export default function MindMap() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  
+  // Form states
+  const [subjectName, setSubjectName] = useState("");
+  const [syllabus, setSyllabus] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  
+  // Voice recognition setup
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+      const speechRecognition = new (window as any).webkitSpeechRecognition();
+      speechRecognition.continuous = true;
+      speechRecognition.interimResults = true;
+      speechRecognition.lang = 'en-US';
+      
+      speechRecognition.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          setSyllabus(prev => prev + ' ' + finalTranscript);
+        }
+      };
+      
+      speechRecognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+      
+      speechRecognition.onend = () => {
+        setIsListening(false);
+      };
+      
+      setRecognition(speechRecognition);
+    }
+  }, []);
+  
+  const toggleVoiceInput = () => {
+    if (!recognition) {
+      alert('Speech recognition is not supported in your browser');
+      return;
+    }
+    
+    if (isListening) {
+      recognition.stop();
+      setIsListening(false);
+    } else {
+      recognition.start();
+      setIsListening(true);
+    }
+  };
+  
+  const handleCreateMindMap = () => {
+    if (!subjectName.trim()) {
+      alert('Please enter a subject name');
+      return;
+    }
+    
+    // Here you would typically send the data to your backend
+    console.log('Creating mind map:', { subjectName, syllabus });
+    
+    // Reset form and close modal
+    setSubjectName("");
+    setSyllabus("");
+    onOpenChange();
+    
+    // Show success message or navigate to the created mind map
+    alert('Mind map created successfully!');
+  };
 
   const handleSignOut = async () => {
     try {
@@ -37,7 +134,6 @@ export default function MindMap() {
     router.push('/');
     return null;
   }
-
   const dockLinks = [
     {
       title: "Home",
@@ -85,70 +181,29 @@ export default function MindMap() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white relative">
-      {/* Main Content */}
-      <main className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+    <div className="min-h-screen relative">
+      <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
         {/* Page Header */}
         <div className="text-center mb-16 z-10">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent mb-4">
-            AI Mind Map Studio 🧠
+          <h1 className="text-4xl font-bold text-white mb-4">
+            Mind Map Studio
           </h1>
-          <p className="text-gray-400 text-lg">
-            Create interactive mind maps powered by AI to visualize your knowledge
+          <p className="text-neutral-200 text-lg">
+            Create and manage your knowledge maps
           </p>
         </div>
 
-        {/* Mind Map Canvas */}
-        <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 max-w-4xl w-full h-96 mb-16 z-10 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-6xl mb-4">🗺️</div>
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">Mind Map Canvas</h3>
-            <p className="text-gray-500 mb-4">Start creating your interactive mind map</p>
-            <div className="space-x-4">
-              <button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300 transform hover:scale-105">
-                New Map
-              </button>
-              <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300">
-                Import Map
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Mind Maps */}
-        <div className="max-w-4xl w-full z-10">
-          <h2 className="text-2xl font-bold text-gray-300 mb-6">Recent Mind Maps</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6 hover:scale-105 transition-transform duration-300 cursor-pointer">
-              <h3 className="text-lg font-semibold text-purple-300 mb-2">Machine Learning Concepts</h3>
-              <p className="text-gray-400 text-sm mb-4">Last edited 2 hours ago</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">AI Enhanced</span>
-                <span className="text-xs text-gray-500">23 nodes</span>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-600/20 to-cyan-600/20 backdrop-blur-sm border border-blue-500/20 rounded-xl p-6 hover:scale-105 transition-transform duration-300 cursor-pointer">
-              <h3 className="text-lg font-semibold text-blue-300 mb-2">React Ecosystem</h3>
-              <p className="text-gray-400 text-sm mb-4">Last edited yesterday</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">Collaborative</span>
-                <span className="text-xs text-gray-500">47 nodes</span>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/20 rounded-xl p-6 hover:scale-105 transition-transform duration-300 cursor-pointer">
-              <h3 className="text-lg font-semibold text-green-300 mb-2">Study Plan</h3>
-              <p className="text-gray-400 text-sm mb-4">Last edited 3 days ago</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">Personal</span>
-                <span className="text-xs text-gray-500">15 nodes</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Floating Dock */}
+        {/* Main Action */}
+        <div className="text-center mb-16 z-10">
+          <Button 
+            size="lg"
+            className="bg-white text-black hover:bg-neutral-200 font-medium px-8 py-3"
+            onPress={onOpen}
+            startContent={<IconPlus className="w-5 h-5" />}
+          >
+            Create New Mind Map
+          </Button>
+        </div>        {/* Floating Dock */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
           <FloatingDock
             mobileClassName="translate-y-20"
@@ -156,12 +211,116 @@ export default function MindMap() {
           />
         </div>
 
-        {/* Background decorative elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl"></div>
-        </div>
-      </main>
+        {/* Create Mind Map Modal */}
+        <Modal 
+          isOpen={isOpen} 
+          onOpenChange={onOpenChange}
+          placement="center"
+          backdrop="blur"
+          size="2xl"
+          classNames={{
+            base: "bg-neutral-900 border border-neutral-700",
+            header: "border-b border-neutral-700",
+            body: "py-6",
+            footer: "border-t border-neutral-700"
+          }}
+        >
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  <h2 className="text-2xl font-bold text-white">
+                    Create New Mind Map
+                  </h2>
+                  <p className="text-neutral-400 text-sm font-normal">
+                    Enter your subject details to generate a mind map
+                  </p>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="space-y-6">
+                    {/* Subject Name Input */}
+                    <div>
+                      <Input
+                        label="Subject Name"
+                        labelPlacement="outside"
+                        placeholder="Enter your subject name"
+                        value={subjectName}
+                        onValueChange={setSubjectName}
+                        variant="bordered"
+                        classNames={{
+                          input: "text-white",
+                          label: "text-neutral-300 font-medium",
+                          inputWrapper: "border-neutral-600 hover:border-neutral-500 focus-within:border-white"
+                        }}
+                        required
+                      />
+                    </div>
+
+                    {/* Syllabus Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-neutral-300 font-medium text-sm">
+                          Syllabus (Optional)
+                        </label>
+                        <Button
+                          size="sm"
+                          variant={isListening ? "solid" : "bordered"}
+                          color={isListening ? "danger" : "default"}
+                          onPress={toggleVoiceInput}
+                          startContent={
+                            isListening ? (
+                              <IconMicrophoneOff className="w-4 h-4" />
+                            ) : (
+                              <IconMicrophone className="w-4 h-4" />
+                            )
+                          }
+                          className={isListening ? "animate-pulse" : ""}
+                        >
+                          {isListening ? "Stop" : "Voice"}
+                        </Button>
+                      </div>
+                      <Textarea
+                        placeholder="Enter your syllabus content or use voice input..."
+                        value={syllabus}
+                        onValueChange={setSyllabus}
+                        variant="bordered"
+                        minRows={6}
+                        maxRows={10}
+                        classNames={{
+                          input: "text-white",
+                          inputWrapper: "border-neutral-600 hover:border-neutral-500 focus-within:border-white"
+                        }}
+                      />
+                      {isListening && (
+                        <p className="text-sm text-neutral-400 mt-2 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                          Listening... Speak now to add content
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button 
+                    color="default" 
+                    variant="light" 
+                    onPress={onClose}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    className="bg-white text-black hover:bg-neutral-200 font-medium"
+                    onPress={handleCreateMindMap}
+                    isDisabled={!subjectName.trim()}
+                  >
+                    Create Mind Map
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+      </WavyBackground>
     </div>
   );
 }

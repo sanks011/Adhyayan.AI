@@ -3,6 +3,32 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Force dark mode globally */
+* {
+  color-scheme: dark;
+}
+
+html {
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+
+body {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+/* Override any potential light mode styles */
+html:not(.dark) {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+html:not(.dark) body {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -223,4 +249,65 @@
   font-optical-sizing: auto;
   font-weight: 900;
   font-style: normal;
+}
+
+/* Force dark mode globally to prevent light mode flashing */
+* {
+  color-scheme: dark;
+}
+
+html {
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+
+body {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+/* Override any potential light mode styles */
+html:not(.dark) {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+html:not(.dark) body {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+/* Ensure all text remains white in dark mode */
+.dark, .dark * {
+  color: white;
+}
+
+/* Override any component that might try to use light colors */
+:root {
+  color-scheme: dark;
+}
+
+/* Override system preferences - force dark mode regardless of user's system setting */
+@media (prefers-color-scheme: light) {
+  html {
+    background-color: #0a0a0a !important;
+    color: #ffffff !important;
+  }
+  
+  body {
+    background-color: #0a0a0a !important;
+    color: #ffffff !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    background-color: #0a0a0a !important;
+    color: #ffffff !important;
+  }
+  
+  body {
+    background-color: #0a0a0a !important;
+    color: #ffffff !important;
+  }
 }

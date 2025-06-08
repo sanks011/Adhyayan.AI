@@ -11,41 +11,26 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
-    // Check if user has a preferred theme stored
-    const storedTheme = localStorage.getItem("theme");
-    const userPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
-    if (storedTheme === "dark" || (!storedTheme && userPrefersDark)) {
-      setTheme("dark");
-      document.documentElement.classList.add("dark");
-    } else {
-      setTheme("light");
-      document.documentElement.classList.remove("dark");
-    }
+    // Always set to dark mode and ensure it stays dark
+    setTheme("dark");
+    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("light");
+    localStorage.setItem("theme", "dark");
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+  // Remove toggle functionality - just keep the visual component
+  const handleClick = () => {
+    // Do nothing - disabled toggle functionality
   };
-
   return (
     <div className={className}>
-      <StyledWrapper>
-        <label className="switch">
+      <StyledWrapper>        <label className="switch" style={{ opacity: 0.7, cursor: 'not-allowed' }}>
           <input 
             checked={theme === "dark"} 
-            onChange={toggleTheme}
+            onChange={handleClick}
             id="checkbox" 
-            type="checkbox" 
+            type="checkbox"
+            disabled
           />
           <span className="slider">
             <div className="star star_1" />

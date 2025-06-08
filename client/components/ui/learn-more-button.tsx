@@ -106,19 +106,9 @@ const StyledWrapper = styled.div`
       transform: translateX(30%);
     }
   }
-
-  /* Dark mode support */
-  @media (prefers-color-scheme: dark) {
-    .btn {
-      color: white;
-    }
-  }
-
-  /* Light mode support */
-  @media (prefers-color-scheme: light) {
-    .btn {
-      color: black;
-    }
+  /* Force dark mode styles */
+  .btn {
+    color: white;
   }
 `;
 

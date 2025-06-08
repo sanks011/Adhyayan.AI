@@ -249,19 +249,25 @@ export default function Settings() {
                 <div className="space-y-6">
                   <h2 className="text-2xl font-bold text-gray-200 mb-6">Appearance</h2>
                   
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
+                  <div className="space-y-4">                    <div className="p-4 bg-gray-800/30 rounded-lg">
                       <h3 className="text-white font-medium mb-4">Theme</h3>
                       <div className="grid grid-cols-3 gap-4">
                         {['Dark', 'Light', 'Auto'].map((theme) => (
-                          <label key={theme} className="cursor-pointer">
-                            <input type="radio" name="theme" className="sr-only peer" defaultChecked={theme === 'Dark'} />
-                            <div className="p-4 bg-gray-700 peer-checked:bg-orange-500/20 peer-checked:border-orange-500 border border-gray-600 rounded-lg text-center transition-colors">
+                          <label key={theme} className={`${theme !== 'Dark' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                            <input 
+                              type="radio" 
+                              name="theme" 
+                              className="sr-only peer" 
+                              defaultChecked={theme === 'Dark'} 
+                              disabled={theme !== 'Dark'}
+                            />
+                            <div className={`p-4 bg-gray-700 ${theme === 'Dark' ? 'bg-orange-500/20 border-orange-500' : 'border-gray-600'} border rounded-lg text-center transition-colors`}>
                               <span className="text-white font-medium">{theme}</span>
                             </div>
                           </label>
                         ))}
                       </div>
+                      <p className="text-gray-400 text-sm mt-2">Currently locked to Dark mode for optimal experience</p>
                     </div>
 
                     <div className="p-4 bg-gray-800/30 rounded-lg">

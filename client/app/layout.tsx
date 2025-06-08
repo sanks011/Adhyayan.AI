@@ -21,9 +21,40 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
+    <html lang="en" className="dark">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Force dark mode and prevent any theme changes
+              (function() {
+                document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
+                localStorage.setItem('theme', 'dark');
+                
+                // Watch for class changes and enforce dark mode
+                const observer = new MutationObserver(function(mutations) {
+                  mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                      if (!document.documentElement.classList.contains('dark')) {
+                        document.documentElement.classList.add('dark');
+                        document.documentElement.classList.remove('light');
+                      }
+                    }
+                  });
+                });
+                
+                observer.observe(document.documentElement, {
+                  attributes: true,
+                  attributeFilter: ['class']
+                });
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
-        className={`${outfitFont.variable} antialiased bg-white text-black dark:bg-neutral-950 dark:text-white`}
+        className={`${outfitFont.variable} antialiased bg-neutral-950 text-white`}
       >
         <AuthProvider>
           {children}
