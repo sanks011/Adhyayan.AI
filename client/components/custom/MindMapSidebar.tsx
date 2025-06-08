@@ -50,75 +50,114 @@ export const MindMapSidebar: React.FC<MindMapSidebarProps> = ({
     );
   };
 
+  // Calculate progress percentage
+  const calculateProgress = () => {
+    let totalItems = 0;
+    let completedItems = 0;
+
+    mindMapData.forEach(topic => {
+      if (topic.subtopics.length === 0) {
+        // Topic without subtopics
+        totalItems += 1;
+        if (topic.isRead) completedItems += 1;
+      } else {
+        // Topic with subtopics - count subtopics
+        totalItems += topic.subtopics.length;
+        completedItems += topic.subtopics.filter(sub => sub.isRead).length;
+      }
+    });
+
+    return totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+  };
+
+  const progressPercentage = calculateProgress();
   return (
     <div
       className={cn(
-        "rounded-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 max-w-7xl mx-auto border border-neutral-200 dark:border-neutral-700 overflow-hidden",
+        "flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 overflow-hidden",
         "h-screen",
         className
-      )}
-    >
-      <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}            <div className="mt-8 flex flex-col gap-2">
-              {mindMapData.map((topic, idx) => (
-                <div key={topic.id}>                  {/* Topic with expand/collapse functionality */}
-                  <SidebarLink
-                    link={{
-                      label: topic.title,
-                      href: "#",
-                      icon: topic.subtopics.length > 0 ? (
-                        expandedTopics.includes(topic.id) ? (
-                          <IconChevronDown className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-                        ) : (
-                          <IconChevronRight className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-                        )
-                      ) : null,
-                    }}
-                    onClick={() => {
-                      if (topic.subtopics.length > 0) {
-                        toggleTopic(topic.id);
-                      }
-                      onTopicSelect?.(topic.id);
-                    }}
-                    className="font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
-                  />
-                  
-                  {/* Subtopics - only show when expanded and sidebar is open */}
-                  {open && expandedTopics.includes(topic.id) && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="ml-6 border-l-2 border-neutral-200 dark:border-neutral-700 pl-4 space-y-1 mt-2"
-                    >
-                      {topic.subtopics.map((subtopic) => (
-                        <div key={subtopic.id} className="relative">
-                          {/* Connection line to parent */}
-                          <div className="absolute -left-4 top-3 w-3 h-px bg-neutral-200 dark:bg-neutral-700"></div>
-                          <SidebarLink
-                            link={{
-                              label: subtopic.title,
-                              href: "#",
-                              icon: subtopic.isRead ? (
-                                <IconCheck className="text-green-500 h-4 w-4 flex-shrink-0" />
-                              ) : (
-                                <IconCircle className="text-neutral-700 dark:text-neutral-200 h-4 w-4 flex-shrink-0" />
-                              ),
-                            }}
-                            className="text-sm py-2 pl-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors duration-200"
-                            onClick={() => onSubtopicSelect?.(topic.id, subtopic.id)}
-                          />
-                        </div>
-                      ))}
-                    </motion.div>
-                  )}
+      )}    >      <Sidebar open={open} setOpen={setOpen}>
+        <div className="flex flex-col h-full">
+          {/* Main sidebar content - scrollable */}
+          <SidebarBody className="flex-1 overflow-hidden">
+            <div className="flex flex-col h-full">
+              {/* Logo section */}
+              <div className="flex-shrink-0">
+                {open ? <Logo /> : <LogoIcon />}
+              </div>
+              
+              {/* Scrollable topics section */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden mt-8">
+                <div className="flex flex-col gap-2 pb-4">
+                  {mindMapData.map((topic, idx) => (
+                    <div key={topic.id}>
+                      {/* Topic with expand/collapse functionality */}
+                      <SidebarLink
+                        link={{
+                          label: topic.title,
+                          href: "#",
+                          icon: topic.subtopics.length > 0 ? (
+                            expandedTopics.includes(topic.id) ? (
+                              <IconChevronDown className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+                            ) : (
+                              <IconChevronRight className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+                            )
+                          ) : null,
+                        }}
+                        onClick={() => {
+                          if (topic.subtopics.length > 0) {
+                            toggleTopic(topic.id);
+                          }
+                          onTopicSelect?.(topic.id);
+                        }}
+                        className="font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
+                        sidebarOpen={open}
+                      />
+                      
+                      {/* Subtopics - only show when expanded and sidebar is open */}
+                      {open && expandedTopics.includes(topic.id) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="ml-6 border-l-2 border-neutral-200 dark:border-neutral-700 pl-4 space-y-1 mt-2"
+                        >
+                          {topic.subtopics.map((subtopic) => (
+                            <div key={subtopic.id} className="relative">
+                              {/* Connection line to parent */}
+                              <div className="absolute -left-4 top-3 w-3 h-px bg-neutral-200 dark:border-neutral-700"></div>
+                              <SidebarLink
+                                link={{
+                                  label: subtopic.title,
+                                  href: "#",
+                                  icon: subtopic.isRead ? (
+                                    <IconCheck className="text-green-500 h-4 w-4 flex-shrink-0" />
+                                  ) : (
+                                    <IconCircle className="text-neutral-700 dark:text-neutral-200 h-4 w-4 flex-shrink-0" />
+                                  ),
+                                }}
+                                className="text-sm py-2 pl-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors duration-200"
+                                onClick={() => onSubtopicSelect?.(topic.id, subtopic.id)}
+                                sidebarOpen={open}
+                              />
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}            </div>
+              </div>
+            </div>
+          </SidebarBody>
+          
+          {/* Progress Circle at Bottom - Fixed at absolute bottom */}
+          <div className="flex-shrink-0 p-4 border-t border-neutral-200 dark:border-neutral-700">
+            <ProgressCircle percentage={progressPercentage} open={open} />
           </div>
-        </SidebarBody>
+        </div>
       </Sidebar>
       <MindMapContent />
     </div>
@@ -157,22 +196,78 @@ export const LogoIcon = () => {
 const MindMapContent = () => {
   return (
     <div className="flex flex-1">
-      <div className="p-2 md:p-10 rounded-tl-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full h-full">
-        <div className="flex gap-2">
-          {[...new Array(4)].map((i) => (
-            <div
-              key={"first-array" + i}
-              className="h-20 w-full rounded-lg bg-gray-100 dark:bg-neutral-800 animate-pulse"
-            ></div>
-          ))}
+      <div className="flex h-full w-full flex-1 flex-col rounded-tl-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
+        {/* Header */}
+        <div className="p-6 border-b border-neutral-200 dark:border-neutral-700">
+          <h1 className="text-2xl font-bold text-black dark:text-white">Photosynthesis Mind Map</h1>
+          <p className="text-neutral-600 dark:text-neutral-400 mt-1">Interactive learning visualization</p>
         </div>
-        <div className="flex gap-2 flex-1">
-          {[...new Array(2)].map((i) => (
-            <div
-              key={"second-array" + i}
-              className="h-full w-full rounded-lg bg-gray-100 dark:bg-neutral-800 animate-pulse"
-            ></div>
-          ))}
+        
+        {/* Main Mind Map Visualization Area */}
+        <div className="flex-1 p-6 overflow-hidden">
+          <div className="h-full bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 relative overflow-hidden">
+            {/* Central Node */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <div className="bg-blue-600 text-white px-8 py-6 rounded-xl shadow-2xl border border-blue-500 cursor-pointer hover:bg-blue-700 transition-colors">
+                <h3 className="text-2xl font-bold text-center">Photosynthesis</h3>
+                <p className="text-blue-100 text-center mt-2 font-mono text-sm">6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂</p>
+              </div>
+            </div>
+            
+            {/* Topic Nodes */}
+            <div className="absolute top-24 left-24">
+              <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl border border-green-500 cursor-pointer hover:bg-green-700 transition-colors">
+                <h4 className="font-semibold">Light Reactions</h4>
+                <p className="text-green-100 text-sm">Thylakoid membranes</p>
+              </div>
+            </div>
+            
+            <div className="absolute top-24 right-24">
+              <div className="bg-purple-600 text-white px-6 py-4 rounded-lg shadow-xl border border-purple-500 cursor-pointer hover:bg-purple-700 transition-colors">
+                <h4 className="font-semibold">Calvin Cycle</h4>
+                <p className="text-purple-100 text-sm">Stroma reactions</p>
+              </div>
+            </div>
+            
+            <div className="absolute bottom-24 left-24">
+              <div className="bg-orange-600 text-white px-6 py-4 rounded-lg shadow-xl border border-orange-500 cursor-pointer hover:bg-orange-700 transition-colors">
+                <h4 className="font-semibold">Chloroplast Structure</h4>
+                <p className="text-orange-100 text-sm">Organelle anatomy</p>
+              </div>
+            </div>
+            
+            <div className="absolute bottom-24 right-24">
+              <div className="bg-red-600 text-white px-6 py-4 rounded-lg shadow-xl border border-red-500 cursor-pointer hover:bg-red-700 transition-colors">
+                <h4 className="font-semibold">Limiting Factors</h4>
+                <p className="text-red-100 text-sm">Environmental controls</p>
+              </div>
+            </div>
+            
+            {/* Connection Lines */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+                </marker>
+              </defs>
+              <line x1="50%" y1="50%" x2="25%" y2="25%" stroke="#6b7280" strokeWidth="2" 
+                strokeDasharray="8,4" markerEnd="url(#arrowhead)" />
+              <line x1="50%" y1="50%" x2="75%" y2="25%" stroke="#6b7280" strokeWidth="2" 
+                strokeDasharray="8,4" markerEnd="url(#arrowhead)" />
+              <line x1="50%" y1="50%" x2="25%" y2="75%" stroke="#6b7280" strokeWidth="2" 
+                strokeDasharray="8,4" markerEnd="url(#arrowhead)" />
+              <line x1="50%" y1="50%" x2="75%" y2="75%" stroke="#6b7280" strokeWidth="2" 
+                strokeDasharray="8,4" markerEnd="url(#arrowhead)" />
+            </svg>
+            
+            {/* Instructions */}
+            <div className="absolute bottom-6 left-6">
+              <div className="bg-neutral-700 text-neutral-300 px-4 py-2 rounded-lg text-sm">
+                💡 Click on nodes to explore • Use sidebar to navigate topics
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -294,6 +389,7 @@ export const SidebarLink = ({
   link,
   className,
   onClick,
+  sidebarOpen = true,
   ...props
 }: {
   link: {
@@ -303,6 +399,7 @@ export const SidebarLink = ({
   };
   className?: string;
   onClick?: () => void;
+  sidebarOpen?: boolean;
   props?: any;
 }) => {
   return (
@@ -317,12 +414,87 @@ export const SidebarLink = ({
       {link.icon}
       <motion.span
         animate={{
-          display: "inline-block",
+          display: sidebarOpen ? "inline-block" : "none",
+          opacity: sidebarOpen ? 1 : 0,
         }}
+        transition={{ duration: 0.1 }}
         className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
       >
         {link.label}
       </motion.span>
     </button>
+  );
+};
+
+// Progress Circle Component
+const ProgressCircle = ({ percentage, open }: { percentage: number; open: boolean }) => {
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDasharray = circumference;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  return (
+    <div className={cn(
+      "flex items-center transition-all duration-300",
+      open ? "justify-start" : "justify-center"
+    )}>
+      {/* Progress Circle */}
+      <div className="relative flex items-center justify-center flex-shrink-0">
+        <svg
+          className="transform -rotate-90"
+          width="48"
+          height="48"
+          viewBox="0 0 48 48"
+        >
+          {/* Background circle */}
+          <circle
+            cx="24"
+            cy="24"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth="3"
+            fill="transparent"
+            className="text-neutral-300 dark:text-neutral-600"
+          />
+          {/* Progress circle */}
+          <circle
+            cx="24"
+            cy="24"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth="3"
+            fill="transparent"
+            strokeDasharray={strokeDasharray}
+            strokeDashoffset={strokeDashoffset}
+            className="text-blue-500 transition-all duration-300 ease-in-out"
+            strokeLinecap="round"
+          />
+        </svg>
+        {/* Percentage text - always visible */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">
+            {percentage}%
+          </span>
+        </div>
+      </div>
+      
+      {/* Progress details - only show when sidebar is open */}
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, width: 0 }}
+          animate={{ opacity: 1, width: "auto" }}
+          exit={{ opacity: 0, width: 0 }}
+          transition={{ duration: 0.2 }}
+          className="ml-3 overflow-hidden"
+        >
+          <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 whitespace-nowrap">
+            Learning Progress
+          </div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
+            {Math.round((percentage / 100) * 11)} of 11 topics
+          </div>
+        </motion.div>
+      )}
+    </div>
   );
 };
