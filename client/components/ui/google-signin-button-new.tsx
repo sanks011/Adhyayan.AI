@@ -7,13 +7,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 
 const GoogleSignInButton = () => {
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const handleSignIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      // The auth context will handle the backend authentication automatically
+      await signInWithPopup(auth, googleProvider);
+      // User will be automatically redirected by the auth state change
     } catch (error) {
       console.error('Error signing in:', error);
     }
@@ -23,12 +23,11 @@ const GoogleSignInButton = () => {
     router.push('/dashboard');
   };
 
-  // Show loading state
   if (loading) {
     return (
       <StyledWrapper>
         <div className="button-container">
-          <button className="google-sign-in-btn" disabled>
+          <button className="google-sign-in-btn">
             <span className="text">Loading...</span>
           </button>
         </div>
@@ -41,9 +40,9 @@ const GoogleSignInButton = () => {
       <div className="button-container">
         <button 
           className="google-sign-in-btn"
-          onClick={isAuthenticated ? handleGetStarted : handleSignIn}
+          onClick={user ? handleGetStarted : handleSignIn}
         >
-          {isAuthenticated ? (
+          {user ? (
             <>
               <svg className="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M13 7L11 7L11 11L7 11L7 13L11 13L11 17L13 17L13 13L17 13L17 11L13 11L13 7Z" fill="currentColor"/>

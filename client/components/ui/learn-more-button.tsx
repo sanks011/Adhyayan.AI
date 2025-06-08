@@ -1,11 +1,28 @@
 "use client";
 import React from 'react';
 import styled from 'styled-components';
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 
 const LearnMoreButton = () => {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    } else {
+      // Scroll to features section or show more info
+      const featuresSection = document.getElementById('features');
+      if (featuresSection) {
+        featuresSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
+
   return (
     <StyledWrapper>
-      <button className="btn">
+      <button className="btn" onClick={handleClick}>
         Learn More
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" height="15px" width="15px" className="icon">
           <path strokeLinejoin="round" strokeLinecap="round" strokeMiterlimit={10} strokeWidth="1.5" stroke="currentColor" d="M8.91016 19.9201L15.4302 13.4001C16.2002 12.6301 16.2002 11.3701 15.4302 10.6001L8.91016 4.08008" />

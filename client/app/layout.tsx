@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
 
 const outfitFont = Outfit({
   variable: "--font-outfit",
@@ -24,7 +25,9 @@ export default function RootLayout({
       <body
         className={`${outfitFont.variable} antialiased bg-white text-black dark:bg-neutral-950 dark:text-white`}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
