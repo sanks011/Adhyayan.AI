@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { apiService } from './api';
@@ -41,14 +41,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
-
+  
+  // Use a ref to track if we've already processed the initial auth state
+  const hasProcessedInitialAuth = useRef(false);
   const login = async (idToken: string, userData: any) => {
     try {
       const response = await apiService.authenticateWithGoogle(idToken, userData);
       setUser(userData);
       setIsAuthenticated(true);
-      // Redirect to dashboard after successful login
-      router.push('/dashboard');
+      // Only redirect to dashboard if user is on the home page (fresh sign-in)
+      if (typeof window !== 'undefined' && window.location.pathname === '/') {
+        router.push('/dashboard');
+      }
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -88,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   };
-
   useEffect(() => {
     let isComponentMounted = true;
     
@@ -99,14 +102,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (storedUser && token) {
       setUser(storedUser);
       setIsAuthenticated(true);
+      hasProcessedInitialAuth.current = true;
     }
 
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isComponentMounted) return;
       
-      if (firebaseUser && !isAuthenticated) {
-        // User just signed in via Firebase, authenticate with backend
+      if (firebaseUser && !hasProcessedInitialAuth.current) {
+        // User just signed in via Firebase for the first time, authenticate with backend
         try {
           const idToken = await firebaseUser.getIdToken();
           const userData = {
@@ -114,19 +118,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-          };          // Call login function directly to avoid circular dependency
+          };
+          
+          // Call login function directly to avoid circular dependency
           const response = await apiService.authenticateWithGoogle(idToken, userData);
           setUser(userData);
           setIsAuthenticated(true);
-          // Redirect to dashboard after successful authentication
-          router.push('/dashboard');
+          hasProcessedInitialAuth.current = true;
+          
+          // Only redirect to dashboard if user is on the home page (fresh sign-in)
+          if (typeof window !== 'undefined' && window.location.pathname === '/') {
+            router.push('/dashboard');
+          }
         } catch (error) {
           console.error('Backend authentication failed:', error);
         }
-      } else if (!firebaseUser && isAuthenticated) {
+      } else if (!firebaseUser && hasProcessedInitialAuth.current) {
         // User signed out of Firebase, clean up our auth state
         setUser(null);
         setIsAuthenticated(false);
+        hasProcessedInitialAuth.current = false;
         // Clear local storage
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
