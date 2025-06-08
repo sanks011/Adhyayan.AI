@@ -20,20 +20,45 @@ class ApiService {
 
     return headers;
   }
-
   async post(endpoint: string, data: any) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
+    try {
+      console.log(`Making POST request to: ${API_BASE_URL}${endpoint}`);
+      console.log('Request data:', data);
+      console.log('Headers:', this.getHeaders());
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'API request failed');
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+
+      if (!response.ok) {
+        let error;
+        try {
+          error = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          throw new Error(`API request failed with status ${response.status}: ${responseText}`);
+        }
+        throw new Error(error.error || 'API request failed');
+      }
+
+      try {
+        return JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse success response:', parseError);
+        throw new Error(`Invalid JSON response: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('API POST Error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   async get(endpoint: string) {
@@ -77,7 +102,6 @@ class ApiService {
   isAuthenticated(): boolean {
     return this.getToken() !== null;
   }
-
   // Get stored user data
   getStoredUser() {
     if (typeof window !== 'undefined') {
@@ -85,6 +109,19 @@ class ApiService {
       return userData ? JSON.parse(userData) : null;
     }
     return null;
+  }
+
+  // Mind Map API methods
+  async generateMindMap(subjectName: string, syllabus: string) {
+    return this.post('/mindmap/generate', { subjectName, syllabus });
+  }
+
+  async getMindMaps() {
+    return this.get('/mindmap/list');
+  }
+
+  async getMindMap(id: string) {
+    return this.get(`/mindmap/${id}`);
   }
 }
 

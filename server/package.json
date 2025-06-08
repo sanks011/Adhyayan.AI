@@ -19,6 +19,7 @@
     "express": "^5.1.0",
     "firebase": "^11.9.0",
     "firebase-admin": "^13.4.0",
+    "groq-sdk": "^0.23.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.0"
   }

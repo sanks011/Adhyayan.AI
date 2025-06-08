@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
+import { apiService } from '@/lib/api';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { WavyBackground } from "@/components/ui/wavy-background";
 import { Textarea, Input, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
+import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 import {
   IconHome,
   IconUsers,
@@ -16,7 +18,9 @@ import {
   IconMicrophoneOff,
   IconPlus,
   IconUpload,
-  IconX,  IconFileText
+  IconX,
+  IconFileText,
+  IconSquareRoundedX
 } from "@tabler/icons-react";
 
 // Extend Window interface for Speech Recognition
@@ -44,9 +48,22 @@ export default function MindMap() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   // Form states
   const [subjectName, setSubjectName] = useState("");
-  const [syllabus, setSyllabus] = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [syllabus, setSyllabus] = useState("");  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  
+  // Loading states for mind map creation
+  const loadingStates = [
+    { text: "Analyzing subject content..." },
+    { text: "Processing syllabus structure..." },
+    { text: "Creating knowledge nodes..." },
+    { text: "Building connections..." },
+    { text: "Generating visual layout..." },
+    { text: "Optimizing mind map structure..." },
+    { text: "Finalizing your mind map..." },
+    { text: "Mind map created successfully!" }
+  ];
   
   // Voice recognition setup
   useEffect(() => {
@@ -116,27 +133,146 @@ export default function MindMap() {
       recognition.start();
       setIsListening(true);
     }
-  };
-    const handleCreateMindMap = () => {
+  };  const handleCreateMindMap = async () => {
     if (!subjectName.trim()) {
       alert('Please enter a subject name');
       return;
     }
     
-    // Here you would typically send the data to your backend
-    console.log('Creating mind map:', { 
+    // Close modal immediately and start the loading process
+    onOpenChange();
+    setIsCreating(true);
+    
+    console.log('Creating mind map with dummy data:', { 
       subjectName, 
       syllabus, 
       uploadedFile: uploadedFile?.name 
     });
-      // Reset form and close modal
-    setSubjectName("");
-    setSyllabus("");
-    setUploadedFile(null);
-    onOpenChange();
-    
-    // Show success message or navigate to the created mind map
-    alert('Mind map created successfully!');
+  };
+
+  const handleLoaderComplete = async () => {
+    try {
+      // Generate a random ID for the mind map
+      const mindMapId = `mindmap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create dummy mind map data and store in localStorage for demo purposes
+      const dummyMindMapData = generateDummyMindMap(subjectName, syllabus);
+      localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(dummyMindMapData));
+      
+      // Reset form and loading state
+      setSubjectName("");
+      setSyllabus("");
+      setUploadedFile(null);
+      setIsCreating(false);
+      
+      // Navigate to the generated mind map view
+      router.push(`/mind-map/view/${mindMapId}`);
+      
+    } catch (error) {
+      console.error('Error creating mind map:', error);
+      setIsCreating(false);
+      alert(`Failed to create mind map: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Generate dummy mind map data for UI/UX design purposes
+  const generateDummyMindMap = (subject: string, content: string) => {
+    const topics = content ? content.split('\n').filter(line => line.trim()) : [
+      'Introduction to ' + subject,
+      'Fundamentals',
+      'Core Concepts',
+      'Advanced Topics',
+      'Applications',
+      'Future Trends'
+    ];
+
+    const nodes = [
+      {
+        id: 'root',
+        label: subject,
+        type: 'root',
+        level: 0,
+        position: { x: 400, y: 300 },
+        content: `Welcome to ${subject}! This mind map will guide you through all the essential concepts and help you master this subject step by step.`,
+        children: []
+      }
+    ];
+
+    const edges = [];
+
+    // Generate child nodes
+    topics.slice(0, 6).forEach((topic, index) => {
+      const nodeId = `node_${index + 1}`;
+      nodes[0].children?.push(nodeId);
+      
+      nodes.push({
+        id: nodeId,
+        label: topic.trim() || `Topic ${index + 1}`,
+        type: 'topic',
+        level: 1,
+        position: { x: 200 + (index % 3) * 400, y: 150 + Math.floor(index / 3) * 300 },
+        content: `This section covers ${topic.trim() || `Topic ${index + 1}`}. Here you'll learn the key concepts, practical applications, and important details that will help you understand this topic thoroughly. 
+
+Key points to remember:
+• Understanding the fundamentals is crucial
+• Practice with real examples
+• Connect concepts to practical applications
+• Review regularly for better retention
+
+Take your time to explore this topic and use the interactive features to enhance your learning experience.`,
+        parent: 'root'
+      });
+
+      edges.push({
+        id: `edge_root_${nodeId}`,
+        source: 'root',
+        target: nodeId,
+        type: 'default'
+      });
+
+      // Add subtopics for some nodes
+      if (index < 3) {
+        const subtopics = ['Basics', 'Advanced', 'Practice'];
+        subtopics.forEach((subtopic, subIndex) => {
+          const subNodeId = `${nodeId}_sub_${subIndex}`;
+          nodes.push({
+            id: subNodeId,
+            label: `${subtopic}`,
+            type: 'subtopic',
+            level: 2,
+            position: { x: 100 + subIndex * 150, y: 400 + index * 100 },
+            content: `This is a subtopic focusing on ${subtopic} aspects of ${topic.trim() || `Topic ${index + 1}`}. 
+
+Detailed content about ${subtopic.toLowerCase()}:
+• In-depth explanation of concepts
+• Step-by-step learning approach
+• Practical exercises and examples
+• Assessment opportunities
+
+Use the quiz feature to test your understanding and the AI chat to ask specific questions about this subtopic.`,
+            parent: nodeId
+          });
+
+          edges.push({
+            id: `edge_${nodeId}_${subNodeId}`,
+            source: nodeId,
+            target: subNodeId,
+            type: 'default'
+          });
+        });
+      }
+    });
+
+    return {
+      id: `mindmap_${Date.now()}`,
+      title: subject,
+      subject: subject,
+      content: content,
+      nodes: nodes,
+      edges: edges,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
   };
 
   const handleSignOut = async () => {
@@ -233,13 +369,28 @@ export default function MindMap() {
             items={dockLinks}
             activeItem="/mind-map"
           />
-        </div>
-
-        {/* Background decorative elements */}
+        </div>        {/* Background decorative elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-red-500/10 rounded-full blur-3xl"></div>
-        </div>{/* Create Mind Map Modal */}
+        </div>        {/* Multi-step Loader */}
+        <MultiStepLoader 
+          loadingStates={loadingStates} 
+          loading={isCreating} 
+          duration={2000} 
+          loop={false} 
+          onComplete={handleLoaderComplete}
+        />
+        
+        {/* Close button for loader */}
+        {isCreating && (
+          <button
+            className="fixed top-4 right-4 text-white dark:text-white z-[120] hover:bg-gray-800/50 rounded-lg p-2 transition-all duration-200"
+            onClick={() => setIsCreating(false)}
+          >
+            <IconSquareRoundedX className="h-8 w-8" />
+          </button>
+        )}{/* Create Mind Map Modal */}
         <Modal 
           isOpen={isOpen} 
           onOpenChange={onOpenChange}
@@ -405,13 +556,13 @@ export default function MindMap() {
                     className="text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 px-6 py-2 font-medium"
                   >
                     Cancel
-                  </Button>
-                  <Button 
+                  </Button>                  <Button 
                     className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold px-8 py-2 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:from-gray-600 disabled:to-gray-700"
                     onPress={handleCreateMindMap}
-                    isDisabled={!subjectName.trim()}
+                    isDisabled={!subjectName.trim() || isCreating}
+                    isLoading={isCreating}
                   >
-                    Create Mind Map
+                    {isCreating ? "Creating..." : "Create Mind Map"}
                   </Button>
                 </ModalFooter>
               </>
