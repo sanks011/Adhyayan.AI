@@ -316,7 +316,7 @@ Return only valid JSON, no additional text.`;
           mindmap_data JSONB,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`
+        )`,
       );
 
       const result = await pool.query(
@@ -384,6 +384,33 @@ app.get('/api/mindmap/:id', verifyToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch mind map' });
   }
 });
+
+// Temporary CORS setup for initial deployment
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? true  // Allow all origins temporarily until we get frontend URL
+    : ['http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Add a health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV
+  });
+});
+
+// Add this to keep service warm
+setInterval(() => {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Keep alive ping:', new Date().toISOString());
+  }
+}, 14 * 60 * 1000); // Ping every 14 minutes
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
