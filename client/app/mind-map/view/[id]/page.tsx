@@ -35,6 +35,9 @@ import {
   IconChevronRight,
   IconPlus,
   IconMinus,
+  IconHeadphones,
+  IconPlayerPlay,
+  IconLoader2,
 } from "@tabler/icons-react";
 
 // Define the data structure for the custom node
@@ -278,12 +281,63 @@ function MindMapContent() {
   
   // Track expanded topics in the mind map
   const [expandedTopics, setExpandedTopics] = useState<string[]>(['central']);
-  
-  // Track selected/focused node
+    // Track selected/focused node
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  // Track podcast generation state
+  const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
+  const [generatedPodcastUrl, setGeneratedPodcastUrl] = useState<string | null>(null);
+  
+  // Track sidebar width for resizing
+  const [sidebarWidth, setSidebarWidth] = useState(480);
+  const [isResizing, setIsResizing] = useState(false);
   
   // React Flow instance ref for controlling view
   const { getNodes, setCenter, getZoom } = useReactFlow();
+    // Reset podcast state when switching between nodes
+  useEffect(() => {
+    setIsGeneratingPodcast(false);
+    setGeneratedPodcastUrl(null);
+  }, [selectedNode]);
+
+  // Handle sidebar resizing
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const newWidth = window.innerWidth - e.clientX;
+    if (newWidth >= 320 && newWidth <= 800) { // Min 320px, Max 800px
+      setSidebarWidth(newWidth);
+    }
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
     // Handle topic selection from sidebar
   const handleTopicSelect = (topicId: string) => {
     console.log('Topic selected:', topicId);
@@ -419,6 +473,34 @@ function MindMapContent() {
       });
     });
   }, [topicsReadStatus]);
+
+  // Function to generate podcast for selected topic
+  const handleGeneratePodcast = useCallback(async () => {
+    if (!selectedNode) return;
+    
+    setIsGeneratingPodcast(true);
+    setGeneratedPodcastUrl(null);
+    
+    try {
+      // TODO: Replace with actual API call to backend
+      // const response = await fetch('/api/generate-podcast', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ topicId: selectedNode })
+      // });
+      // const data = await response.json();
+      // setGeneratedPodcastUrl(data.podcastUrl);
+      
+      // Simulate API call for now
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      setGeneratedPodcastUrl(`/podcasts/${selectedNode}-podcast.mp3`);
+    } catch (error) {
+      console.error('Error generating podcast:', error);
+      // Handle error (show toast, etc.)
+    } finally {
+      setIsGeneratingPodcast(false);
+    }
+  }, [selectedNode]);
   // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];
@@ -631,8 +713,7 @@ function MindMapContent() {
       onClick: handleSignOut,
     },
   ];
-  
-  return (
+    return (
     <div className="h-screen bg-black flex">
       {/* Sidebar */}      
       <div className="h-full">
@@ -679,7 +760,97 @@ function MindMapContent() {
             </ReactFlow>
           </div>
         </div>
-      </div>
+      </div>      {/* Right sidebar for detailed content */}
+      {selectedNode && (
+        <div 
+          className="h-full bg-neutral-900 border-l border-neutral-700 flex shadow-2xl relative"
+          style={{ width: `${sidebarWidth}px` }}
+        >
+          {/* Resize handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 bg-neutral-600 hover:bg-neutral-500 cursor-col-resize z-10"
+            onMouseDown={handleMouseDown}
+          />
+          
+          {/* Sidebar content */}
+          <div className="flex-1 flex flex-col ml-1">
+            {/* Content header with integrated podcast controls */}
+            <div className="p-6 border-b border-neutral-700 bg-neutral-800">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-bold text-white">Topic Details</h2>
+                
+                {/* Compact podcast controls */}
+                <div className="flex items-center gap-2">
+                  {!generatedPodcastUrl ? (
+                    <button
+                      onClick={handleGeneratePodcast}
+                      disabled={isGeneratingPodcast}
+                      className="bg-neutral-700 hover:bg-neutral-600 disabled:bg-neutral-800 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 border border-neutral-600 hover:border-neutral-500 text-sm"
+                      title="Generate Audio Learning"
+                    >
+                      {isGeneratingPodcast ? (
+                        <IconLoader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <IconHeadphones className="h-4 w-4" />
+                      )}
+                      {isGeneratingPodcast ? 'Generating...' : 'Audio'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-green-400 text-xs">
+                        <IconHeadphones className="h-3 w-3" />
+                        Ready
+                      </div>
+                      <button
+                        onClick={handleGeneratePodcast}
+                        disabled={isGeneratingPodcast}
+                        className="bg-neutral-600 hover:bg-neutral-700 text-white px-2 py-1 rounded text-xs transition-colors"
+                        title="Regenerate Audio"
+                      >
+                        ↻
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <p className="text-sm text-neutral-400 bg-neutral-700 px-3 py-1 rounded-full inline-block">
+                {selectedNode}
+              </p>
+              
+              {/* Audio player when ready */}
+              {generatedPodcastUrl && (
+                <div className="mt-4">
+                  <audio
+                    controls
+                    className="w-full h-8"
+                    style={{ filter: 'invert(1) sepia(1) saturate(1) hue-rotate(180deg)' }}
+                  >
+                    <source src={generatedPodcastUrl} type="audio/mpeg" />
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              )}
+            </div>
+            
+            {/* Content area - this will be populated by API call later */}
+            <div className="flex-1 p-6 overflow-y-auto">
+              <div className="text-neutral-300 leading-relaxed">
+                <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
+                    <div className="h-4 bg-neutral-600 rounded w-1/2 mb-3"></div>
+                    <div className="h-4 bg-neutral-600 rounded w-5/6"></div>
+                  </div>
+                  <p className="text-neutral-400 text-sm mt-4 italic">
+                    Detailed content for this topic will be loaded here from the backend...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Floating Dock */}
       <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
