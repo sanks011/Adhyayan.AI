@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { MindMapSidebar } from "@/components/custom/MindMapSidebar";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
+import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
 import { cn } from "@/lib/utils";
 import Head from 'next/head';
 import { 
@@ -556,64 +557,47 @@ function MindMapContent() {
       "Can you explain this in simple terms?",
       "What should I focus on learning?"
     ];
-  }, []);
-  // Function to handle AI chat submission
+  }, []);  // Function to handle AI chat submission
   const handleChatSubmit = useCallback(async (userMessage: string) => {
-    if (!userMessage.trim() || !selectedNode) return;
+    if (!userMessage.trim()) return;
+    
+    console.log("User asked:", userMessage); // Debug log
     
     setIsAiTyping(true);
     
     try {
-      // TODO: Replace with actual API call to your AI backend
-      // const response = await fetch('/api/chat', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ 
-      //     message: userMessage, 
-      //     topic: selectedNode,
-      //     chatHistory: chatMessages 
-      //   })
-      // });
-      // const data = await response.json();
+      // Simulate thinking time
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Simulate AI response for now
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Simple dummy response based on user input
+      let dummyResponse = "";
+      const lowerMessage = userMessage.toLowerCase();
       
-      const aiResponses: Record<string, string[]> = {
-        'photosynthesis': [
-          "Photosynthesis is the process by which plants convert light energy into chemical energy (glucose) using carbon dioxide and water.",
-          "This process is fundamental to life on Earth as it produces oxygen and forms the base of most food chains.",
-          "The process involves two main stages: light-dependent reactions and light-independent reactions (Calvin Cycle)."
-        ],
-        'light-dependent': [
-          "Light-dependent reactions occur in the thylakoid membranes of chloroplasts where chlorophyll absorbs light energy.",
-          "These reactions produce ATP and NADPH, which are energy carriers used in the Calvin Cycle.",
-          "Water molecules are split (photolysis) to replace electrons lost by chlorophyll, releasing oxygen as a byproduct."
-        ],
-        'light-independent': [
-          "The Calvin Cycle takes place in the stroma of chloroplasts and doesn't directly require light.",
-          "CO2 is fixed by the enzyme RuBisCO and through a series of reactions, glucose is produced.",
-          "This cycle requires the ATP and NADPH produced during light-dependent reactions."
-        ]
-      };
+      if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
+        dummyResponse = "Hello! I'm here to help you learn about photosynthesis. What would you like to know more about? I can explain concepts, processes, or answer any specific questions you have.";
+      } else if (lowerMessage.includes("test")) {
+        dummyResponse = "This is a test response with the TextGenerateEffect! You can see how the text appears word by word with a smooth animation. Try asking me different questions to see various responses.";
+      } else if (lowerMessage.includes("photosynthesis")) {
+        dummyResponse = "Photosynthesis is a fascinating biological process! Plants use sunlight, carbon dioxide, and water to create glucose and oxygen. This process occurs in chloroplasts and involves two main stages: light-dependent reactions and the Calvin cycle.";
+      } else if (lowerMessage.includes("light")) {
+        dummyResponse = "Light is essential for photosynthesis! Chlorophyll absorbs light energy, primarily red and blue wavelengths, while reflecting green light (which is why plants appear green). The intensity and quality of light directly affects the rate of photosynthesis.";
+      } else if (lowerMessage.includes("oxygen")) {
+        dummyResponse = "Oxygen is a crucial byproduct of photosynthesis! During the light-dependent reactions, water molecules are split (photolysis), releasing oxygen gas as a waste product. This oxygen is what we breathe and is essential for most life on Earth.";
+      } else {
+        dummyResponse = `Great question about "${userMessage}"! This relates to photosynthesis in interesting ways. The process involves complex biochemical reactions that convert light energy into chemical energy, creating the foundation for most life on Earth. Would you like me to explain any specific aspect in more detail?`;
+      }
       
-      const responses = aiResponses[selectedNode] || [
-        "That's an interesting question about this topic! Let me help you understand it better.",
-        "This concept is important for understanding how photosynthesis works.",
-        "I'd be happy to explain more about this aspect of the topic."
-      ];
-      
-      const aiMsgId = (Date.now() + 1).toString();
+      const aiMsgId = Date.now().toString();
       setChatMessages(prev => [...prev, {
         id: aiMsgId,
         type: 'ai',
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: dummyResponse,
         timestamp: new Date()
       }]);
       
     } catch (error) {
-      console.error('Error getting AI response:', error);
-      const errorMsgId = (Date.now() + 1).toString();
+      console.error('Error generating response:', error);
+      const errorMsgId = Date.now().toString();
       setChatMessages(prev => [...prev, {
         id: errorMsgId,
         type: 'ai',
@@ -623,7 +607,7 @@ function MindMapContent() {
     } finally {
       setIsAiTyping(false);
     }
-  }, [selectedNode, chatMessages]);
+  }, []);
   // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];
@@ -967,13 +951,11 @@ function MindMapContent() {
                   <p className="text-neutral-400 text-sm mt-4 italic">
                     Detailed content for this topic will be loaded here from the backend...
                   </p>
-                </div>
-
-                {/* AI Responses - shown inline with content */}
+                </div>                {/* AI Responses - shown inline with content */}
                 {chatMessages.map((message) => (
                   message.type === 'ai' && (
                     <div key={message.id} className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
-                      <p className="text-neutral-200">{message.content}</p>
+                      <TextGenerateEffect words={message.content} />
                       <span className="text-xs text-neutral-400 mt-2 block">
                         {message.timestamp.toLocaleTimeString()}
                       </span>
@@ -994,20 +976,20 @@ function MindMapContent() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* AI Input at bottom */}
+              </div>              {/* AI Input at bottom */}
               <div className="mt-6">
                 <PlaceholdersAndVanishInput
                   placeholders={getTopicPlaceholders(selectedNode)}
                   onChange={() => {}} // No need to handle onChange for this use case
                   onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
                     e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    const message = formData.get('input') as string;
+                    const form = e.currentTarget;
+                    const input = form.querySelector('input') as HTMLInputElement;
+                    const message = input?.value;
                     if (message?.trim()) {
+                      console.log("Submitting message:", message); // Debug log
                       handleChatSubmit(message);
-                      e.currentTarget.reset();
+                      // Don't reset here - the component handles it internally
                     }
                   }}
                 />
