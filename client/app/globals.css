@@ -311,3 +311,36 @@ html:not(.dark) body {
     color: #ffffff !important;
   }
 }
+
+/* Remove all focus outlines and white borders */
+input:focus,
+textarea:focus,
+input:focus-visible,
+textarea:focus-visible,
+.nextui-input input:focus,
+.nextui-textarea textarea:focus,
+[data-slot="input"]:focus,
+[data-slot="input-wrapper"]:focus-within,
+[data-slot="input-wrapper"]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: inherit !important;
+}
+
+/* Ensure no webkit focus rings */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus {
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  -webkit-focus-ring-color: transparent !important;
+}
+
+/* Remove any potential NextUI default focus styles */
+.nextui-input-wrapper:focus-within,
+.nextui-textarea-wrapper:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
