@@ -734,7 +734,7 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
   // useEffect(() => {
   //   if (nodes.length > 0) {
   //     setTimeout(() => {
-  //       fitView({ padding: 80, duration: 1000 })
+  //       fitView({ padding: 50, duration: 1000 })
   //     }, 500)
   //   }
   // }, [nodes.length, fitView])

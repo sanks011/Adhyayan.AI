@@ -4,22 +4,17 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { apiService } from "@/lib/api"
-import { FloatingDock } from "@/components/ui/floating-dock"
 import { WavyBackground } from "@/components/ui/wavy-background"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MultiStepLoader } from "@/components/ui/multi-step-loader"
 import { toast } from "sonner"
 import {
   IconHome,
@@ -32,11 +27,6 @@ import {
   IconMicrophoneOff,
   IconPlus,
   IconUpload,
-  IconX,
-  IconFileText,
-  IconSquareRoundedX,
-  IconEye,
-  IconTrash,
 } from "@tabler/icons-react"
 
 // Extend Window interface for Speech Recognition
@@ -137,13 +127,6 @@ export default function MindMapPage() {
       loadMindMaps()
     }
   }, [isAuthenticated])
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/")
-    }
-  }, [loading, isAuthenticated, router])
 
   const loadMindMaps = async () => {
     try {
@@ -258,16 +241,16 @@ export default function MindMapPage() {
 
     try {
       console.log(`Attempting to delete mind map with ID: ${mindMapId}`)
-
+      
       const response = await apiService.deleteMindMap(mindMapId.toString())
-
+      
       if (response.success) {
         toast.success("Success", {
           description: "Mind map deleted successfully",
         })
-
+        
         // Remove the deleted mind map from the local state
-        setMindMaps((prevMindMaps) => prevMindMaps.filter((mindMap) => mindMap.id !== mindMapId))
+        setMindMaps(prevMindMaps => prevMindMaps.filter(mindMap => mindMap.id !== mindMapId))
       } else {
         throw new Error(response.error || "Failed to delete mind map")
       }
@@ -297,11 +280,8 @@ export default function MindMapPage() {
   }
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Redirecting to home...</div>
-      </div>
-    )
+    router.push("/")
+    return null
   }
 
   const dockLinks = [
@@ -426,161 +406,4 @@ export default function MindMapPage() {
                           ) : (
                             <IconMicrophone className="w-4 h-4 mr-1" />
                           )}
-                          {isListening ? "Stop" : "Voice"}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Uploaded File Display */}
-                    {uploadedFile && (
-                      <div className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <IconFileText className="w-5 h-5 text-orange-400" />
-                          <div>
-                            <p className="text-sm font-medium text-orange-200">{uploadedFile.name}</p>
-                            <p className="text-xs text-orange-300/70">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={removeUploadedFile}
-                          className="text-orange-400 hover:text-orange-200 hover:bg-orange-500/20"
-                        >
-                          <IconX className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
-
-                    <Textarea
-                      placeholder="Add topics, chapters, or learning objectives... You can also use voice input or upload a file."
-                      value={syllabus}
-                      onChange={(e) => setSyllabus(e.target.value)}
-                      rows={6}
-                      className="bg-gray-800/30 border-gray-600/50 text-white placeholder:text-gray-500 resize-none"
-                    />
-
-                    {isListening && (
-                      <div className="flex items-center gap-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-                          <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse delay-75"></span>
-                          <span className="w-1 h-1 bg-orange-300 rounded-full animate-pulse delay-150"></span>
-                        </div>
-                        <p className="text-sm text-orange-200 font-medium">Listening... Speak clearly to add content</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <DialogFooter className="flex justify-end gap-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                    className="border-gray-600/50 text-gray-400 hover:border-gray-500 hover:text-gray-200"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleCreateMindMap}
-                    disabled={!subjectName.trim() || !syllabus.trim() || isCreating}
-                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCreating ? "Creating..." : "Create Mind Map"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Mind Maps Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {isLoadingMindMaps ? (
-              // Loading skeletons
-              Array.from({ length: 8 }).map((_, index) => (
-                <Card key={index} className="bg-gray-900/50 border-gray-700/50 animate-pulse">
-                  <CardHeader>
-                    <div className="h-6 bg-gray-700 rounded w-3/4"></div>
-                    <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center">
-                      <div className="h-8 bg-gray-700 rounded w-16"></div>
-                      <div className="h-8 bg-gray-700 rounded w-16"></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : mindMaps.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <IconMap className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-400 mb-2">No Mind Maps Yet</h3>
-                <p className="text-gray-500">Create your first AI-powered mind map to get started!</p>
-              </div>
-            ) : (
-              mindMaps.map((mindMap) => (
-                <Card
-                  key={mindMap.id}
-                  className="bg-gray-900/50 border-gray-700/50 hover:bg-gray-900/70 transition-all duration-300 group"
-                >
-                  <CardHeader>
-                    <CardTitle className="text-white group-hover:text-orange-400 transition-colors">
-                      {mindMap.subject_name}
-                    </CardTitle>
-                    <CardDescription className="text-gray-400">
-                      Created {new Date(mindMap.created_at).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center">
-                      <Button
-                        onClick={() => handleViewMindMap(mindMap.id)}
-                        className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
-                      >
-                        <IconEye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteMindMap(mindMap.id)}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-600/50 text-red-400 hover:border-red-500 hover:text-red-300 hover:bg-red-600/10"
-                      >
-                        <IconTrash className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Floating Dock */}
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
-          <FloatingDock mobileClassName="translate-y-20" items={dockLinks} activeItem="/mind-map" />
-        </div>
-
-        {/* Background decorative elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-red-500/10 rounded-full blur-3xl"></div>
-        </div>
-
-        {/* Multi-step Loader */}
-        <MultiStepLoader loadingStates={loadingStates} loading={isCreating} duration={2000} loop={false} />
-
-        {/* Close button for loader */}
-        {isCreating && (
-          <button
-            className="fixed top-4 right-4 text-white z-[120] hover:bg-gray-800/50 rounded-lg p-2 transition-all duration-200"
-            onClick={() => setIsCreating(false)}
-          >
-            <IconSquareRoundedX className="h-8 w-8" />
-          </button>
-        )}
-      </WavyBackground>
-    </div>
-  )
-}
+                          {isListening ? "Stop" :\

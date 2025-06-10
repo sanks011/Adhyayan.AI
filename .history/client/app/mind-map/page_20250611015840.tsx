@@ -138,13 +138,6 @@ export default function MindMapPage() {
     }
   }, [isAuthenticated])
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/")
-    }
-  }, [loading, isAuthenticated, router])
-
   const loadMindMaps = async () => {
     try {
       setIsLoadingMindMaps(true)
@@ -252,29 +245,19 @@ export default function MindMapPage() {
   }
 
   const handleDeleteMindMap = async (mindMapId: number) => {
-    if (!confirm("Are you sure you want to delete this mind map? This action cannot be undone.")) {
+    if (!confirm("Are you sure you want to delete this mind map?")) {
       return
     }
 
     try {
-      console.log(`Attempting to delete mind map with ID: ${mindMapId}`)
-
-      const response = await apiService.deleteMindMap(mindMapId.toString())
-
-      if (response.success) {
-        toast.success("Success", {
-          description: "Mind map deleted successfully",
-        })
-
-        // Remove the deleted mind map from the local state
-        setMindMaps((prevMindMaps) => prevMindMaps.filter((mindMap) => mindMap.id !== mindMapId))
-      } else {
-        throw new Error(response.error || "Failed to delete mind map")
-      }
+      // TODO: Implement delete API endpoint
+      toast.success("Success", {
+        description: "Mind map deleted successfully",
+      })
+      await loadMindMaps()
     } catch (error) {
-      console.error("Error deleting mind map:", error)
       toast.error("Error", {
-        description: error instanceof Error ? error.message : "Failed to delete mind map",
+        description: "Failed to delete mind map",
       })
     }
   }
@@ -297,11 +280,8 @@ export default function MindMapPage() {
   }
 
   if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Redirecting to home...</div>
-      </div>
-    )
+    router.push("/")
+    return null
   }
 
   const dockLinks = [
@@ -350,7 +330,7 @@ export default function MindMapPage() {
         </div>
 
         {/* Main Content */}
-        <div className="w-full max-w-7xl z-10">
+        <div className="w-full max-w-6xl z-10">
           {/* Create New Mind Map Button */}
           <div className="text-center mb-12">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -495,20 +475,18 @@ export default function MindMapPage() {
           </div>
 
           {/* Mind Maps Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {isLoadingMindMaps ? (
               // Loading skeletons
-              Array.from({ length: 8 }).map((_, index) => (
+              Array.from({ length: 6 }).map((_, index) => (
                 <Card key={index} className="bg-gray-900/50 border-gray-700/50 animate-pulse">
                   <CardHeader>
                     <div className="h-6 bg-gray-700 rounded w-3/4"></div>
                     <div className="h-4 bg-gray-700 rounded w-1/2"></div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex justify-between items-center">
-                      <div className="h-8 bg-gray-700 rounded w-16"></div>
-                      <div className="h-8 bg-gray-700 rounded w-16"></div>
-                    </div>
+                    <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
+                    <div className="h-4 bg-gray-700 rounded w-2/3"></div>
                   </CardContent>
                 </Card>
               ))

@@ -731,13 +731,13 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
   }, [flowNodes, flowEdges, setNodes, setEdges])
 
   // Auto-fit view when nodes load
-  // useEffect(() => {
-  //   if (nodes.length > 0) {
-  //     setTimeout(() => {
-  //       fitView({ padding: 80, duration: 1000 })
-  //     }, 500)
-  //   }
-  // }, [nodes.length, fitView])
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setTimeout(() => {
+        fitView({ padding: 20, duration: 1000 })
+      }, 500)
+    }
+  }, [nodes.length, fitView])
 
   // Calculate progress
   const totalTopics = mindMapData?.nodes?.filter((node: any) => node.type !== "root").length || 0

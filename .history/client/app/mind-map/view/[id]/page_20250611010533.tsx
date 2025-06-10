@@ -42,6 +42,7 @@ import {
   IconMicrophone,
   IconHeadphones,
   IconPlus,
+  IconMinus,
   IconZoomIn,
   IconZoomOut,
   IconArrowsMaximize,
@@ -62,7 +63,6 @@ type CustomNodeData = {
   childrenCount?: number
   onToggleExpand?: (nodeId: string) => void
   onNodeClick?: (nodeId: string) => void
-  nodeType?: string
 }
 
 // Custom node component with modern design
@@ -88,49 +88,50 @@ const CustomNode = ({ data, id }: NodeProps) => {
 
   const getNodeStyle = () => {
     if (nodeData.isRoot) {
-      return "bg-[#1a1a2e] border-[#0f3460] text-white shadow-[0_0_10px_rgba(15,52,96,0.6)]"
-    }
-    if (nodeData.nodeType === "overview") {
-      return "bg-[#1a1a2e] border-[#16a34a] text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]"
-    }
-    if (nodeData.nodeType === "factors") {
-      return "bg-[#1a1a2e] border-[#6b7280] text-white shadow-[0_0_8px_rgba(107,114,128,0.4)]"
-    }
-    if (nodeData.nodeType === "products") {
-      return "bg-[#1a1a2e] border-[#16a34a] text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]"
-    }
-    if (nodeData.nodeType === "reactions") {
-      return "bg-[#1a1a2e] border-[#6b7280] text-white shadow-[0_0_8px_rgba(107,114,128,0.4)]"
+      return "bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20"
     }
     if (nodeData.isSelected) {
-      return "bg-[#1a1a2e] border-[#16a34a] text-white shadow-[0_0_10px_rgba(22,163,74,0.5)]"
+      return "bg-gradient-to-br from-orange-500 to-orange-600 border-orange-500 text-white font-medium shadow-lg shadow-orange-500/20"
     }
-    return "bg-[#1a1a2e] border-[#6b7280] text-white shadow-[0_0_8px_rgba(107,114,128,0.4)]"
+    return "bg-gradient-to-br from-gray-700 to-gray-800 border-gray-600 text-gray-100 hover:from-gray-600 hover:to-gray-700 shadow-md"
   }
 
   return (
     <div
       className={cn(
-        "px-4 py-3 rounded-md border-2 cursor-pointer transition-all duration-200 min-w-40 flex items-center justify-between",
+        "px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 min-w-40 flex flex-col gap-1",
         getNodeStyle(),
       )}
       onClick={handleNodeClick}
     >
-      <div className="text-sm font-medium truncate max-w-[80%]">{nodeData.label}</div>
-      {nodeData.childrenCount && nodeData.childrenCount > 0 ? (
-        <button
-          onClick={handleToggleExpand}
-          className={cn(
-            "w-5 h-5 rounded-full flex items-center justify-center transition-colors",
-            "bg-white/10 hover:bg-white/20",
-          )}
-        >
-          <IconPlus className="w-3 h-3 text-white" />
-        </button>
-      ) : null}
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium truncate max-w-[80%]">{nodeData.label}</div>
+        {nodeData.childrenCount && nodeData.childrenCount > 0 ? (
+          <button
+            onClick={handleToggleExpand}
+            className={cn(
+              "w-5 h-5 rounded-full flex items-center justify-center transition-colors",
+              nodeData.expanded ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20",
+            )}
+          >
+            {nodeData.expanded ? (
+              <IconMinus className="w-3 h-3 text-white" />
+            ) : (
+              <IconPlus className="w-3 h-3 text-white" />
+            )}
+          </button>
+        ) : null}
+      </div>
 
-      <Handle type="target" position={Position.Left} className="w-2 h-2 bg-gray-400" />
-      <Handle type="source" position={Position.Right} className="w-2 h-2 bg-gray-400" />
+      {nodeData.isRead && (
+        <div className="flex items-center gap-1 mt-1">
+          <IconCircleCheck className="w-3 h-3 text-green-400" />
+          <span className="text-xs text-green-300">Completed</span>
+        </div>
+      )}
+
+      <Handle type="target" position={Position.Top} className="w-2 h-2 bg-gray-400" />
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 bg-gray-400" />
     </div>
   )
 }
@@ -171,7 +172,7 @@ const TopicTreeItem: React.FC<TopicTreeItemProps> = ({
       <div
         className={cn(
           "flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-200 group",
-          isSelected ? "bg-green-600/20 border border-green-600/30" : "hover:bg-gray-800/50",
+          isSelected ? "bg-orange-600/20 border border-orange-600/30" : "hover:bg-gray-800/50",
         )}
         style={{ paddingLeft: `${level * 16 + 12}px` }}
         onClick={() => onSelectNode(node.id)}
@@ -214,7 +215,7 @@ const TopicTreeItem: React.FC<TopicTreeItemProps> = ({
         <span
           className={cn(
             "text-sm flex-1 truncate",
-            isSelected ? "text-green-300 font-medium" : "text-gray-300",
+            isSelected ? "text-orange-300 font-medium" : "text-gray-300",
             node.isRoot && "font-semibold text-blue-300",
           )}
         >
@@ -330,52 +331,6 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
     }
   }, [selectedNode])
 
-  // Assign node types based on content or position
-  const assignNodeTypes = (nodes: any[]) => {
-    if (!nodes) return []
-
-    // Find the root node
-    const rootNode = nodes.find((node) => node.type === "root" || node.id === "root")
-    if (!rootNode) return nodes
-
-    // Create a map of node types
-    const nodeTypeMap: Record<string, string> = {
-      [rootNode.id]: "root",
-    }
-
-    // Assign types to first level children
-    const firstLevelChildren = nodes.filter((node) => node.parent === rootNode.id)
-
-    firstLevelChildren.forEach((node, index) => {
-      if (node.label.toLowerCase().includes("overview")) {
-        nodeTypeMap[node.id] = "overview"
-      } else if (node.label.toLowerCase().includes("factor")) {
-        nodeTypeMap[node.id] = "factors"
-      } else if (node.label.toLowerCase().includes("product")) {
-        nodeTypeMap[node.id] = "products"
-      } else if (node.label.toLowerCase().includes("reaction")) {
-        nodeTypeMap[node.id] = "reactions"
-      } else if (index % 3 === 0) {
-        nodeTypeMap[node.id] = "overview"
-      } else if (index % 3 === 1) {
-        nodeTypeMap[node.id] = "factors"
-      } else {
-        nodeTypeMap[node.id] = "products"
-      }
-
-      // Assign types to second level children
-      const secondLevelChildren = nodes.filter((n) => n.parent === node.id)
-      secondLevelChildren.forEach((childNode) => {
-        nodeTypeMap[childNode.id] = nodeTypeMap[node.id]
-      })
-    })
-
-    return nodes.map((node) => ({
-      ...node,
-      nodeType: nodeTypeMap[node.id] || "default",
-    }))
-  }
-
   const loadMindMapData = async () => {
     try {
       setIsLoading(true)
@@ -383,19 +338,12 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
 
       if (response.success && response.mindMap) {
         const mindMap = response.mindMap
-
-        // Process the mind map data to assign node types
-        const processedData = {
-          ...mindMap.mindmap_data,
-          nodes: assignNodeTypes(mindMap.mindmap_data.nodes),
-        }
-
-        setMindMapData(processedData)
+        setMindMapData(mindMap.mindmap_data)
 
         // Initialize read status
         const initialReadStatus: Record<string, boolean> = {}
-        if (processedData?.nodes) {
-          processedData.nodes.forEach((node: any) => {
+        if (mindMap.mindmap_data?.nodes) {
+          mindMap.mindmap_data.nodes.forEach((node: any) => {
             initialReadStatus[node.id] = false
           })
         }
@@ -606,56 +554,11 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
     }))
   }, [])
 
-  // Create a horizontal tree layout
-  const createHorizontalTreeLayout = useCallback((nodes: any[]) => {
-    if (!nodes || nodes.length === 0) return nodes
-
-    // Find the root node
-    const rootNode = nodes.find((node) => node.type === "root" || node.id === "root")
-    if (!rootNode) return nodes
-
-    // Set root position
-    rootNode.position = { x: 150, y: 300 }
-
-    // Create a map for quick node lookup
-    const nodeMap = new Map()
-    nodes.forEach((node) => nodeMap.set(node.id, node))
-
-    // Get direct children of root
-    const firstLevelChildren = nodes.filter((node) => node.parent === rootNode.id)
-
-    // Position first level children
-    const levelSpacing = 250 // horizontal spacing between levels
-    const nodeSpacing = 100 // vertical spacing between nodes
-
-    firstLevelChildren.forEach((node, index) => {
-      const yPos = 150 + index * nodeSpacing
-      node.position = {
-        x: rootNode.position.x + levelSpacing,
-        y: yPos,
-      }
-
-      // Position second level children
-      const secondLevelChildren = nodes.filter((n) => n.parent === node.id)
-      secondLevelChildren.forEach((childNode, childIndex) => {
-        childNode.position = {
-          x: node.position.x + levelSpacing,
-          y: yPos - ((secondLevelChildren.length - 1) * nodeSpacing) / 2 + childIndex * nodeSpacing,
-        }
-      })
-    })
-
-    return nodes
-  }, [])
-
-  // Create nodes for ReactFlow with horizontal tree layout
+  // Create nodes for ReactFlow with hierarchical structure
   const flowNodes = useMemo(() => {
     if (!mindMapData?.nodes) return []
 
-    // Apply horizontal tree layout
-    const layoutedNodes = createHorizontalTreeLayout([...mindMapData.nodes])
-
-    return layoutedNodes
+    return mindMapData.nodes
       .filter((node: any) => visibleNodes.has(node.id))
       .map((node: any) => {
         // Get children count for this node
@@ -664,7 +567,10 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
         return {
           id: node.id,
           type: "customNode",
-          position: node.position || { x: 400, y: 300 },
+          position: node.position || {
+            x: 400,
+            y: 300,
+          },
           data: {
             label: node.label,
             isRoot: node.type === "root",
@@ -675,23 +581,13 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
             isRead: topicsReadStatus[node.id] || false,
             onNodeClick: handleNodeClick,
             onToggleExpand: handleToggleExpand,
-            nodeType: node.nodeType || "default",
           },
           hidden: !visibleNodes.has(node.id),
         }
       })
-  }, [
-    mindMapData,
-    selectedNode,
-    handleNodeClick,
-    handleToggleExpand,
-    visibleNodes,
-    expandedNodes,
-    topicsReadStatus,
-    createHorizontalTreeLayout,
-  ])
+  }, [mindMapData, selectedNode, handleNodeClick, handleToggleExpand, visibleNodes, expandedNodes, topicsReadStatus])
 
-  // Create edges for ReactFlow with curved connections
+  // Create edges for ReactFlow with hierarchical structure
   const flowEdges = useMemo(() => {
     if (!mindMapData?.edges) return []
 
@@ -707,15 +603,15 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
         style: {
           stroke:
             selectedNode === edge.source || selectedNode === edge.target
-              ? "#16a34a" // green-600
+              ? "#f97316" // orange-500
               : "#6b7280", // gray-500
-          strokeWidth: selectedNode === edge.source || selectedNode === edge.target ? 2 : 1,
+          strokeWidth: selectedNode === edge.source || selectedNode === edge.target ? 3 : 2,
         },
         markerEnd: {
           type: "arrowclosed",
           color:
             selectedNode === edge.source || selectedNode === edge.target
-              ? "#16a34a" // green-600
+              ? "#f97316" // orange-500
               : "#6b7280", // gray-500
         },
       }))
@@ -731,13 +627,13 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
   }, [flowNodes, flowEdges, setNodes, setEdges])
 
   // Auto-fit view when nodes load
-  // useEffect(() => {
-  //   if (nodes.length > 0) {
-  //     setTimeout(() => {
-  //       fitView({ padding: 80, duration: 1000 })
-  //     }, 500)
-  //   }
-  // }, [nodes.length, fitView])
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setTimeout(() => {
+        fitView({ padding: 50, duration: 1000 })
+      }, 500)
+    }
+  }, [nodes.length, fitView])
 
   // Calculate progress
   const totalTopics = mindMapData?.nodes?.filter((node: any) => node.type !== "root").length || 0
@@ -949,25 +845,24 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
-            className="bg-black"
+            className="bg-gray-950"
             fitView
             minZoom={0.2}
             maxZoom={2}
             defaultEdgeOptions={{
               type: "smoothstep",
-              style: { strokeWidth: 1, stroke: "#6b7280" },
+              style: { strokeWidth: 2, stroke: "#6b7280" },
               markerEnd: { type: "arrowclosed", color: "#6b7280" },
             }}
           >
-            <Background color="#1a1a2e" gap={20} size={1} variant="dots" />
+            <Background color="#374151" gap={20} size={1} variant="dots" />
 
             {showMiniMap && (
               <MiniMap
                 nodeColor={(node) => {
-                  if (node.data?.isRoot) return "#0f3460"
-                  if (node.data?.nodeType === "overview") return "#16a34a"
-                  if (node.data?.isSelected) return "#16a34a"
-                  return "#4b5563"
+                  if (node.data?.isRoot) return "#3b82f6" // blue-500
+                  if (node.data?.isSelected) return "#f97316" // orange-500
+                  return "#4b5563" // gray-600
                 }}
                 maskColor="rgba(0, 0, 0, 0.7)"
                 className="bg-gray-900/80 border border-gray-700 rounded-lg"
@@ -1027,7 +922,7 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
                 size="sm"
                 className={cn(
                   "text-gray-300 hover:text-white transition-colors",
-                  isPlayingAudio && "bg-green-600/20 border-green-500 text-green-400",
+                  isPlayingAudio && "bg-orange-600/20 border-orange-500 text-orange-400",
                   isGeneratingAudio && "bg-blue-600/20 border-blue-500 text-blue-400",
                 )}
                 disabled={isGeneratingAudio}
@@ -1077,8 +972,8 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
                   Podcast Ready
                 </span>
                 {isPlayingAudio && (
-                  <span className="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full flex items-center gap-1">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-orange-400 bg-orange-400/10 px-2 py-1 rounded-full flex items-center gap-1">
+                    <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
                     Playing
                   </span>
                 )}
@@ -1093,8 +988,8 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
               {mindMapData.nodes?.find((node: any) => node.id === selectedNode)?.content ? (
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <IconMicrophone className="h-4 w-4 text-green-400" />
-                    <span className="text-sm font-medium text-green-400">Podcast Content</span>
+                    <IconMicrophone className="h-4 w-4 text-orange-400" />
+                    <span className="text-sm font-medium text-orange-400">Podcast Content</span>
                   </div>
                   <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
                     {mindMapData.nodes.find((node: any) => node.id === selectedNode)?.content}
@@ -1124,12 +1019,12 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
                 <div
                   key={message.id}
                   className={`${
-                    message.type === "user" ? "bg-green-900/30 border-green-600/30" : "bg-gray-800 border-gray-600"
+                    message.type === "user" ? "bg-orange-900/30 border-orange-600/30" : "bg-gray-800 border-gray-600"
                   } border rounded-lg p-4`}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span
-                      className={`text-xs font-medium ${message.type === "user" ? "text-green-400" : "text-blue-400"}`}
+                      className={`text-xs font-medium ${message.type === "user" ? "text-orange-400" : "text-blue-400"}`}
                     >
                       {message.type === "user" ? "You" : "AI Assistant"}
                     </span>
