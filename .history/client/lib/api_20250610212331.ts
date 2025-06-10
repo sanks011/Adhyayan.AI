@@ -154,8 +154,8 @@ class ApiService {
     return this.post("/chat/groq", { message, context, subject })
   }
 
-  // Enhanced Audio API methods for Podcast-style generation
-  async generateAudio(text: string, voiceId?: string, topicTitle?: string): Promise<Blob> {
+  // Audio API methods for ElevenLabs integration
+  async generateAudio(text: string, voiceId?: string): Promise<Blob> {
     const url = `${API_BASE_URL}/audio/generate`
 
     const response = await fetch(url, {
@@ -166,14 +166,13 @@ class ApiService {
       credentials: "include",
       body: JSON.stringify({
         text: text,
-        voice_id: voiceId || "21m00Tcm4TlvDq8ikWAM", // Default to Rachel voice (podcast recommended)
-        topic_title: topicTitle || "Learning Topic", // Pass topic title for better podcast script
+        voice_id: voiceId || "21m00Tcm4TlvDq8ikWAM", // Default to Rachel voice
       }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Podcast audio generation failed: ${errorText}`)
+      throw new Error(`Audio generation failed: ${errorText}`)
     }
 
     return response.blob()

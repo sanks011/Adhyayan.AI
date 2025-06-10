@@ -3,12 +3,11 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const jwt = require("jsonwebtoken");
 const Groq = require("groq-sdk");
-const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - Updated to handle all requests properly
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -113,12 +112,6 @@ const groq = new Groq({
     "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",
 });
 
-// ElevenLabs API configuration
-const ELEVENLABS_API_KEY =
-  process.env.ELEVENLABS_API_KEY ||
-  "sk_0975ec6db66a0ca0e027ca6466ce021514f2345de6ae435f";
-const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
-
 // Test Groq connection and get available models
 const testGroqConnection = async () => {
   try {
@@ -135,39 +128,8 @@ const testGroqConnection = async () => {
   }
 };
 
-// Test ElevenLabs connection
-const testElevenLabsConnection = async () => {
-  try {
-    console.log("Testing ElevenLabs connection...");
-    const response = await fetch(`${ELEVENLABS_BASE_URL}/voices`, {
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log(
-        `ElevenLabs connected successfully. Available voices: ${data.voices.length}`
-      );
-      return data.voices;
-    } else {
-      console.error(
-        "ElevenLabs connection failed:",
-        response.status,
-        response.statusText
-      );
-      return [];
-    }
-  } catch (error) {
-    console.error("ElevenLabs connection test failed:", error.message);
-    return [];
-  }
-};
-
-// Test connections on startup
+// Test connection on startup
 testGroqConnection();
-testElevenLabsConnection();
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -258,7 +220,6 @@ app.get("/api/test", async (req, res) => {
       message: "Backend connected successfully",
       time: result.rows[0].now,
       groq_status: "Connected",
-      elevenlabs_status: "Connected",
     });
   } catch (error) {
     console.error("Database connection error:", error);
@@ -266,240 +227,6 @@ app.get("/api/test", async (req, res) => {
       message: "Backend running (DB offline)",
       time: new Date().toISOString(),
       groq_status: "Connected",
-      elevenlabs_status: "Connected",
-    });
-  }
-});
-
-// Function to generate podcast-style script using Groq
-const generatePodcastScript = async (topicTitle, content) => {
-  try {
-    const prompt = `Create an engaging podcast-style script for the topic "${topicTitle}". Transform the following educational content into a conversational, engaging audio experience:
-
-${content}
-
-Guidelines for the podcast script:
-1. Start with a warm, welcoming introduction
-2. Use conversational language and natural speech patterns
-3. Include rhetorical questions to engage the listener
-4. Add smooth transitions between concepts
-5. Use analogies and real-world examples
-6. Include brief pauses for emphasis (use "..." for dramatic pauses)
-7. End with a compelling summary and call-to-action
-8. Keep it between 300-500 words for optimal listening experience
-9. Use an enthusiastic but professional tone
-10. Include phrases like "Let's dive in", "Here's what's fascinating", "Think about it this way"
-
-Format the script as natural speech, not bullet points. Make it sound like a knowledgeable friend explaining the topic over coffee.
-
-Return only the podcast script, no additional formatting or labels.`;
-
-    const modelsToTry = [
-      "llama-3.1-8b-instant",
-      "llama3-8b-8192",
-      "mixtral-8x7b-32768",
-    ];
-
-    for (const model of modelsToTry) {
-      try {
-        const completion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a professional podcast host and educational content creator. You excel at making complex topics engaging and accessible through conversational storytelling.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          model: model,
-          temperature: 0.8, // Higher temperature for more creative, conversational output
-          max_tokens: 1500,
-        });
-
-        const script = completion.choices[0]?.message?.content;
-        if (script && script.trim()) {
-          console.log(`Podcast script generated successfully using ${model}`);
-          return script.trim();
-        }
-      } catch (error) {
-        console.error(`Error with model ${model}:`, error.message);
-        continue;
-      }
-    }
-
-    // Fallback script if AI generation fails
-    return `Welcome to your learning journey with ${topicTitle}! 
-
-Let me take you through this fascinating topic in a way that's both engaging and easy to understand. 
-
-${content}
-
-What makes this particularly interesting is how it connects to so many aspects of our daily lives. Think about it this way... when you really understand ${topicTitle}, you're not just learning facts, you're gaining insights that can transform how you see the world.
-
-Here's the key takeaway: every expert was once a beginner, and every complex topic becomes simple when broken down into digestible pieces. 
-
-So take your time with this material, ask questions, and remember that learning is a journey, not a destination. You've got this!`;
-  } catch (error) {
-    console.error("Error generating podcast script:", error);
-    // Return a basic fallback
-    return `Welcome to your learning session on ${topicTitle}. ${content} Thank you for learning with us today!`;
-  }
-};
-
-// ElevenLabs Text-to-Speech API with Podcast Enhancement
-app.post("/api/audio/generate", verifyToken, async (req, res) => {
-  try {
-    const {
-      text,
-      voice_id = "21m00Tcm4TlvDq8ikWAM",
-      topic_title = "Learning Topic",
-    } = req.body;
-
-    if (!text || !text.trim()) {
-      return res
-        .status(400)
-        .json({ error: "Text is required for audio generation" });
-    }
-
-    console.log("Generating podcast-style audio for:", topic_title);
-
-    // Step 1: Generate podcast script using Groq
-    console.log("Creating podcast script...");
-    const podcastScript = await generatePodcastScript(topic_title, text);
-
-    console.log("Podcast script generated, length:", podcastScript.length);
-
-    // Step 2: Generate audio using ElevenLabs with podcast-optimized settings
-    console.log("Converting script to audio...");
-
-    const response = await fetch(
-      `${ELEVENLABS_BASE_URL}/text-to-speech/${voice_id}`,
-      {
-        method: "POST",
-        headers: {
-          Accept: "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": ELEVENLABS_API_KEY,
-        },
-        body: JSON.stringify({
-          text: podcastScript,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.6, // Slightly higher for consistent podcast voice
-            similarity_boost: 0.8, // Higher for more natural speech
-            style: 0.3, // Add some style for engagement
-            use_speaker_boost: true,
-          },
-          pronunciation_dictionary_locators: [],
-          seed: null,
-          previous_text: null,
-          next_text: null,
-          previous_request_ids: [],
-          response_format: "mp3_44100_128", // Higher quality for podcast
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("ElevenLabs API error:", response.status, errorText);
-      return res.status(response.status).json({
-        error: "Failed to generate podcast audio",
-        details: errorText,
-      });
-    }
-
-    // Get the audio buffer
-    const audioBuffer = await response.buffer();
-
-    console.log(
-      "Podcast audio generated successfully, size:",
-      audioBuffer.length,
-      "bytes"
-    );
-
-    // Set appropriate headers for audio response
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Content-Length", audioBuffer.length);
-    res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-    res.setHeader("Accept-Ranges", "bytes");
-    res.setHeader("X-Podcast-Script-Length", podcastScript.length.toString());
-
-    // Send the audio buffer
-    res.send(audioBuffer);
-  } catch (error) {
-    console.error("Error generating podcast audio:", error);
-    res.status(500).json({
-      error: "Failed to generate podcast audio",
-      details: error.message,
-    });
-  }
-});
-
-// Get available ElevenLabs voices with podcast recommendations
-app.get("/api/audio/voices", verifyToken, async (req, res) => {
-  try {
-    const response = await fetch(`${ELEVENLABS_BASE_URL}/voices`, {
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("ElevenLabs voices API error:", response.status, errorText);
-      return res.status(response.status).json({
-        error: "Failed to fetch voices",
-        details: errorText,
-      });
-    }
-
-    const data = await response.json();
-
-    // Return simplified voice data with podcast recommendations
-    const voices = data.voices.map((voice) => {
-      // Mark voices that work well for podcasts
-      const podcastRecommended = [
-        "21m00Tcm4TlvDq8ikWAM", // Rachel - clear and professional
-        "AZnzlk1XvdvUeBnXmlld", // Domi - warm and engaging
-        "EXAVITQu4vr4xnSDxMaL", // Bella - friendly and clear
-        "ErXwobaYiN019PkySvjV", // Antoni - professional male voice
-        "VR6AewLTigWG4xSOukaG", // Arnold - deep and authoritative
-      ].includes(voice.voice_id);
-
-      return {
-        voice_id: voice.voice_id,
-        name: voice.name,
-        category: voice.category,
-        description: voice.description,
-        preview_url: voice.preview_url,
-        podcast_recommended: podcastRecommended,
-        gender: voice.labels?.gender || "unknown",
-        age: voice.labels?.age || "unknown",
-        accent: voice.labels?.accent || "unknown",
-      };
-    });
-
-    // Sort to put podcast-recommended voices first
-    voices.sort((a, b) => {
-      if (a.podcast_recommended && !b.podcast_recommended) return -1;
-      if (!a.podcast_recommended && b.podcast_recommended) return 1;
-      return 0;
-    });
-
-    res.json({
-      success: true,
-      voices: voices,
-      podcast_recommendations: voices.filter((v) => v.podcast_recommended),
-    });
-  } catch (error) {
-    console.error("Error fetching voices:", error);
-    res.status(500).json({
-      error: "Failed to fetch voices",
-      details: error.message,
     });
   }
 });
@@ -1133,7 +860,6 @@ app.get("/health", (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
     groq_configured: !!process.env.GROQ_API_KEY,
-    elevenlabs_configured: !!ELEVENLABS_API_KEY,
   });
 });
 
@@ -1148,6 +874,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log("Groq API configured:", !!process.env.GROQ_API_KEY);
-  console.log("ElevenLabs API configured:", !!ELEVENLABS_API_KEY);
   console.log("Environment:", process.env.NODE_ENV || "development");
 });

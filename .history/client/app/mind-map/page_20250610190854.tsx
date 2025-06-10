@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { MultiStepLoader } from "@/components/ui/multi-step-loader"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import {
   IconHome,
   IconUsers,
@@ -68,6 +68,7 @@ interface MindMap {
 export default function MindMapPage() {
   const { user, loading, isAuthenticated, logout } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
 
   // Form states
   const [subjectName, setSubjectName] = useState("")
@@ -118,8 +119,10 @@ export default function MindMapPage() {
       speechRecognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error)
         setIsListening(false)
-        toast.error("Speech Recognition Error", {
+        toast({
+          title: "Speech Recognition Error",
           description: "There was an issue with voice input. Please try again.",
+          variant: "destructive",
         })
       }
 
@@ -129,7 +132,7 @@ export default function MindMapPage() {
 
       setRecognition(speechRecognition)
     }
-  }, [])
+  }, [toast])
 
   // Load user's mind maps
   useEffect(() => {
@@ -145,8 +148,10 @@ export default function MindMapPage() {
       setMindMaps(response.mindMaps || [])
     } catch (error) {
       console.error("Error loading mind maps:", error)
-      toast.error("Error", {
+      toast({
+        title: "Error",
         description: "Failed to load your mind maps. Please try again.",
+        variant: "destructive",
       })
     } finally {
       setIsLoadingMindMaps(false)
@@ -178,8 +183,10 @@ export default function MindMapPage() {
 
   const toggleVoiceInput = () => {
     if (!recognition) {
-      toast.error("Not Supported", {
+      toast({
+        title: "Not Supported",
         description: "Speech recognition is not supported in your browser",
+        variant: "destructive",
       })
       return
     }
@@ -195,15 +202,19 @@ export default function MindMapPage() {
 
   const handleCreateMindMap = async () => {
     if (!subjectName.trim()) {
-      toast.error("Subject Required", {
+      toast({
+        title: "Subject Required",
         description: "Please enter a subject name",
+        variant: "destructive",
       })
       return
     }
 
     if (!syllabus.trim()) {
-      toast.error("Content Required", {
+      toast({
+        title: "Content Required",
         description: "Please provide syllabus content or learning objectives",
+        variant: "destructive",
       })
       return
     }
@@ -215,7 +226,8 @@ export default function MindMapPage() {
       const response = await apiService.generateMindMap(subjectName, syllabus)
 
       if (response.success) {
-        toast.success("Success!", {
+        toast({
+          title: "Success!",
           description: "Mind map created successfully",
         })
 
@@ -232,8 +244,10 @@ export default function MindMapPage() {
       }
     } catch (error) {
       console.error("Error creating mind map:", error)
-      toast.error("Error", {
+      toast({
+        title: "Error",
         description: error instanceof Error ? error.message : "Failed to create mind map",
+        variant: "destructive",
       })
     } finally {
       setIsCreating(false)
@@ -251,13 +265,16 @@ export default function MindMapPage() {
 
     try {
       // TODO: Implement delete API endpoint
-      toast.success("Success", {
+      toast({
+        title: "Success",
         description: "Mind map deleted successfully",
       })
       await loadMindMaps()
     } catch (error) {
-      toast.error("Error", {
+      toast({
+        title: "Error",
         description: "Failed to delete mind map",
+        variant: "destructive",
       })
     }
   }

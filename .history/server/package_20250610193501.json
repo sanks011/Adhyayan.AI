@@ -1,7 +1,7 @@
 {
   "name": "adhyayan-ai-backend",
   "version": "1.0.0",
-  "description": "AI-powered learning platform backend with Groq and ElevenLabs integration",
+  "description": "AI-powered learning platform backend with Groq integration",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -16,13 +16,12 @@
     "jsonwebtoken": "^9.0.2",
     "groq-sdk": "^0.3.1",
     "dotenv": "^16.3.1",
-    "firebase-admin": "^11.11.0",
-    "node-fetch": "^2.6.7"
+    "firebase-admin": "^11.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["ai", "education", "groq", "mindmap", "learning", "elevenlabs", "audio"],
+  "keywords": ["ai", "education", "groq", "mindmap", "learning"],
   "author": "Your Name",
   "license": "MIT"
 }

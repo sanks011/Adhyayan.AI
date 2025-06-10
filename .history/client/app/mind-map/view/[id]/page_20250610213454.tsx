@@ -37,9 +37,8 @@ import {
   IconChevronDown,
   IconCircle,
   IconCircleCheck,
+  IconPlayerPlay,
   IconPlayerPause,
-  IconMicrophone,
-  IconHeadphones,
 } from "@tabler/icons-react"
 
 // Define the data structure for the custom node
@@ -242,10 +241,10 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(["root"]))
   const [topicsReadStatus, setTopicsReadStatus] = useState<Record<string, boolean>>({})
 
-  // Audio state - Track audio per node
+  // Audio state
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
-  const [audioCache, setAudioCache] = useState<Record<string, string>>({}) // nodeId -> audioUrl
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null)
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<
@@ -266,24 +265,15 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
-      // Clean up all cached audio URLs
-      Object.values(audioCache).forEach((url) => {
-        URL.revokeObjectURL(url)
-      })
+      if (currentAudioUrl) {
+        URL.revokeObjectURL(currentAudioUrl)
+      }
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current = null
       }
     }
-  }, [audioCache])
-
-  // Clean up audio when switching nodes
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      setIsPlayingAudio(false)
-    }
-  }, [selectedNode])
+  }, [currentAudioUrl])
 
   const loadMindMapData = async () => {
     try {
@@ -321,14 +311,14 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
     }
   }
 
-  // Handle podcast-style audio generation
+  // Handle audio generation and playback
   const handleGenerateAudio = useCallback(async () => {
     if (!selectedNode || !mindMapData?.nodes) return
 
     const selectedNodeData = mindMapData.nodes.find((node: any) => node.id === selectedNode)
     if (!selectedNodeData?.content) {
       toast.error("No Content", {
-        description: "No content available for podcast generation",
+        description: "No content available for audio generation",
       })
       return
     }
@@ -336,77 +326,41 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
     try {
       setIsGeneratingAudio(true)
 
-      toast.info("Creating Podcast", {
-        description: "Generating podcast-style audio for this topic...",
-        duration: 5000,
+      // Stop current audio if playing
+      if (audioRef.current) {
+        audioRef.current.pause()
+        setIsPlayingAudio(false)
+      }
+
+      // Clean up previous audio URL
+      if (currentAudioUrl) {
+        URL.revokeObjectURL(currentAudioUrl)
+        setCurrentAudioUrl(null)
+      }
+
+      toast.info("Generating Audio", {
+        description: "Creating audio for the selected topic...",
       })
 
-      // Generate podcast-style audio using enhanced API
-      const audioBlob = await apiService.generateAudio(
-        selectedNodeData.content,
-        "21m00Tcm4TlvDq8ikWAM", // Rachel voice - great for podcasts
-        selectedNodeData.label, // Pass topic title for better script generation
-      )
+      // Generate audio using ElevenLabs
+      const audioBlob = await apiService.generateAudio(selectedNodeData.content)
 
       // Create object URL for the audio blob
       const audioUrl = URL.createObjectURL(audioBlob)
+      setCurrentAudioUrl(audioUrl)
 
-      // Cache the audio URL for this node
-      setAudioCache((prev) => ({
-        ...prev,
-        [selectedNode]: audioUrl,
-      }))
-
-      toast.success("Podcast Ready! 🎧", {
-        description: "Your personalized learning podcast is ready to play!",
-        duration: 4000,
-      })
-    } catch (error) {
-      console.error("Error generating podcast audio:", error)
-      toast.error("Podcast Generation Failed", {
-        description: error instanceof Error ? error.message : "Failed to generate podcast audio",
-      })
-    } finally {
-      setIsGeneratingAudio(false)
-    }
-  }, [selectedNode, mindMapData])
-
-  // Handle audio play/pause
-  const handleToggleAudio = useCallback(() => {
-    if (!selectedNode) return
-
-    const currentAudioUrl = audioCache[selectedNode]
-
-    // If no audio exists for this node, generate it
-    if (!currentAudioUrl) {
-      handleGenerateAudio()
-      return
-    }
-
-    // If audio is currently playing, pause it
-    if (isPlayingAudio && audioRef.current) {
-      audioRef.current.pause()
-      return
-    }
-
-    // If we have audio but no audio element, or the audio element has a different source, create new one
-    if (!audioRef.current || audioRef.current.src !== currentAudioUrl) {
-      // Clean up previous audio element
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
-
-      // Create new audio element
-      const audio = new Audio(currentAudioUrl)
+      // Create and setup audio element
+      const audio = new Audio(audioUrl)
       audioRef.current = audio
+
+      audio.onloadeddata = () => {
+        toast.success("Audio Ready", {
+          description: "Audio generated successfully! Click play to listen.",
+        })
+      }
 
       audio.onplay = () => {
         setIsPlayingAudio(true)
-        toast.success("🎧 Podcast Playing", {
-          description: "Enjoy your personalized learning experience!",
-          duration: 2000,
-        })
       }
 
       audio.onpause = () => {
@@ -415,34 +369,60 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
 
       audio.onended = () => {
         setIsPlayingAudio(false)
-        toast.info("Podcast Complete", {
-          description: "Ready to explore the next topic?",
-          duration: 3000,
-        })
       }
 
       audio.onerror = (e) => {
         console.error("Audio playback error:", e)
         toast.error("Playback Error", {
-          description: "Failed to play podcast. Please try regenerating.",
+          description: "Failed to play audio. Please try again.",
         })
         setIsPlayingAudio(false)
       }
+
+      // Don't try to autoplay - this will be triggered by the play button
+      // Just notify the user that audio is ready
+      toast.success("Audio Ready", {
+        description: "Audio is ready. Click the play button to listen.",
+      })
+    } catch (error) {
+      console.error("Error generating audio:", error)
+      toast.error("Audio Generation Failed", {
+        description: error instanceof Error ? error.message : "Failed to generate audio",
+      })
+    } finally {
+      setIsGeneratingAudio(false)
+    }
+  }, [selectedNode, mindMapData, currentAudioUrl])
+
+  // Handle audio play/pause
+  const handleToggleAudio = useCallback(() => {
+    if (!audioRef.current) {
+      handleGenerateAudio()
+      return
     }
 
-    // Play the audio
-    audioRef.current.play().catch((error) => {
-      console.error("Audio play error:", error)
-      toast.error("Playback Error", {
-        description: "Failed to play podcast. Please try again.",
+    if (isPlayingAudio) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play().catch((error) => {
+        console.error("Audio play error:", error)
+        toast.error("Playback Error", {
+          description: "Failed to play audio. Please try again.",
+        })
       })
-    })
-  }, [selectedNode, audioCache, isPlayingAudio, handleGenerateAudio])
+    }
+  }, [isPlayingAudio, handleGenerateAudio])
 
   // Handle node selection
   const handleNodeClick = useCallback(
     (nodeId: string) => {
       setSelectedNode(nodeId)
+
+      // Stop current audio when switching nodes
+      if (audioRef.current) {
+        audioRef.current.pause()
+        setIsPlayingAudio(false)
+      }
 
       const nodes = getNodes()
       const selectedNodeData = nodes.find((node) => node.id === nodeId)
@@ -654,10 +634,6 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
     },
   ]
 
-  // Get current audio state for selected node
-  const currentAudioUrl = selectedNode ? audioCache[selectedNode] : null
-  const hasAudioForCurrentNode = !!currentAudioUrl
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -727,7 +703,7 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
         {/* Header */}
         <div className="p-6 border-b border-gray-700 bg-gray-900/50">
           <h1 className="text-2xl font-bold text-white">{mindMapData.title || "Mind Map"}</h1>
-          <p className="text-gray-400 mt-1">Interactive learning visualization with podcast-style audio</p>
+          <p className="text-gray-400 mt-1">Interactive learning visualization</p>
         </div>
 
         {/* ReactFlow */}
@@ -757,38 +733,37 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
         <div className="w-96 bg-gray-900 border-l border-gray-700 flex flex-col">
           {/* Header */}
           <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">Learning Podcast</h2>
+            <h2 className="text-xl font-bold text-white">Topic Details</h2>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleToggleAudio}
+                onClick={isGeneratingAudio ? undefined : handleToggleAudio}
                 variant="outline"
                 size="sm"
                 className={cn(
                   "text-gray-300 hover:text-white transition-colors",
                   isPlayingAudio && "bg-orange-600/20 border-orange-500 text-orange-400",
-                  isGeneratingAudio && "bg-blue-600/20 border-blue-500 text-blue-400",
                 )}
                 disabled={isGeneratingAudio}
               >
                 {isGeneratingAudio ? (
                   <>
-                    <IconMicrophone className="h-4 w-4 animate-pulse mr-2" />
-                    Creating Podcast...
+                    <IconLoader2 className="h-4 w-4 animate-spin mr-2" />
+                    Generating...
                   </>
                 ) : isPlayingAudio ? (
                   <>
                     <IconPlayerPause className="h-4 w-4 mr-2" />
-                    Pause Podcast
+                    Pause Audio
                   </>
-                ) : hasAudioForCurrentNode ? (
+                ) : currentAudioUrl ? (
                   <>
-                    <IconHeadphones className="h-4 w-4 mr-2" />
-                    Play Podcast
+                    <IconPlayerPlay className="h-4 w-4 mr-2" />
+                    Play Audio
                   </>
                 ) : (
                   <>
-                    <IconMicrophone className="h-4 w-4 mr-2" />
-                    Generate Podcast
+                    <IconPlayerPlay className="h-4 w-4 mr-2" />
+                    Generate Audio
                   </>
                 )}
               </Button>
@@ -808,20 +783,6 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
             <div className="bg-gray-800 px-3 py-1 rounded-full inline-block">
               <span className="text-sm text-gray-300">{selectedNode}</span>
             </div>
-            {hasAudioForCurrentNode && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded-full flex items-center gap-1">
-                  <IconHeadphones className="h-3 w-3" />
-                  Podcast Ready
-                </span>
-                {isPlayingAudio && (
-                  <span className="text-xs text-orange-400 bg-orange-400/10 px-2 py-1 rounded-full flex items-center gap-1">
-                    <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-                    Playing
-                  </span>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Content */}
@@ -830,19 +791,9 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
               {/* Topic Content */}
               {mindMapData.nodes?.find((node: any) => node.id === selectedNode)?.content ? (
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <IconMicrophone className="h-4 w-4 text-orange-400" />
-                    <span className="text-sm font-medium text-orange-400">Podcast Content</span>
-                  </div>
                   <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
                     {mindMapData.nodes.find((node: any) => node.id === selectedNode)?.content}
                   </p>
-                  <div className="mt-3 p-3 bg-blue-600/10 border border-blue-600/20 rounded-lg">
-                    <p className="text-xs text-blue-300">
-                      💡 This content will be transformed into an engaging, conversational podcast when you generate
-                      audio!
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-4">
@@ -906,7 +857,7 @@ function MindMapContent({ mindMapId }: { mindMapId: string }) {
           {/* AI Input */}
           <div className="p-4 border-t border-gray-700">
             <PlaceholdersAndVanishInput
-              placeholders={["Ask about this topic...", "How can I apply this?", "Can you explain more?"]}
+              placeholders={["What should I focus on learning?", "Explain this topic in detail", "How does this work?"]}
               onChange={() => {}}
               onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
                 e.preventDefault()

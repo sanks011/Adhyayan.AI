@@ -14,7 +14,6 @@ class ApiService {
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Accept: "application/json",
     }
 
     const token = this.getToken()
@@ -25,47 +24,31 @@ class ApiService {
     return headers
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}) {
-    const url = `${API_BASE_URL}${endpoint}`
-
-    console.log(`Making ${options.method || "GET"} request to: ${url}`)
-
-    const requestOptions: RequestInit = {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-      credentials: "include", // Important for CORS
-    }
-
-    console.log("Request options:", requestOptions)
-
+  async post(endpoint: string, data: any) {
     try {
-      const response = await fetch(url, requestOptions)
+      console.log(`Making POST request to: ${API_BASE_URL}${endpoint}`)
+      console.log("Request data:", data)
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+      })
 
       console.log("Response status:", response.status)
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()))
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("Error response:", errorText)
-
-        let error
-        try {
-          error = JSON.parse(errorText)
-        } catch (parseError) {
-          console.error("Failed to parse error response:", parseError)
-          throw new Error(`API request failed with status ${response.status}: ${errorText}`)
-        }
-        throw new Error(error.error || `API request failed with status ${response.status}`)
-      }
 
       const responseText = await response.text()
       console.log("Raw response:", responseText.substring(0, 200) + "...")
 
-      if (!responseText) {
-        return { success: true }
+      if (!response.ok) {
+        let error
+        try {
+          error = JSON.parse(responseText)
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError)
+          throw new Error(`API request failed with status ${response.status}: ${responseText}`)
+        }
+        throw new Error(error.error || "API request failed")
       }
 
       try {
@@ -75,28 +58,23 @@ class ApiService {
         throw new Error(`Invalid JSON response: ${responseText}`)
       }
     } catch (error) {
-      console.error("API Request Error:", error)
-
-      // Handle network errors specifically
-      if (error instanceof TypeError && error.message.includes("fetch")) {
-        throw new Error("Network error: Unable to connect to server. Please check if the backend is running.")
-      }
-
+      console.error("API POST Error:", error)
       throw error
     }
   }
 
-  async post(endpoint: string, data: any) {
-    return this.makeRequest(endpoint, {
-      method: "POST",
-      body: JSON.stringify(data),
-    })
-  }
-
   async get(endpoint: string) {
-    return this.makeRequest(endpoint, {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "GET",
+      headers: this.getHeaders(),
     })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || "API request failed")
+    }
+
+    return response.json()
   }
 
   // Authentication methods
@@ -152,35 +130,6 @@ class ApiService {
   // Chat API method for Groq integration
   async chatWithGroq(message: string, context?: string, subject?: string) {
     return this.post("/chat/groq", { message, context, subject })
-  }
-
-  // Enhanced Audio API methods for Podcast-style generation
-  async generateAudio(text: string, voiceId?: string, topicTitle?: string): Promise<Blob> {
-    const url = `${API_BASE_URL}/audio/generate`
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...this.getHeaders(),
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        text: text,
-        voice_id: voiceId || "21m00Tcm4TlvDq8ikWAM", // Default to Rachel voice (podcast recommended)
-        topic_title: topicTitle || "Learning Topic", // Pass topic title for better podcast script
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Podcast audio generation failed: ${errorText}`)
-    }
-
-    return response.blob()
-  }
-
-  async getAvailableVoices() {
-    return this.get("/audio/voices")
   }
 
   // Test API connection
