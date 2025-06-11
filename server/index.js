@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+const { MongoClient, ObjectId } = require('mongodb');
 const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
 const Groq = require('groq-sdk');
@@ -220,45 +220,41 @@ const serviceAccount = {
 //   credential: admin.credential.cert(serviceAccount)
 // });
 
-// PostgreSQL connection
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+// MongoDB connection
+let client;
+let db;
 
-// Create users table if it doesn't exist
-const createUsersTable = async () => {
+const connectToMongoDB = async () => {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        firebase_uid VARCHAR(255) UNIQUE NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        display_name VARCHAR(255),
-        photo_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('Users table created or already exists');
+    client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    db = client.db('adhyayan_ai');
+    console.log('Connected to MongoDB Atlas');
+    
+    // Create indexes for better performance
+    await db.collection('users').createIndex({ firebase_uid: 1 }, { unique: true });
+    await db.collection('users').createIndex({ email: 1 }, { unique: true });
+    await db.collection('mindmaps').createIndex({ user_uid: 1 });
+    
+    console.log('MongoDB indexes created successfully');
   } catch (error) {
-    console.error('Error creating users table (DB not connected, continuing without DB):', error.message);
+    console.error('Error connecting to MongoDB (continuing without DB):', error.message);
   }
 };
 
-// Initialize database (optional for now)
-createUsersTable();
+// Initialize MongoDB connection
+connectToMongoDB();
 
 // Middleware to verify JWT token is now defined at the top of the file
 
 // Test route
 app.get('/api/test', async (req, res) => {
   try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ message: 'Backend connected', time: result.rows[0].now });
+    if (!db) {
+      throw new Error('Database not connected');
+    }
+    const result = await db.admin().ping();
+    res.json({ message: 'Backend connected', time: new Date(), dbStatus: 'connected' });
   } catch (error) {
     console.error('Database connection error:');
     console.error(error);
@@ -274,34 +270,39 @@ app.post('/api/auth/google', async (req, res) => {
     
     // For now, we'll trust the frontend verification
     // In production, you should verify the idToken with Firebase Admin SDK
-    
-    try {
+      try {
       // Check if user exists in database
-      let dbUser = await pool.query(
-        'SELECT * FROM users WHERE firebase_uid = $1',
-        [user.uid]
-      );
+      let dbUser = null;
+      if (db) {
+        dbUser = await db.collection('users').findOne({ firebase_uid: user.uid });
 
-      if (dbUser.rows.length === 0) {
-        // Create new user
-        const result = await pool.query(
-          `INSERT INTO users (firebase_uid, email, display_name, photo_url) 
-           VALUES ($1, $2, $3, $4) RETURNING *`,
-          [user.uid, user.email, user.displayName, user.photoURL]
-        );
-        dbUser = result;
-        console.log('Created new user in DB for:', user.email);
-      } else {
-        // Update existing user
-        await pool.query(
-          `UPDATE users SET 
-           display_name = $1, 
-           photo_url = $2, 
-           updated_at = CURRENT_TIMESTAMP 
-           WHERE firebase_uid = $3`,
-          [user.displayName, user.photoURL, user.uid]
-        );
-        console.log('Updated existing user in DB:', user.email);
+        if (!dbUser) {
+          // Create new user
+          const newUser = {
+            firebase_uid: user.uid,
+            email: user.email,
+            display_name: user.displayName,
+            photo_url: user.photoURL,
+            created_at: new Date(),
+            updated_at: new Date()
+          };
+          await db.collection('users').insertOne(newUser);
+          dbUser = newUser;
+          console.log('Created new user in DB for:', user.email);
+        } else {
+          // Update existing user
+          await db.collection('users').updateOne(
+            { firebase_uid: user.uid },
+            {
+              $set: {
+                display_name: user.displayName,
+                photo_url: user.photoURL,
+                updated_at: new Date()
+              }
+            }
+          );
+          console.log('Updated existing user in DB:', user.email);
+        }
       }
     } catch (dbError) {
       console.log('Database not available, continuing without user storage:', dbError.message);
@@ -352,16 +353,17 @@ app.post('/api/auth/google', async (req, res) => {
 // Get user profile
 app.get('/api/user/profile', verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM users WHERE firebase_uid = $1',
-      [req.user.uid]
-    );
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
 
-    if (result.rows.length === 0) {
+    const user = await db.collection('users').findOne({ firebase_uid: req.user.uid });
+
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: result.rows[0] });
+    res.json({ user: user });
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to fetch user profile' });
@@ -1133,30 +1135,24 @@ app.post('/api/mindmap/generate', verifyToken, async (req, res) => {
       
       // Enhanced fallback mind map structure
       mindMapData = createFallbackMindMap(subjectName, cleanedSyllabus);
-    }
-
-    // Store in database
+    }    // Store in database
     try {
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS mindmaps (
-          id SERIAL PRIMARY KEY,
-          user_uid VARCHAR(255) NOT NULL,
-          subject_name VARCHAR(255) NOT NULL,
-          syllabus TEXT,
-          mindmap_data JSONB,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`
-      );
+      if (db) {
+        const mindMapDoc = {
+          user_uid: req.user.uid,
+          subject_name: subjectName,
+          syllabus: syllabus || '',
+          mindmap_data: mindMapData,
+          created_at: new Date(),
+          updated_at: new Date()
+        };
 
-      const result = await pool.query(
-        `INSERT INTO mindmaps (user_uid, subject_name, syllabus, mindmap_data) 
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [req.user.uid, subjectName, syllabus || '', JSON.stringify(mindMapData)]
-      );
-
-      mindMapData.id = result.rows[0].id;
-      console.log('Mind map saved to database with ID:', mindMapData.id);
+        const result = await db.collection('mindmaps').insertOne(mindMapDoc);
+        mindMapData.id = result.insertedId.toString();
+        console.log('Mind map saved to database with ID:', mindMapData.id);
+      } else {
+        mindMapData.id = `temp_${Date.now()}`; // Temporary ID
+      }
       
     } catch (dbError) {
       console.log('Database not available, continuing without storage:', dbError.message);
@@ -1626,14 +1622,26 @@ Mastery of ${topicTitle} provides foundation for advanced study and professional
 // Get user's mind maps
 app.get('/api/mindmap/list', verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, subject_name, created_at FROM mindmaps WHERE user_uid = $1 ORDER BY created_at DESC',
-      [req.user.uid]
-    );
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+
+    const mindMaps = await db.collection('mindmaps')
+      .find({ user_uid: req.user.uid })
+      .project({ _id: 1, subject_name: 1, created_at: 1 })
+      .sort({ created_at: -1 })
+      .toArray();
+
+    // Convert _id to id for compatibility
+    const formattedMindMaps = mindMaps.map(map => ({
+      id: map._id.toString(),
+      subject_name: map.subject_name,
+      created_at: map.created_at
+    }));
 
     res.json({
       success: true,
-      mindMaps: result.rows
+      mindMaps: formattedMindMaps
     });
   } catch (error) {
     console.error('Error fetching mind maps:', error);
@@ -1644,18 +1652,26 @@ app.get('/api/mindmap/list', verifyToken, async (req, res) => {
 // Get specific mind map
 app.get('/api/mindmap/:id', verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM mindmaps WHERE id = $1 AND user_uid = $2',
-      [req.params.id, req.user.uid]
-    );
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
 
-    if (result.rows.length === 0) {
+    const mindMap = await db.collection('mindmaps').findOne({
+      _id: new ObjectId(req.params.id),
+      user_uid: req.user.uid
+    });
+
+    if (!mindMap) {
       return res.status(404).json({ error: 'Mind map not found' });
     }
 
+    // Convert _id to id for compatibility
+    mindMap.id = mindMap._id.toString();
+    delete mindMap._id;
+
     res.json({
       success: true,
-      mindMap: result.rows[0]
+      mindMap: mindMap
     });
   } catch (error) {
     console.error('Error fetching mind map:', error);
