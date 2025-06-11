@@ -20,7 +20,9 @@ import {
   IconUpload,
   IconX,
   IconFileText,
-  IconSquareRoundedX
+  IconSquareRoundedX,
+  IconChevronUp,
+  IconChevronDown
 } from "@tabler/icons-react";
 
 // Extend Window interface for Speech Recognition
@@ -45,10 +47,11 @@ interface SpeechRecognition extends EventTarget {
 export default function MindMap() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  // Form states
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();  // Form states
   const [subjectName, setSubjectName] = useState("");
-  const [syllabus, setSyllabus] = useState("");  const [isListening, setIsListening] = useState(false);
+  const [syllabus, setSyllabus] = useState("");
+  const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -96,7 +99,14 @@ export default function MindMap() {
         setRecognition(speechRecognition);
     }
   }, []);
-    // File upload handler
+    // Auto-expand textarea for large content
+  useEffect(() => {
+    if (syllabus.length > 1000 && !isTextareaExpanded) {
+      setIsTextareaExpanded(true);
+    }
+  }, [syllabus.length]);
+
+  // File upload handler
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -439,18 +449,19 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
           >
             <IconSquareRoundedX className="h-8 w-8" />
           </button>
-        )}{/* Create Mind Map Modal */}
+        )}        {/* Create Mind Map Modal */}
         <Modal 
           isOpen={isOpen} 
           onOpenChange={onOpenChange}
           placement="center"
           backdrop="blur"
-          size="2xl"
+          size="5xl"
+          scrollBehavior="inside"
           classNames={{
-            base: "bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-xl border border-gray-700/50",
-            header: "border-b border-gray-700/50 px-8 py-6",
-            body: "px-8 py-8",
-            footer: "border-t border-gray-700/50 px-8 py-6"
+            base: "bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-xl border border-gray-700/50 max-h-[90vh]",
+            header: "border-b border-gray-700/50 px-8 py-6 flex-shrink-0",
+            body: "px-8 py-8 overflow-y-auto flex-1",
+            footer: "border-t border-gray-700/50 px-8 py-6 flex-shrink-0"
           }}
         >
           <ModalContent>
@@ -464,41 +475,63 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                     Transform your ideas into an interactive knowledge map
                   </p>
                 </ModalHeader>
-                
-                <ModalBody>
+                  <ModalBody className="max-h-[calc(90vh-200px)] overflow-y-auto">
                   <div className="space-y-8">
                     {/* Subject Name Input */}
                     <div className="space-y-3">
                       <label className="block text-sm font-semibold text-gray-300">
                         Subject Name *
-                      </label>                      <div className="[&_*]:!outline-none [&_*]:!ring-0">
-                      <Input
-                        placeholder="e.g., Machine Learning, History of Art, Quantum Physics..."
-                        value={subjectName}
-                        onValueChange={setSubjectName}
-                        variant="bordered"
-                        size="lg"
-                        className="!outline-none focus:!outline-none focus-within:!outline-none"
-                        classNames={{
-                          input: "text-white text-base bg-transparent placeholder:text-gray-500 !outline-none focus:!outline-none focus:!ring-0 focus:!border-transparent",
-                          inputWrapper: "border-gray-600/50 hover:border-gray-500 data-[focus=true]:border-gray-300 data-[focus=true]:ring-2 data-[focus=true]:ring-gray-300/20 bg-gray-800/30 h-14 transition-all duration-200 !outline-none focus-within:!outline-none focus-within:!ring-0",
-                          base: "!outline-none focus-within:!outline-none focus:!outline-none"
-                        }}
-                        style={{
-                          outline: 'none !important',
-                          boxShadow: 'none !important'
-                        }}
-                        required
-                      />
+                      </label>                      
+                      <div className="[&_*]:!outline-none [&_*]:!ring-0">
+                        <Input
+                          placeholder="e.g., Machine Learning, History of Art, Quantum Physics..."
+                          value={subjectName}
+                          onValueChange={setSubjectName}
+                          variant="bordered"
+                          size="lg"
+                          className="!outline-none focus:!outline-none focus-within:!outline-none"
+                          classNames={{
+                            input: "text-white text-base bg-transparent placeholder:text-gray-500 !outline-none focus:!outline-none focus:!ring-0 focus:!border-transparent",
+                            inputWrapper: "border-gray-600/50 hover:border-gray-500 data-[focus=true]:border-gray-300 data-[focus=true]:ring-2 data-[focus=true]:ring-gray-300/20 bg-gray-800/30 h-14 transition-all duration-200 !outline-none focus-within:!outline-none focus-within:!ring-0",
+                            base: "!outline-none focus-within:!outline-none focus:!outline-none"
+                          }}
+                          style={{
+                            outline: 'none !important',
+                            boxShadow: 'none !important'
+                          }}
+                          required
+                        />
                       </div>
-                    </div>                    {/* Syllabus Input */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                    </div>
+
+                    {/* Syllabus Input */}
+                    <div className="space-y-3">                      <div className="flex items-center justify-between">
                         <label className="block text-sm font-semibold text-gray-300">
                           Syllabus Content 
+                          <span className="text-xs text-gray-500 ml-2 font-normal">
+                            (Tip: The textarea will expand as you type)
+                          </span>
                         </label>
                         <div className="flex gap-2">
-                          {/* File Upload Button */}                          <label className="cursor-pointer">
+                          {/* Expand/Collapse Button */}
+                          <Button
+                            size="sm"
+                            variant="bordered"
+                            onPress={() => setIsTextareaExpanded(!isTextareaExpanded)}
+                            startContent={
+                              isTextareaExpanded ? (
+                                <IconChevronUp className="w-4 h-4" />
+                              ) : (
+                                <IconChevronDown className="w-4 h-4" />
+                              )
+                            }
+                            className="border-gray-600/50 text-gray-400 hover:border-gray-500 hover:text-gray-200 bg-gray-800/20 transition-all duration-200"
+                          >
+                            {isTextareaExpanded ? "Collapse" : "Expand"}
+                          </Button>
+
+                          {/* File Upload Button */}                          
+                          <label className="cursor-pointer">
                             <input
                               type="file"
                               accept=".txt,.md,.doc,.docx,.pdf,.png,.jpg,.jpeg,text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
@@ -560,18 +593,22 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                             <IconX className="w-4 h-4" />
                           </Button>
                         </div>
-                      )}                        <div className="relative [&_*]:!outline-none [&_*]:!ring-0">
+                      )}                      <div className="relative [&_*]:!outline-none [&_*]:!ring-0">
                         <Textarea
-                          placeholder="Add topics, chapters, or learning objectives..You can also use voice input or upload a file."
+                          placeholder="Add topics, chapters, or learning objectives... You can also use voice input or upload a file."
                           value={syllabus}
                           onValueChange={setSyllabus}
                           variant="bordered"
-                          minRows={6}
-                          maxRows={12}
-                          className="!outline-none focus:!outline-none focus-within:!outline-none"
+                          minRows={isTextareaExpanded ? 10 : 6}
+                          maxRows={isTextareaExpanded ? 25 : 20}
+                          className="!outline-none focus:!outline-none focus-within:!outline-none transition-all duration-300"
                           classNames={{
-                            input: "text-white text-sm bg-transparent placeholder:text-gray-500 resize-none !outline-none focus:!outline-none focus:!ring-0 focus:!border-transparent",
-                            inputWrapper: "border-gray-600/50 hover:border-gray-500 data-[focus=true]:border-gray-300 data-[focus=true]:ring-2 data-[focus=true]:ring-gray-300/20 bg-gray-800/30 transition-all duration-200 !outline-none focus-within:!outline-none focus-within:!ring-0",
+                            input: "text-white text-sm bg-transparent placeholder:text-gray-500 resize-y !outline-none focus:!outline-none focus:!ring-0 focus:!border-transparent",
+                            inputWrapper: `border-gray-600/50 hover:border-gray-500 data-[focus=true]:border-gray-300 data-[focus=true]:ring-2 data-[focus=true]:ring-gray-300/20 bg-gray-800/30 transition-all duration-300 !outline-none focus-within:!outline-none focus-within:!ring-0 overflow-y-auto ${
+                              isTextareaExpanded 
+                                ? "min-h-[250px] max-h-[500px]" 
+                                : "min-h-[150px] max-h-[400px]"
+                            }`,
                             base: "!outline-none focus-within:!outline-none focus:!outline-none"
                           }}
                           style={{
@@ -579,6 +616,26 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                             boxShadow: 'none !important'
                           }}
                         />
+                        
+                        {/* Character count and tips for large texts */}
+                        <div className="flex items-center justify-between mt-2">
+                          {syllabus.length > 100 && (
+                            <div className="text-xs text-gray-400">
+                              {syllabus.length} characters
+                              {syllabus.length > 1000 && (
+                                <span className="ml-2 text-orange-400">
+                                  • Large content detected - perfect for detailed mind maps!
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {syllabus.length > 500 && !isTextareaExpanded && (
+                            <div className="text-xs text-blue-400 ml-auto">
+                              💡 Click "Expand" for better editing experience
+                            </div>
+                          )}
+                        </div>
                         </div>
                       
                       {isListening && (
