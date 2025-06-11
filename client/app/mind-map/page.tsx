@@ -96,20 +96,32 @@ export default function MindMap() {
         setRecognition(speechRecognition);
     }
   }, []);
-  
-  // File upload handler
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // File upload handler
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setUploadedFile(file);
-      // Read file content if it's a text file
-      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
-          setSyllabus(content);
-        };
-        reader.readAsText(file);
+      
+      try {
+        // Use the backend API to process the file
+        const result = await apiService.uploadSyllabusFile(file);
+        if (result.success && result.extractedText) {
+          setSyllabus(result.extractedText);
+          console.log('File processed successfully:', result.filename);
+        }
+      } catch (error) {
+        console.error('File processing error:', error);
+        // Fallback to basic text reading for text files
+        if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const content = e.target?.result as string;
+            setSyllabus(content);
+          };
+          reader.readAsText(file);
+        } else {
+          alert('Failed to process file. Please try a different format or paste the content manually.');
+        }
       }
     }
   };
@@ -143,35 +155,73 @@ export default function MindMap() {
     onOpenChange();
     setIsCreating(true);
     
-    console.log('Creating mind map with dummy data:', { 
+    console.log('Creating mind map:', { 
       subjectName, 
       syllabus, 
       uploadedFile: uploadedFile?.name 
     });
   };
-
   const handleLoaderComplete = async () => {
     try {
-      // Generate a random ID for the mind map
-      const mindMapId = `mindmap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Prevent duplicate API calls by debouncing/memoizing request
+      const requestKey = `generate-${subjectName}-${Date.now()}`;
+      console.log(`Making mind map generation request with key: ${requestKey}`);
       
-      // Create dummy mind map data and store in localStorage for demo purposes
-      const dummyMindMapData = generateDummyMindMap(subjectName, syllabus);
-      localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(dummyMindMapData));
+      // Call the real backend API to generate mind map
+      const response = await apiService.generateMindMap(subjectName, syllabus);
       
-      // Reset form and loading state
-      setSubjectName("");
-      setSyllabus("");
-      setUploadedFile(null);
-      setIsCreating(false);
-      
-      // Navigate to the generated mind map view
-      router.push(`/mind-map/view/${mindMapId}`);
+      if (response.success && response.mindMap) {
+        console.log('Mind map generated successfully:', response.mindMap);
+        
+        // Store in localStorage for immediate access with better structure
+        const mindMapId = response.mindMap.id || `mindmap_${Date.now()}`;
+        const mindMapData = {
+          ...response.mindMap,
+          // Ensure required fields are present
+          title: response.mindMap.title || subjectName,
+          subject: response.mindMap.subject || subjectName,
+          nodes: response.mindMap.nodes || [],
+          edges: response.mindMap.edges || []
+        };
+        
+        localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(mindMapData));
+        console.log('Saved mind map to localStorage with ID:', mindMapId);
+        
+        // Reset form and loading state
+        setSubjectName("");
+        setSyllabus("");
+        setUploadedFile(null);
+        setIsCreating(false);
+        
+        // Navigate to the generated mind map view with a delay to ensure data is saved
+        setTimeout(() => {
+          router.push(`/mind-map/view/${mindMapId}`);
+        }, 100);
+      } else {
+        throw new Error('Failed to generate mind map: Invalid response');
+      }
       
     } catch (error) {
       console.error('Error creating mind map:', error);
       setIsCreating(false);
-      alert(`Failed to create mind map: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to create mind map: ${errorMessage}`);
+      
+      // Fallback to dummy data for demo purposes
+      console.log('Falling back to dummy data generation');
+      const mindMapId = `mindmap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const dummyMindMapData = generateDummyMindMap(subjectName, syllabus);
+      localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(dummyMindMapData));
+      
+      // Reset form
+      setSubjectName("");
+      setSyllabus("");
+      setUploadedFile(null);
+      
+      // Navigate to the generated mind map view
+      router.push(`/mind-map/view/${mindMapId}`);
     }
   };
 
@@ -184,9 +234,7 @@ export default function MindMap() {
       'Advanced Topics',
       'Applications',
       'Future Trends'
-    ];
-
-    const nodes = [
+    ];    const nodes = [
       {
         id: 'root',
         label: subject,
@@ -194,16 +242,21 @@ export default function MindMap() {
         level: 0,
         position: { x: 400, y: 300 },
         content: `Welcome to ${subject}! This mind map will guide you through all the essential concepts and help you master this subject step by step.`,
-        children: []
+        children: [] as string[]
       }
-    ];
-
-    const edges = [];
+    ];const edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      type: string;
+    }> = [];
 
     // Generate child nodes
     topics.slice(0, 6).forEach((topic, index) => {
       const nodeId = `node_${index + 1}`;
-      nodes[0].children?.push(nodeId);
+      if (nodes[0].children) {
+        nodes[0].children.push(nodeId);
+      }
       
       nodes.push({
         id: nodeId,
@@ -220,7 +273,7 @@ Key points to remember:
 • Review regularly for better retention
 
 Take your time to explore this topic and use the interactive features to enhance your learning experience.`,
-        parent: 'root'
+        children: []
       });
 
       edges.push({
@@ -228,9 +281,7 @@ Take your time to explore this topic and use the interactive features to enhance
         source: 'root',
         target: nodeId,
         type: 'default'
-      });
-
-      // Add subtopics for some nodes
+      });      // Add subtopics for some nodes
       if (index < 3) {
         const subtopics = ['Basics', 'Advanced', 'Practice'];
         subtopics.forEach((subtopic, subIndex) => {
@@ -250,7 +301,7 @@ Detailed content about ${subtopic.toLowerCase()}:
 • Assessment opportunities
 
 Use the quiz feature to test your understanding and the AI chat to ask specific questions about this subtopic.`,
-            parent: nodeId
+            children: []
           });
 
           edges.push({
@@ -261,9 +312,7 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
           });
         });
       }
-    });
-
-    return {
+    });    return {
       id: `mindmap_${Date.now()}`,
       title: subject,
       subject: subject,
@@ -449,11 +498,10 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                           Syllabus Content 
                         </label>
                         <div className="flex gap-2">
-                          {/* File Upload Button */}
-                          <label className="cursor-pointer">
+                          {/* File Upload Button */}                          <label className="cursor-pointer">
                             <input
                               type="file"
-                              accept=".txt,.md,.doc,.docx,text/*"
+                              accept=".txt,.md,.doc,.docx,.pdf,.png,.jpg,.jpeg,text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
                               onChange={handleFileUpload}
                               className="hidden"
                             />

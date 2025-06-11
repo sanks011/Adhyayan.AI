@@ -39,14 +39,35 @@ export const MindMapSidebar: React.FC<MindMapSidebarProps> = ({
   onTopicSelect,
   onSubtopicSelect,
 }) => {
-  const [open, setOpen] = useState(false);
-  const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
+  // Always start with the sidebar open for better visibility
+  const [open, setOpen] = useState(true);
+  
+  // Default to first topic expanded for better UX
+  const [expandedTopics, setExpandedTopics] = useState<string[]>(() => {
+    if (mindMapData && mindMapData.length > 0) {
+      return [mindMapData[0].id];
+    }
+    return [];
+  });
+  
+  // Add debug logging to understand data issues
+  React.useEffect(() => {
+    console.log('MindMapSidebar received data:', 
+      JSON.stringify({
+        topicCount: mindMapData?.length || 0,
+        firstTopic: mindMapData?.[0]?.title || 'none',
+        expanded: expandedTopics
+      })
+    );
+  }, [mindMapData, expandedTopics]);
+  
   const toggleTopic = (topicId: string) => {
     setExpandedTopics(prev => 
       prev.includes(topicId) 
         ? prev.filter(id => id !== topicId)
         : [...prev, topicId]
     );
+    console.log('Topic toggled:', topicId);
   };
 
   // Calculate progress percentage
