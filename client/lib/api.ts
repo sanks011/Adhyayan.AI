@@ -6,7 +6,9 @@ const API_BASE_URL =
 class ApiService {
   private getToken(): string | null {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("authToken")
+      const token = localStorage.getItem("authToken")
+      console.log("Retrieved token:", token ? `${token.substring(0, 20)}...` : "null")
+      return token
     }
     return null
   }
@@ -27,8 +29,10 @@ class ApiService {
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
     const url = `${API_BASE_URL}${endpoint}`
+    const token = this.getToken()
 
     console.log(`Making ${options.method || "GET"} request to: ${url}`)
+    console.log("Token available:", !!token)
 
     const requestOptions: RequestInit = {
       ...options,
@@ -36,20 +40,30 @@ class ApiService {
         ...this.getHeaders(),
         ...options.headers,
       },
-      credentials: "include", // Important for CORS
+      credentials: "include",
     }
 
-    console.log("Request options:", requestOptions)
+    console.log("Request headers:", requestOptions.headers)
 
     try {
       const response = await fetch(url, requestOptions)
 
       console.log("Response status:", response.status)
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
         const errorText = await response.text()
         console.error("Error response:", errorText)
+
+        // Handle specific authentication errors
+        if (response.status === 401) {
+          console.error("Authentication failed - clearing stored token")
+          localStorage.removeItem("authToken")
+          localStorage.removeItem("user")
+          // Optionally redirect to login
+          if (typeof window !== "undefined") {
+            window.location.href = "/"
+          }
+        }
 
         let error
         try {
@@ -77,7 +91,6 @@ class ApiService {
     } catch (error) {
       console.error("API Request Error:", error)
 
-      // Handle network errors specifically
       if (error instanceof TypeError && error.message.includes("fetch")) {
         throw new Error("Network error: Unable to connect to server. Please check if the backend is running.")
       }

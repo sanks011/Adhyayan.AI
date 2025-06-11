@@ -48,12 +48,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (idToken: string, userData: any) => {
     try {
+      console.log("Attempting login with Firebase token...")
       const response = await apiService.authenticateWithGoogle(idToken, userData)
-      setUser(userData)
-      setIsAuthenticated(true)
-      // Only redirect to dashboard if user is on the home page (fresh sign-in)
-      if (typeof window !== "undefined" && window.location.pathname === "/") {
-        router.push("/dashboard")
+
+      console.log("Backend authentication response:", response)
+
+      if (response.token) {
+        console.log("Token received, storing in localStorage")
+        localStorage.setItem("authToken", response.token)
+        localStorage.setItem("user", JSON.stringify(response.user))
+
+        setUser(userData)
+        setIsAuthenticated(true)
+
+        // Only redirect to dashboard if user is on the home page (fresh sign-in)
+        if (typeof window !== "undefined" && window.location.pathname === "/") {
+          router.push("/dashboard")
+        }
+      } else {
+        throw new Error("No token received from backend")
       }
     } catch (error) {
       console.error("Login failed:", error)

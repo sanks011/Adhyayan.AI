@@ -1,12 +1,19 @@
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
 const jwt = require("jsonwebtoken");
 const Groq = require("groq-sdk");
 const fetch = require("node-fetch");
 require("dotenv").config();
 
+// Import database connection and models
+const connectDB = require("./config/database");
+const User = require("./models/User");
+const MindMap = require("./models/MindMap");
+
 const app = express();
+
+// Connect to MongoDB Atlas
+connectDB();
 
 // CORS configuration
 app.use(
@@ -169,102 +176,71 @@ const testElevenLabsConnection = async () => {
 testGroqConnection();
 testElevenLabsConnection();
 
-// PostgreSQL connection
-const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  host: process.env.DB_HOST || "localhost",
-  database: process.env.DB_NAME || "adhayayn_ai_db",
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
-});
-
-// Test database connection
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("Error connecting to database:", err.message);
-    console.log("Continuing without database connection...");
-  } else {
-    console.log("Successfully connected to PostgreSQL database");
-    release();
-  }
-});
-
-// Create tables if they don't exist
-const initializeDatabase = async () => {
-  try {
-    // Users table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        firebase_uid VARCHAR(255) UNIQUE NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        display_name VARCHAR(255),
-        photo_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Mind maps table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS mindmaps (
-        id SERIAL PRIMARY KEY,
-        user_uid VARCHAR(255) NOT NULL,
-        subject_name VARCHAR(255) NOT NULL,
-        syllabus TEXT,
-        mindmap_data JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log("Database tables initialized successfully");
-  } catch (error) {
-    console.error(
-      "Error initializing database (continuing without DB):",
-      error.message
-    );
-  }
-};
-
-// Initialize database
-initializeDatabase();
-
-// Middleware to verify JWT token
+// Enhanced token verification middleware with better error messages
 const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  const authHeader = req.headers.authorization;
+  console.log("Authorization header:", authHeader);
+
+  if (!authHeader) {
+    console.log("No authorization header provided");
+    return res.status(401).json({ error: "No authorization header provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  console.log(
+    "Extracted token:",
+    token ? `${token.substring(0, 20)}...` : "null"
+  );
 
   if (!token) {
+    console.log("No token provided in authorization header");
     return res.status(401).json({ error: "No token provided" });
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "your-secret-key"
-    );
+    const jwtSecret = process.env.JWT_SECRET || "your-secret-key";
+    console.log("Using JWT secret:", jwtSecret ? "Set" : "Not set");
+
+    const decoded = jwt.verify(token, jwtSecret);
+    console.log("Token decoded successfully:", decoded);
+
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: "Invalid token" });
+    console.error("Token verification failed:", error.message);
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Token expired" });
+    } else if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({ error: "Invalid token format" });
+    } else {
+      return res.status(401).json({ error: "Invalid token" });
+    }
   }
 };
 
 // Test route
 app.get("/api/test", async (req, res) => {
   try {
-    const result = await pool.query("SELECT NOW()");
+    // Test MongoDB connection
+    const mongoose = require("mongoose");
+    const dbStatus =
+      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+
     res.json({
       message: "Backend connected successfully",
-      time: result.rows[0].now,
+      time: new Date().toISOString(),
+      database_status: dbStatus,
+      database_name: mongoose.connection.name || "Not connected",
       groq_status: "Connected",
       elevenlabs_status: "Connected",
     });
   } catch (error) {
-    console.error("Database connection error:", error);
+    console.error("Test endpoint error:", error);
     res.json({
       message: "Backend running (DB offline)",
       time: new Date().toISOString(),
+      database_status: "Error",
       groq_status: "Connected",
       elevenlabs_status: "Connected",
     });
@@ -514,29 +490,25 @@ app.post("/api/auth/google", async (req, res) => {
 
     try {
       // Check if user exists in database
-      let dbUser = await pool.query(
-        "SELECT * FROM users WHERE firebase_uid = $1",
-        [user.uid]
-      );
+      let dbUser = await User.findOne({ firebase_uid: user.uid });
 
-      if (dbUser.rows.length === 0) {
+      if (!dbUser) {
         // Create new user
-        const result = await pool.query(
-          `INSERT INTO users (firebase_uid, email, display_name, photo_url) 
-           VALUES ($1, $2, $3, $4) RETURNING *`,
-          [user.uid, user.email, user.displayName, user.photoURL]
-        );
-        dbUser = result;
+        dbUser = new User({
+          firebase_uid: user.uid,
+          email: user.email,
+          display_name: user.displayName,
+          photo_url: user.photoURL,
+        });
+        await dbUser.save();
+        console.log("New user created:", user.email);
       } else {
         // Update existing user
-        await pool.query(
-          `UPDATE users SET 
-           display_name = $1, 
-           photo_url = $2, 
-           updated_at = CURRENT_TIMESTAMP 
-           WHERE firebase_uid = $3`,
-          [user.displayName, user.photoURL, user.uid]
-        );
+        dbUser.display_name = user.displayName;
+        dbUser.photo_url = user.photoURL;
+        dbUser.updated_at = new Date();
+        await dbUser.save();
+        console.log("User updated:", user.email);
       }
     } catch (dbError) {
       console.log(
@@ -572,19 +544,25 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
+// Token validation endpoint
+app.get("/api/auth/validate", verifyToken, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+    message: "Token is valid",
+  });
+});
+
 // Get user profile
 app.get("/api/user/profile", verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM users WHERE firebase_uid = $1",
-      [req.user.uid]
-    );
+    const user = await User.findOne({ firebase_uid: req.user.uid });
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({ user: result.rows[0] });
+    res.json({ user: user });
   } catch (error) {
     console.error("Error fetching user profile:", error);
     res.status(500).json({ error: "Failed to fetch user profile" });
@@ -735,16 +713,19 @@ Return ONLY valid JSON, no additional text or formatting.`;
     // Validate and enhance the mind map structure
     mindMapData = validateAndEnhanceMindMap(mindMapData, subjectName);
 
-    // Store in database
+    // Store in MongoDB
     let mindMapId;
     try {
-      const result = await pool.query(
-        `INSERT INTO mindmaps (user_uid, subject_name, syllabus, mindmap_data) 
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [req.user.uid, subjectName, syllabus, JSON.stringify(mindMapData)]
-      );
-      mindMapId = result.rows[0].id;
-      console.log("Mind map saved to database with ID:", mindMapId);
+      const newMindMap = new MindMap({
+        user_uid: req.user.uid,
+        subject_name: subjectName,
+        syllabus: syllabus,
+        mindmap_data: mindMapData,
+      });
+
+      const savedMindMap = await newMindMap.save();
+      mindMapId = savedMindMap._id.toString();
+      console.log("Mind map saved to MongoDB with ID:", mindMapId);
     } catch (dbError) {
       console.log(
         "Database not available, using temporary ID:",
@@ -1084,14 +1065,21 @@ Feel free to ask more specific questions, and I'll do my best to help you learn!
 // Get user's mind maps
 app.get("/api/mindmap/list", verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT id, subject_name, created_at FROM mindmaps WHERE user_uid = $1 ORDER BY created_at DESC",
-      [req.user.uid]
-    );
+    const mindMaps = await MindMap.find({ user_uid: req.user.uid })
+      .select("_id subject_name created_at")
+      .sort({ created_at: -1 })
+      .lean();
+
+    // Transform MongoDB _id to id for frontend compatibility
+    const transformedMindMaps = mindMaps.map((mindMap) => ({
+      id: mindMap._id.toString(),
+      subject_name: mindMap.subject_name,
+      created_at: mindMap.created_at,
+    }));
 
     res.json({
       success: true,
-      mindMaps: result.rows,
+      mindMaps: transformedMindMaps,
     });
   } catch (error) {
     console.error("Error fetching mind maps:", error);
@@ -1106,18 +1094,29 @@ app.get("/api/mindmap/list", verifyToken, async (req, res) => {
 // Get specific mind map
 app.get("/api/mindmap/:id", verifyToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM mindmaps WHERE id = $1 AND user_uid = $2",
-      [req.params.id, req.user.uid]
-    );
+    const mindMap = await MindMap.findOne({
+      _id: req.params.id,
+      user_uid: req.user.uid,
+    }).lean();
 
-    if (result.rows.length === 0) {
+    if (!mindMap) {
       return res.status(404).json({ error: "Mind map not found" });
     }
 
+    // Transform for frontend compatibility
+    const transformedMindMap = {
+      id: mindMap._id.toString(),
+      user_uid: mindMap.user_uid,
+      subject_name: mindMap.subject_name,
+      syllabus: mindMap.syllabus,
+      mindmap_data: mindMap.mindmap_data,
+      created_at: mindMap.created_at,
+      updated_at: mindMap.updated_at,
+    };
+
     res.json({
       success: true,
-      mindMap: result.rows[0],
+      mindMap: transformedMindMap,
     });
   } catch (error) {
     console.error("Error fetching mind map:", error);
@@ -1125,34 +1124,20 @@ app.get("/api/mindmap/:id", verifyToken, async (req, res) => {
   }
 });
 
-// DELETE specific mind map - NEW ENDPOINT
+// DELETE specific mind map - Updated for MongoDB
 app.delete("/api/mindmap/:id", verifyToken, async (req, res) => {
   try {
     console.log(
       `Attempting to delete mind map with ID: ${req.params.id} for user: ${req.user.uid}`
     );
 
-    // First check if the mind map exists and belongs to the user
-    const checkResult = await pool.query(
-      "SELECT id FROM mindmaps WHERE id = $1 AND user_uid = $2",
-      [req.params.id, req.user.uid]
-    );
-
-    if (checkResult.rows.length === 0) {
-      console.log("Mind map not found or doesn't belong to user");
-      return res.status(404).json({
-        success: false,
-        error: "Mind map not found or you don't have permission to delete it",
-      });
-    }
-
     // Delete the mind map
-    const deleteResult = await pool.query(
-      "DELETE FROM mindmaps WHERE id = $1 AND user_uid = $2 RETURNING id",
-      [req.params.id, req.user.uid]
-    );
+    const deleteResult = await MindMap.findOneAndDelete({
+      _id: req.params.id,
+      user_uid: req.user.uid,
+    });
 
-    if (deleteResult.rows.length > 0) {
+    if (deleteResult) {
       console.log(`Successfully deleted mind map with ID: ${req.params.id}`);
       res.json({
         success: true,
@@ -1160,10 +1145,10 @@ app.delete("/api/mindmap/:id", verifyToken, async (req, res) => {
         deletedId: req.params.id,
       });
     } else {
-      console.log("Failed to delete mind map - no rows affected");
-      res.status(500).json({
+      console.log("Mind map not found or doesn't belong to user");
+      res.status(404).json({
         success: false,
-        error: "Failed to delete mind map",
+        error: "Mind map not found or you don't have permission to delete it",
       });
     }
   } catch (error) {
@@ -1178,11 +1163,17 @@ app.delete("/api/mindmap/:id", verifyToken, async (req, res) => {
 
 // Health check endpoint
 app.get("/health", (req, res) => {
+  const mongoose = require("mongoose");
+  const dbStatus =
+    mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+
   res.status(200).json({
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
+    database_status: dbStatus,
+    database_name: mongoose.connection.name || "Not connected",
     groq_configured: !!process.env.GROQ_API_KEY,
     elevenlabs_configured: !!ELEVENLABS_API_KEY,
   });
