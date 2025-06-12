@@ -158,6 +158,10 @@ export const SkeletonTwo = () => {
     "https://images.unsplash.com/photo-1546484475-7f7bd55792da?q=80&w=2581&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   ];
 
+  // Pre-defined rotation values to prevent hydration mismatch
+  const rotationValues = [5.942, -0.700, -3.617, -7.172, 5.603];
+  const rotationValues2 = [-9.396, -4.781, -7.380, -6.467, 5.380];
+
   const imageVariants = {
     whileHover: {
       scale: 1.1,
@@ -179,7 +183,7 @@ export const SkeletonTwo = () => {
             variants={imageVariants}
             key={"images-first" + idx}
             style={{
-              rotate: Math.random() * 20 - 10,
+              rotate: rotationValues[idx % rotationValues.length], // Use pre-defined rotation value
             }}
             whileHover="whileHover"
             whileTap="whileTap"
@@ -200,7 +204,7 @@ export const SkeletonTwo = () => {
           <motion.div
             key={"images-second" + idx}
             style={{
-              rotate: Math.random() * 20 - 10,
+              rotate: rotationValues2[idx % rotationValues2.length], // Use pre-defined rotation value
             }}
             variants={imageVariants}
             whileHover="whileHover"

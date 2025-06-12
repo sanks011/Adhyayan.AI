@@ -160,14 +160,13 @@ export const Header = () => {
           Master any subject
           <br />10x <ContainerTextFlip words={words} />
         </div>
-      </motion.h1>
-      <p className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200 drop-shadow-lg"
+      </motion.h1>      <div className="max-w-2xl text-base md:text-xl mt-8 dark:text-neutral-200 drop-shadow-lg"
          style={{
            textShadow: "0 2px 4px rgba(0, 0, 0, 0.5)"
          }}>
         AI-powered learning that adapts to your style for faster, more effective
         education.
-      </p>
+      </div>
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 mt-8 relative pointer-events-none">
         <GoogleSignInButton />

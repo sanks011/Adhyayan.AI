@@ -1,23 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const { MongoClient, ObjectId } = require('mongodb');
-const admin = require('firebase-admin');
-const jwt = require('jsonwebtoken');
-const Groq = require('groq-sdk');
-const multer = require('multer');
-const pdfParse = require('pdf-parse');
-const tesseract = require('tesseract.js');
-const sharp = require('sharp');
-const mammoth = require('mammoth');
-const fs = require('fs').promises;
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ObjectId } = require("mongodb");
+const admin = require("firebase-admin");
+const jwt = require("jsonwebtoken");
+const Groq = require("groq-sdk");
+const multer = require("multer");
+const pdfParse = require("pdf-parse");
+const tesseract = require("tesseract.js");
+const sharp = require("sharp");
+const mammoth = require("mammoth");
+const fs = require("fs").promises;
+const { fixBrokenJSON } = require("./fix_json"); // Import the JSON fixing utility
+require("dotenv").config();
 
 // Ensure JWT_SECRET exists or use a fallback for development
 if (!process.env.JWT_SECRET) {
-  console.warn('JWT_SECRET not found in environment variables. Using fallback secret for development only.');
-  process.env.JWT_SECRET = 'adhyayan_ai_development_secret';
+  console.warn(
+    "JWT_SECRET not found in environment variables. Using fallback secret for development only."
+  );
+  process.env.JWT_SECRET = "adhyayan_ai_development_secret";
 } else {
-  console.log('Using JWT_SECRET from environment variables');
+  console.log("Using JWT_SECRET from environment variables");
 }
 
 const app = express();
@@ -26,21 +29,26 @@ app.use(express.json());
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error', 
-    details: err.message 
+  console.error("Server error:", err);
+  res.status(500).json({
+    error: "Internal server error",
+    details: err.message,
   });
 });
 
 // Initialize Groq
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+// Initialize Parsing AI Agent with dedicated API key from environment
+const parsingGroq = new Groq({
+  apiKey: process.env.PARSING_GROQ_API_KEY,
 });
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
@@ -48,56 +56,68 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     // Allow specific file types
     const allowedTypes = [
-      'text/plain',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/png',
-      'image/jpeg',
-      'image/jpg',
-      'text/markdown'
+      "text/plain",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "text/markdown",
     ];
-    
+
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, DOC, DOCX, TXT, MD, and image files are allowed.'));
+      cb(
+        new Error(
+          "Invalid file type. Only PDF, DOC, DOCX, TXT, MD, and image files are allowed."
+        )
+      );
     }
-  }
+  },
 });
 
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
-  console.log('Verifying token...');
-  console.log('Auth header:', req.headers.authorization);
-  
-  const token = req.headers.authorization?.split(' ')[1];
-  
+  console.log("Verifying token...");
+  console.log("Auth header:", req.headers.authorization);
+
+  const token = req.headers.authorization?.split(" ")[1];
+
   if (!token) {
-    console.log('Authentication error: No token provided');
-    return res.status(401).json({ error: 'No token provided' });
+    console.log("Authentication error: No token provided");
+    return res.status(401).json({ error: "No token provided" });
   }
 
   try {
     if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET is not defined in environment variables');
-      console.log('JWT_SECRET value:', process.env.JWT_SECRET);
-      return res.status(500).json({ error: 'Server configuration error' });
+      console.error("JWT_SECRET is not defined in environment variables");
+      console.log("JWT_SECRET value:", process.env.JWT_SECRET);
+      return res.status(500).json({ error: "Server configuration error" });
     }
-    
-    console.log('Verifying with secret:', process.env.JWT_SECRET.substring(0, 3) + '...');    try {
+
+    console.log(
+      "Verifying with secret:",
+      process.env.JWT_SECRET.substring(0, 3) + "..."
+    );
+    try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('Token decoded successfully:', decoded);
+      console.log("Token decoded successfully:", decoded);
       req.user = decoded;
       next();
     } catch (jwtError) {
-      console.log('JWT verification error:', jwtError.message);
-      console.log('Token attempted to verify:', token.substring(0, 10) + '...');
-      return res.status(401).json({ error: 'Invalid token', details: jwtError.message });
+      console.log("JWT verification error:", jwtError.message);
+      console.log("Token attempted to verify:", token.substring(0, 10) + "...");
+      return res
+        .status(401)
+        .json({ error: "Invalid token", details: jwtError.message });
     }
   } catch (error) {
-    console.log('Authentication error:', error.message);
-    return res.status(401).json({ error: 'Invalid token', details: error.message });
+    console.log("Authentication error:", error.message);
+    return res
+      .status(401)
+      .json({ error: "Invalid token", details: error.message });
   }
 };
 
@@ -107,8 +127,8 @@ const extractTextFromPDF = async (buffer) => {
     const data = await pdfParse(buffer);
     return data.text;
   } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    throw new Error('Failed to extract text from PDF');
+    console.error("Error extracting text from PDF:", error);
+    throw new Error("Failed to extract text from PDF");
   }
 };
 
@@ -120,15 +140,17 @@ const extractTextFromImage = async (buffer) => {
       .normalise()
       .png()
       .toBuffer();
-    
-    const { data: { text } } = await tesseract.recognize(processedImage, 'eng', {
-      logger: m => console.log(m) // Optional: log progress
+
+    const {
+      data: { text },
+    } = await tesseract.recognize(processedImage, "eng", {
+      logger: (m) => console.log(m), // Optional: log progress
     });
-    
+
     return text;
   } catch (error) {
-    console.error('Error extracting text from image:', error);
-    throw new Error('Failed to extract text from image');
+    console.error("Error extracting text from image:", error);
+    throw new Error("Failed to extract text from image");
   }
 };
 
@@ -137,82 +159,91 @@ const extractTextFromDOCX = async (buffer) => {
     const result = await mammoth.extractRawText({ buffer });
     return result.value;
   } catch (error) {
-    console.error('Error extracting text from DOCX:', error);
-    throw new Error('Failed to extract text from DOCX');
+    console.error("Error extracting text from DOCX:", error);
+    throw new Error("Failed to extract text from DOCX");
   }
 };
 
 // File upload and processing endpoint
-app.post('/api/upload/syllabus', verifyToken, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+app.post(
+  "/api/upload/syllabus",
+  verifyToken,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log(
+        "Processing file:",
+        req.file.originalname,
+        "Type:",
+        req.file.mimetype
+      );
+      let extractedText = "";
+
+      switch (req.file.mimetype) {
+        case "text/plain":
+        case "text/markdown":
+          extractedText = req.file.buffer.toString("utf-8");
+          break;
+
+        case "application/pdf":
+          extractedText = await extractTextFromPDF(req.file.buffer);
+          break;
+
+        case "application/msword":
+        case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+          extractedText = await extractTextFromDOCX(req.file.buffer);
+          break;
+
+        case "image/png":
+        case "image/jpeg":
+        case "image/jpg":
+          extractedText = await extractTextFromImage(req.file.buffer);
+          break;
+
+        default:
+          return res.status(400).json({ error: "Unsupported file type" });
+      }
+
+      // Clean up the extracted text
+      extractedText = extractedText
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\n\s*\n/g, "\n\n")
+        .trim();
+
+      console.log("Successfully extracted text, length:", extractedText.length);
+
+      res.json({
+        success: true,
+        extractedText: extractedText,
+        filename: req.file.originalname,
+        fileSize: req.file.size,
+      });
+    } catch (error) {
+      console.error("Error processing file:", error);
+      res.status(500).json({
+        error: "Failed to process file",
+        details: error.message,
+      });
     }
-
-    console.log('Processing file:', req.file.originalname, 'Type:', req.file.mimetype);
-    let extractedText = '';
-
-    switch (req.file.mimetype) {
-      case 'text/plain':
-      case 'text/markdown':
-        extractedText = req.file.buffer.toString('utf-8');
-        break;
-        
-      case 'application/pdf':
-        extractedText = await extractTextFromPDF(req.file.buffer);
-        break;
-        
-      case 'application/msword':
-      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        extractedText = await extractTextFromDOCX(req.file.buffer);
-        break;
-        
-      case 'image/png':
-      case 'image/jpeg':
-      case 'image/jpg':
-        extractedText = await extractTextFromImage(req.file.buffer);
-        break;
-        
-      default:
-        return res.status(400).json({ error: 'Unsupported file type' });
-    }
-
-    // Clean up the extracted text
-    extractedText = extractedText
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/\n\s*\n/g, '\n\n')
-      .trim();
-
-    console.log('Successfully extracted text, length:', extractedText.length);
-
-    res.json({
-      success: true,
-      extractedText: extractedText,
-      filename: req.file.originalname,
-      fileSize: req.file.size
-    });
-
-  } catch (error) {
-    console.error('Error processing file:', error);
-    res.status(500).json({ 
-      error: 'Failed to process file', 
-      details: error.message 
-    });
   }
-});
+);
 
 // Initialize Firebase Admin SDK
 const serviceAccount = {
   type: "service_account",
   project_id: process.env.FIREBASE_PROJECT_ID,
   private_key_id: "", // You would get this from Firebase service account
-  private_key: "", // You would get this from Firebase service account  
+  private_key: "", // You would get this from Firebase service account
   client_email: "", // You would get this from Firebase service account
   client_id: "", // You would get this from Firebase service account
   auth_uri: "https://accounts.google.com/o/oauth2/auth",
   token_uri: "https://oauth2.googleapis.com/token",
-  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs"
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
 };
 
 // For now, we'll skip Firebase Admin initialization since we need service account key
@@ -228,17 +259,22 @@ const connectToMongoDB = async () => {
   try {
     client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
-    db = client.db('adhyayan_ai');
-    console.log('Connected to MongoDB Atlas');
-    
+    db = client.db("adhyayan_ai");
+    console.log("Connected to MongoDB Atlas");
+
     // Create indexes for better performance
-    await db.collection('users').createIndex({ firebase_uid: 1 }, { unique: true });
-    await db.collection('users').createIndex({ email: 1 }, { unique: true });
-    await db.collection('mindmaps').createIndex({ user_uid: 1 });
-    
-    console.log('MongoDB indexes created successfully');
+    await db
+      .collection("users")
+      .createIndex({ firebase_uid: 1 }, { unique: true });
+    await db.collection("users").createIndex({ email: 1 }, { unique: true });
+    await db.collection("mindmaps").createIndex({ user_uid: 1 });
+
+    console.log("MongoDB indexes created successfully");
   } catch (error) {
-    console.error('Error connecting to MongoDB (continuing without DB):', error.message);
+    console.error(
+      "Error connecting to MongoDB (continuing without DB):",
+      error.message
+    );
   }
 };
 
@@ -248,33 +284,42 @@ connectToMongoDB();
 // Middleware to verify JWT token is now defined at the top of the file
 
 // Test route
-app.get('/api/test', async (req, res) => {
+app.get("/api/test", async (req, res) => {
   try {
     if (!db) {
-      throw new Error('Database not connected');
+      throw new Error("Database not connected");
     }
     const result = await db.admin().ping();
-    res.json({ message: 'Backend connected', time: new Date(), dbStatus: 'connected' });
+    res.json({
+      message: "Backend connected",
+      time: new Date(),
+      dbStatus: "connected",
+    });
   } catch (error) {
-    console.error('Database connection error:');
+    console.error("Database connection error:");
     console.error(error);
-    res.status(500).json({ error: 'Database connection failed' });
+    res.status(500).json({ error: "Database connection failed" });
   }
 });
 
 // Authentication route - verify Google token and create session
-app.post('/api/auth/google', async (req, res) => {
+app.post("/api/auth/google", async (req, res) => {
   try {
     const { idToken, user } = req.body;
-    console.log('Google auth request received:', { uid: user?.uid, email: user?.email });
-    
+    console.log("Google auth request received:", {
+      uid: user?.uid,
+      email: user?.email,
+    });
+
     // For now, we'll trust the frontend verification
     // In production, you should verify the idToken with Firebase Admin SDK
-      try {
+    try {
       // Check if user exists in database
       let dbUser = null;
       if (db) {
-        dbUser = await db.collection('users').findOne({ firebase_uid: user.uid });
+        dbUser = await db
+          .collection("users")
+          .findOne({ firebase_uid: user.uid });
 
         if (!dbUser) {
           // Create new user
@@ -284,54 +329,63 @@ app.post('/api/auth/google', async (req, res) => {
             display_name: user.displayName,
             photo_url: user.photoURL,
             created_at: new Date(),
-            updated_at: new Date()
+            updated_at: new Date(),
           };
-          await db.collection('users').insertOne(newUser);
+          await db.collection("users").insertOne(newUser);
           dbUser = newUser;
-          console.log('Created new user in DB for:', user.email);
+          console.log("Created new user in DB for:", user.email);
         } else {
           // Update existing user
-          await db.collection('users').updateOne(
+          await db.collection("users").updateOne(
             { firebase_uid: user.uid },
             {
               $set: {
                 display_name: user.displayName,
                 photo_url: user.photoURL,
-                updated_at: new Date()
-              }
+                updated_at: new Date(),
+              },
             }
           );
-          console.log('Updated existing user in DB:', user.email);
+          console.log("Updated existing user in DB:", user.email);
         }
       }
     } catch (dbError) {
-      console.log('Database not available, continuing without user storage:', dbError.message);
-    }    // Create JWT token
+      console.log(
+        "Database not available, continuing without user storage:",
+        dbError.message
+      );
+    } // Create JWT token
     if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET missing for token creation');
-      process.env.JWT_SECRET = 'adhyayan_ai_development_secret'; 
-      console.log('Using fallback JWT_SECRET for development');
+      console.error("JWT_SECRET missing for token creation");
+      process.env.JWT_SECRET = "adhyayan_ai_development_secret";
+      console.log("Using fallback JWT_SECRET for development");
     }
-    
+
     // Make sure we're using the correct JWT secret
     if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET not found when creating token!');
-      return res.status(500).json({ error: 'Server configuration error' });
+      console.error("JWT_SECRET not found when creating token!");
+      return res.status(500).json({ error: "Server configuration error" });
     }
-    
-    console.log('Creating JWT token with secret:', process.env.JWT_SECRET.substring(0, 3) + '...');
-    
+
+    console.log(
+      "Creating JWT token with secret:",
+      process.env.JWT_SECRET.substring(0, 3) + "..."
+    );
+
     const jwtToken = jwt.sign(
-      { 
-        uid: user.uid, 
+      {
+        uid: user.uid,
         email: user.email,
-        displayName: user.displayName 
+        displayName: user.displayName,
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: "7d" }
     );
-    
-    console.log('JWT token created successfully, first 10 chars:', jwtToken.substring(0, 10) + '...');
+
+    console.log(
+      "JWT token created successfully, first 10 chars:",
+      jwtToken.substring(0, 10) + "..."
+    );
 
     res.json({
       success: true,
@@ -340,120 +394,1007 @@ app.post('/api/auth/google', async (req, res) => {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
-        photoURL: user.photoURL
-      }
+        photoURL: user.photoURL,
+      },
     });
-
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
+    console.error("Authentication error:", error);
+    res.status(500).json({ error: "Authentication failed" });
   }
 });
 
 // Get user profile
-app.get('/api/user/profile', verifyToken, async (req, res) => {
+app.get("/api/user/profile", verifyToken, async (req, res) => {
   try {
     if (!db) {
-      return res.status(500).json({ error: 'Database not available' });
+      return res.status(500).json({ error: "Database not available" });
     }
 
-    const user = await db.collection('users').findOne({ firebase_uid: req.user.uid });
+    const user = await db
+      .collection("users")
+      .findOne({ firebase_uid: req.user.uid });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.json({ user: user });
   } catch (error) {
-    console.error('Error fetching user profile:', error);
-    res.status(500).json({ error: 'Failed to fetch user profile' });
+    console.error("Error fetching user profile:", error);
+    res.status(500).json({ error: "Failed to fetch user profile" });
   }
 });
 
 // Logout route
-app.post('/api/auth/logout', verifyToken, (req, res) => {
+app.post("/api/auth/logout", verifyToken, (req, res) => {
   // In a real app, you might want to blacklist the token
-  res.json({ success: true, message: 'Logged out successfully' });
+  res.json({ success: true, message: "Logged out successfully" });
 });
+
+// Mind map generation endpoint
+app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
+  try {
+    console.log("Mind map generation request received");
+    const { subjectName, syllabus } = req.body;
+    
+    if (!subjectName || !syllabus) {
+      return res.status(400).json({ 
+        error: "Missing required parameters", 
+        details: "Subject name and syllabus content are required" 
+      });
+    }
+    
+    console.log(`Generating mind map for subject: ${subjectName}`);
+    console.log(`Syllabus length: ${syllabus.length} characters`);
+    console.log(`Syllabus preview: ${syllabus.substring(0, 200)}...`);
+      // Extract meaningful content from the syllabus
+    const extractedSyllabus = extractSyllabusContent(syllabus);
+    console.log(`Extracted syllabus content: ${extractedSyllabus.length} characters`);
+    
+    // Try AI-powered parsing first
+    let syllabusOutline = [];
+    let aiParsedData = null;
+    
+    try {
+      console.log("🤖 Attempting AI-powered syllabus parsing...");
+      aiParsedData = await parseWithAI(subjectName, extractedSyllabus);
+      
+      // Convert AI parsed data to outline format
+      syllabusOutline = aiParsedData.main_topics.map((topic, index) => ({
+        id: topic.id || `unit_${index + 1}`,
+        title: topic.title,
+        type: 'module',
+        unitType: 'Unit',
+        unitNumber: topic.unit_number || String(index + 1),
+        content: topic.title,
+        topics: (topic.subtopics || []).map((subtopic, subIndex) => ({
+          id: `topic_${index + 1}_${subIndex + 1}`,
+          title: subtopic,
+          content: `Details about ${subtopic}`
+        }))
+      }));
+      
+      console.log(`🤖 AI parsing successful! Found ${syllabusOutline.length} main sections`);
+      
+    } catch (aiError) {
+      console.error("🚫 AI parsing failed:", aiError.message);
+      console.log("📝 Falling back to traditional parsing...");
+      
+      // Fallback to traditional parsing
+      syllabusOutline = parseSyllabusOutline(extractedSyllabus);
+    }
+      console.log(`Final outline contains ${syllabusOutline.length} top-level sections`);
+    
+    try {
+      // Generate the AI prompt using parsed data if available
+      const prompt = aiParsedData ? generateMindMapPrompt(subjectName, aiParsedData) : 
+                                    generateMindMapPrompt(subjectName, { main_topics: syllabusOutline.map((item, index) => ({ 
+                                      id: `topic_${index + 1}`, 
+                                      title: item.title || `Topic ${index + 1}` 
+                                    })) });
+      
+      // Get an AI-generated mind map using Groq
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert educational content creator specializing in creating detailed, hierarchical mind maps from educational syllabi. you are best at generating mind maps for academic subjects, breaking down complex topics into structured outlines with modules, topics, and subtopics. Your responses should be in JSON format with a clear structure."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        model: "llama3-70b-8192",
+        temperature: 0.5,
+        max_tokens: 6000,
+        top_p: 0.9
+      });
+      
+      // Get the response text
+      const responseText = completion.choices[0]?.message?.content;
+      
+      if (!responseText) {
+        throw new Error("Empty response from AI");
+      }
+      
+      console.log("AI response length:", responseText.length);
+      
+      // Extract the JSON from the response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      let mindMapData;
+        if (jsonMatch) {
+        try {
+          mindMapData = JSON.parse(jsonMatch[0]);
+        } catch (parseError) {
+          console.error("Error parsing JSON from AI response:", parseError, "at position:", parseError.message);
+          console.log("JSON structure:", { 
+            length: jsonMatch[0].length, 
+            excerpt: jsonMatch[0].substring(Math.max(0, parseError.message.match(/\d+/) ? parseInt(parseError.message.match(/\d+/)[0]) - 30 : 0), 
+                                         parseError.message.match(/\d+/) ? parseInt(parseError.message.match(/\d+/)[0]) + 30 : 50)
+          });
+          
+          // Try to fix broken JSON
+          try {
+            const fixedJson = fixBrokenJSON(jsonMatch[0]);
+            mindMapData = JSON.parse(fixedJson);
+            console.log("Successfully fixed and parsed JSON!");
+          } catch (fixError) {
+            console.error("Failed to fix JSON:", fixError);
+            throw new Error("Cannot parse or fix JSON from AI response");
+          }
+        }
+      }
+      
+      if (!mindMapData) {
+        throw new Error("Failed to extract valid JSON from AI response");
+      }
+      
+      // Make sure the mind map has a unique ID
+      const mindMapId = `mindmap_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      mindMapData.id = mindMapId;
+      
+      // Save to database if available
+      if (db) {
+        try {
+          await db.collection("mindmaps").insertOne({
+            id: mindMapId,
+            user_uid: req.user.uid,
+            title: subjectName,
+            subject: subjectName,
+            content: syllabus,
+            mindmap_data: mindMapData,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          console.log("Mind map saved to database with ID:", mindMapId);
+        } catch (dbError) {
+          console.error("Error saving to database:", dbError);
+          // Continue even if database save fails
+        }
+      }
+        // Transform the mind map data to ensure proper formatting
+      const transformedMindMapData = transformGroqResponse(mindMapData, subjectName);
+      
+      res.json({
+        success: true,
+        mindMap: transformedMindMapData
+      });
+      
+    } catch (aiError) {
+      console.error("AI processing error:", aiError);
+        // Fall back to generating a basic mind map without AI
+      console.log("Falling back to basic mind map generation");
+      const fallbackMindMap = createSimpleFallbackMindMap(subjectName, syllabusOutline);
+      
+      res.json({
+        success: true,
+        mindMap: fallbackMindMap,
+        note: "Used fallback generation due to AI service error"
+      });
+    }
+  } catch (error) {
+    console.error("Mind map generation error:", error);
+    res.status(500).json({ 
+      error: "Failed to generate mind map",
+      details: error.message
+    });
+  }
+});
+
+// AI-Powered Intelligent Syllabus Parser
+const parseWithAI = async (subjectName, syllabusContent) => {
+  try {
+    console.log("🤖 Using AI agent for intelligent syllabus parsing...");
+    
+    const parsingPrompt = `You are an expert academic syllabus parser. Your task is to analyze the given syllabus and extract a clean, hierarchical structure.
+
+SUBJECT: ${subjectName}
+
+SYLLABUS CONTENT:
+${syllabusContent}
+
+Parse this syllabus and return ONLY a JSON object with the following structure:
+
+{
+  "subject_name": "Clean subject name without unit prefixes",
+  "main_topics": [
+    {
+      "id": "topic_1",
+      "title": "Clean topic title without unit prefixes or lecture hours",
+      "unit_number": "I" or "1" (if applicable),
+      "subtopics": [
+        "Clean subtopic 1",
+        "Clean subtopic 2",
+        "Clean subtopic 3"
+      ]
+    },
+    {
+      "id": "topic_2", 
+      "title": "Another topic title",
+      "unit_number": "II" or "2",
+      "subtopics": [
+        "Subtopic A",
+        "Subtopic B"
+      ]
+    }
+  ]
+}
+
+PARSING RULES:
+1. Extract main topics/units from the syllabus
+2. Remove all unit prefixes (Unit I, Unit-I, Module I, etc.) from topic titles
+3. Remove lecture hours, periods, marks, credits from all titles
+4. Clean subtopics from bullet points, numbered lists, or content descriptions
+5. Limit to maximum 8 main topics and 5 subtopics per topic
+6. Use clean, academic language for all titles
+7. Preserve the hierarchical structure of the syllabus
+
+Return ONLY the JSON object, no additional text.`;
+
+    const completion = await parsingGroq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert academic syllabus parser that extracts clean hierarchical structures from educational content. You always return valid JSON objects with the requested structure."
+        },
+        {
+          role: "user",
+          content: parsingPrompt
+        }      ],
+      model: "llama3-70b-8192",
+      temperature: 0.1,
+      max_tokens: 4000,
+      top_p: 0.9
+    });
+
+    const responseText = completion.choices[0]?.message?.content;
+    
+    if (!responseText) {
+      throw new Error("Empty response from parsing AI");
+    }
+
+    console.log("🤖 AI parsing response length:", responseText.length);
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No JSON found in AI response");
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("Error parsing AI response JSON:", parseError);
+      throw new Error("Invalid JSON from parsing AI");
+    }
+
+    // Validate the structure
+    if (!parsedData.main_topics || !Array.isArray(parsedData.main_topics)) {
+      throw new Error("Invalid structure from parsing AI");
+    }
+
+    console.log(`🤖 AI successfully parsed ${parsedData.main_topics.length} main topics`);
+    return parsedData;
+
+  } catch (error) {
+    console.error("AI parsing error:", error);
+    throw error;
+  }
+};
 
 // Enhanced intelligent syllabus content extractor with structured format recognition
 const extractSyllabusContent = (rawSyllabus) => {
-  if (!rawSyllabus) return '';
-  
+  if (!rawSyllabus) return "";
+
   // Step 1: Detect if syllabus has structured tabular format
   const isTabularFormat = detectTabularFormat(rawSyllabus);
-  
+
   if (isTabularFormat) {
     return extractStructuredContent(rawSyllabus);
   }
   
-  // Step 2: Common patterns to identify actual course content
+  // Step 2: Check if it's an academic course syllabus with modules/units
+  const hasModules = /Module[\s\-:]*[IVX\d]+/i.test(rawSyllabus);
+  const hasUnits = /Unit[\s\-:]*[IVX\d]+/i.test(rawSyllabus);
+  
+  if (hasModules || hasUnits) {
+    console.log("Academic syllabus with modules/units detected");
+    // For academic syllabi, we want to keep the entire content since
+    // the unit/module structure is important for mind map generation
+    return rawSyllabus;
+  }
+  
+  // Step 3: Enhanced patterns to identify actual course content including academic unit formats
   const contentPatterns = [
     /course content[:\s]+(.*?)(?=text books?|reference books?|modes of evaluation|examination scheme|$)/is,
     /syllabus[:\s]+(.*?)(?=text books?|reference books?|modes of evaluation|examination scheme|$)/is,
+    // Enhanced unit patterns for academic formats
     /unit[:\s-]+[IVX1-9]+[:\s]+(.*?)(?=text books?|reference books?|modes of evaluation|examination scheme|unit[:\s-]+[IVX1-9]+|$)/gis,
+    /unit[\s]*-[\s]*[IVX1-9]+[:\s]+(.*?)(?=text books?|reference books?|modes of evaluation|examination scheme|unit[\s]*-[\s]*[IVX1-9]+|$)/gis,
     /(?:chapter|topic|module)[:\s]+\d+[:\s]+(.*?)(?=(?:chapter|topic|module)[:\s]+\d+|text books?|reference books?|$)/gis,
+    /(?:module|unit)[\s\-]*[IVX\d]+[\s:.-]*(.*?)(?=(?:module|unit)[\s\-]*[IVX\d]+|books?|references|examination|$)/gis,
   ];
-  
-  let extractedContent = '';
-  
+
+  let extractedContent = "";
+
   // Try each pattern
   for (const pattern of contentPatterns) {
     const matches = rawSyllabus.match(pattern);
     if (matches) {
       if (pattern.global) {
-        extractedContent += matches.join('\n\n');
+        extractedContent += matches.join("\n\n");
       } else {
         extractedContent += matches[1] || matches[0];
       }
     }
   }
-  
+
   // If no pattern matches, try to extract unit-wise content manually
   if (!extractedContent) {
-    const lines = rawSyllabus.split('\n');
+    const lines = rawSyllabus.split("\n");
     let isContentSection = false;
     let contentLines = [];
-    
+
     for (const line of lines) {
-      const trimmedLine = line.trim().toLowerCase();
-      
-      // Start capturing after course content/syllabus section
-      if (trimmedLine.includes('course content') || 
-          trimmedLine.includes('syllabus') || 
-          trimmedLine.includes('unit-') ||
-          trimmedLine.match(/unit[:\s-]+[ivx1-9]/)) {
+      const trimmedLine = line.trim().toLowerCase();      // Enhanced patterns to capture academic unit formats and syllabus sections
+      if (
+        trimmedLine.includes("course content") ||
+        trimmedLine.includes("syllabus") ||
+        trimmedLine.includes("unit-") ||
+        trimmedLine.includes("unit ") ||
+        trimmedLine.match(/unit[:\s-]+[ivx1-9]/) ||
+        trimmedLine.match(/unit[\s]*-[\s]*[ivx1-9]/) ||
+        trimmedLine.match(/^unit[\s]*[ivx1-9]/i)
+      ) {
         isContentSection = true;
         contentLines.push(line);
         continue;
       }
-      
+
       // Stop capturing at reference sections
-      if (isContentSection && (
-          trimmedLine.includes('text book') ||
-          trimmedLine.includes('reference book') ||
-          trimmedLine.includes('mode of evaluation') ||
-          trimmedLine.includes('examination scheme') ||
-          trimmedLine.includes('relationship between')
-      )) {
+      if (
+        isContentSection &&
+        (trimmedLine.includes("text book") ||
+          trimmedLine.includes("reference book") ||
+          trimmedLine.includes("mode of evaluation") ||
+          trimmedLine.includes("examination scheme") ||
+          trimmedLine.includes("relationship between"))
+      ) {
         break;
       }
-      
+
       if (isContentSection) {
         contentLines.push(line);
       }
     }
-    
-    extractedContent = contentLines.join('\n');
+
+    extractedContent = contentLines.join("\n");
   }
-  
+
   // Clean up the extracted content
   extractedContent = extractedContent
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w\s\n\-:,;\.]/g, ' ')
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s\n\-:,;\.]/g, " ")
+    .trim();
+
+  return extractedContent || rawSyllabus; // Return original if extraction fails
+};
+
+// Transform Groq response structure to expected frontend format
+const transformGroqResponse = (groqData, subjectName) => {
+  try {
+    // Handle the nested mind_map structure
+    if (groqData.mind_map) {      const mindMap = groqData.mind_map;
+      const nodes = [];
+      const edges = [];
+      
+      // Add central node - Always use the subject name for the central node, regardless of what the API returns
+      nodes.push({
+        id: "central",
+        label: subjectName || "Central Topic",
+        type: "root",
+        level: 0,
+        position: { x: 400, y: 300 },
+        content: mindMap.central_node ? 
+          (mindMap.central_node.content || mindMap.central_node.description || "") : 
+          `This mind map provides a comprehensive overview of ${subjectName || "the subject"}. Explore the connected nodes to learn about specific topics and subtopics.`,
+        isRoot: true,
+        hasChildren: true,
+        children: []
+      });
+
+      // Add module nodes (main topics), enhanced for academic units
+      if (mindMap.module_nodes && Array.isArray(mindMap.module_nodes)) {
+        // First ensure we have clean module titles without unit prefixes and lecture hours
+        const cleanModules = mindMap.module_nodes.map(module => {
+          // Create a deep copy to avoid mutating the original
+          const cleanedModule = { ...module };
+      // Clean the title from unit prefixes and lecture hours
+          if (cleanedModule.title) {
+            // Save the original unit/module number for reference
+            const unitMatch = cleanedModule.title.match(/(?:Unit|Module)[\s\-:]*([IVX0-9]+)/i) || 
+                              cleanedModule.title.match(/^([IVX]+)/i);
+            const unitNum = unitMatch ? unitMatch[1] : '';
+              // Clean excessive prefixes and preserve just the content
+            if (unitMatch && unitNum) {
+              // For academic unit titles, remove the prefix entirely
+              const prefixRemoved = cleanedModule.title.replace(/^(Unit|Module|Chapter|Section)[\s\-:]*([IVX0-9]+)?[.\s:]*/i, '');
+              cleanedModule.title = prefixRemoved;
+            }
+            
+            // Clean up lecture hours and other metadata regardless
+            cleanedModule.title = cleanedModule.title
+              .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+              .replace(/\s*\d+\s*hours?\s*/i, '')
+              .replace(/\s*\(\s*\d+\s*hours?\s*\)/i, '')
+              .replace(/\s*\d+\s*marks?\s*/i, '')
+              // Clean up any remaining punctuation 
+              .replace(/^[:\s,;-]+|[:\s,;-]+$/g, '')
+              .trim();
+                // If after cleaning the title is empty, fallback to a default title
+            if (!cleanedModule.title || cleanedModule.title.length < 2) {
+              // Use the original unit/module number if available
+              const unitMatch = module.title.match(/(?:Unit|Module)[\s\-:]*([IVX0-9]+)/i) || 
+                               module.title.match(/^([IVX]+)/i);
+              const unitNum = unitMatch ? unitMatch[1] : `${index + 1}`;
+              cleanedModule.title = `Topic ${unitNum} Content`;
+            }
+          }
+          return cleanedModule;
+        });
+        
+        // Now create separate nodes for each module
+        cleanModules.forEach((module, index) => {
+          const nodeId = `topic${index + 1}`;
+          const yPos = 150 + (index * 100);
+          
+          nodes.push({
+            id: nodeId,
+            label: module.title || `Topic ${index + 1}`,
+            type: "topic", 
+            level: 1,
+            position: { x: 700, y: yPos },
+            content: module.content || module.description || "",
+            parentNode: "central",
+            hasChildren: true,
+            children: []
+          });
+
+          // Add edge from central to this topic
+          edges.push({
+            id: `central-${nodeId}`,
+            source: "central",
+            target: nodeId,
+            type: "bezier"
+          });
+
+          // Update central node children
+          nodes[0].children.push(nodeId);
+        });
+      }      // Add subtopic nodes if they exist      // Helper function to clean node titles - enhanced to completely remove unit prefixes
+      const cleanNodeTitle = (title) => {
+        if (!title) return title;
+        
+        let cleanedTitle = title
+          // First remove unit/module prefixes entirely
+          .replace(/^(Unit|Module|Chapter|Section|Topic)[\s\-:]*([IVX0-9]+)?[.\s:]*/i, '')
+          // Remove numbering at start
+          .replace(/^\d+[\.\s]+/, '')
+          // Remove bullet points
+          .replace(/^[•\-\*]\s*/, '')
+          // Clean various time/credit/marks references
+          .replace(/\s*\d+\s*hours?\s*/i, '')
+          .replace(/\s*\d+\s*marks?\s*/i, '')
+          .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+          .replace(/\s*\(\d+\s*hours?\)\s*/i, '')
+          .replace(/\s*\(\d+\s*Lecture\s*Hours?\s*\)/i, '')
+          // Clean up any remaining punctuation
+          .replace(/^[:\s,;-]+|[:\s,;-]+$/g, '')
+          .trim();
+          
+        // If after cleaning the title is empty, return a fallback
+        if (!cleanedTitle || cleanedTitle.length < 2) {
+          return title;
+        }
+        
+        return cleanedTitle;
+      };
+      
+      // Process all types of child nodes recursively
+      const processChildNodes = (childNodes, parentNodeId, level, xPosition) => {
+        if (!childNodes || !Array.isArray(childNodes) || childNodes.length === 0) return;
+        
+        // Clean all child nodes first
+        const cleanedChildNodes = childNodes.map(node => {
+          const cleanedNode = { ...node };
+          if (cleanedNode.title) {
+            cleanedNode.title = cleanNodeTitle(cleanedNode.title);
+          }
+          return cleanedNode;
+        });
+        
+        // Group nodes by parent if parent info is available
+        const nodesByParent = {};
+        if (!nodesByParent[parentNodeId]) {
+          nodesByParent[parentNodeId] = [];
+        }
+        
+        cleanedChildNodes.forEach((node, index) => {
+          nodesByParent[parentNodeId].push({
+            ...node,
+            index
+          });
+        });
+        
+        // Add all child nodes to their parent
+        Object.entries(nodesByParent).forEach(([parentId, childNodes]) => {
+          // Find parent node to get its position
+          const parentNode = nodes.find(n => n.id === parentId);
+          const baseYPos = parentNode?.position?.y || 150;
+          
+          childNodes.forEach((node, childIndex) => {
+            // Generate a unique ID based on level and index
+            const nodePrefix = level === 2 ? 'subtopic' : `level${level}_node`;
+            const nodeId = `${nodePrefix}${node.index + 1}`;
+            
+            // Calculate position - each level is 300px to the right of the parent
+            // and arranged vertically based on index
+            const yPos = baseYPos - 100 + (childIndex * 100);
+            
+            nodes.push({
+              id: nodeId,
+              label: node.title || `${nodePrefix.charAt(0).toUpperCase() + nodePrefix.slice(1)} ${node.index + 1}`,
+              type: level === 2 ? "subtopic" : `level${level}`,
+              level: level,
+              position: { x: xPosition, y: yPos },
+              content: node.content || node.description || "",
+              parentNode: parentId,
+              hasChildren: node.children && Array.isArray(node.children) && node.children.length > 0,
+              children: []
+            });
+            
+            // Add edge from parent to this node
+            edges.push({
+              id: `${parentId}-${nodeId}`,
+              source: parentId,
+              target: nodeId,
+              type: "bezier"
+            });
+            
+            // Update parent node's children array
+            if (parentNode) {
+              parentNode.children.push(nodeId);
+            }
+            
+            // Process this node's children recursively if they exist
+            if (node.children && Array.isArray(node.children) && node.children.length > 0) {
+              // Next level's x position is 300px to the right
+              processChildNodes(node.children, nodeId, level + 1, xPosition + 300);
+            }
+          });
+        });
+      };
+      
+      // Process subtopics (level 2)
+      if (mindMap.subtopic_nodes && Array.isArray(mindMap.subtopic_nodes)) {
+        // Create clean copies of subtopics
+        const cleanSubtopics = mindMap.subtopic_nodes.map(subtopic => {
+          const cleanedSubtopic = { ...subtopic };
+          
+          // Store parent reference if available
+          const parentUnit = subtopic.parent_unit || subtopic.parent_module || null;
+          if (parentUnit) {
+            cleanedSubtopic.parent_unit = parentUnit;
+          }
+          
+          // Clean the title
+          if (cleanedSubtopic.title) {
+            cleanedSubtopic.title = cleanNodeTitle(cleanedSubtopic.title);
+          }
+          return cleanedSubtopic;
+        });
+        
+        // Group subtopics by parent unit if available, otherwise fallback to evenly distributing
+        const subtopicsByParent = {};
+        const moduleCount = mindMap.module_nodes ? mindMap.module_nodes.length : 1;
+        
+        cleanSubtopics.forEach((subtopic, index) => {
+          const parentUnit = subtopic.parent_unit || subtopic.parent_module;
+          
+          // If parent info exists, use it to group
+          if (parentUnit) {
+            // Find the matching parent index
+            let parentIndex = mindMap.module_nodes.findIndex(
+              module => module.title === parentUnit || module.id === parentUnit
+            );
+            
+            // If parent not found, distribute evenly
+            if (parentIndex === -1) {
+              parentIndex = Math.floor(index / Math.max(1, Math.ceil(cleanSubtopics.length / moduleCount)));
+            }
+            
+            const parentId = `topic${parentIndex + 1}`;
+            
+            if (!subtopicsByParent[parentId]) {
+              subtopicsByParent[parentId] = [];
+            }
+            
+            subtopicsByParent[parentId].push({
+              ...subtopic,
+              index
+            });
+          } else {
+            // No parent info, distribute evenly
+            const parentTopicIndex = Math.floor(index / Math.max(1, Math.ceil(cleanSubtopics.length / moduleCount)));
+            const parentTopicId = `topic${parentTopicIndex + 1}`;
+            
+            if (!subtopicsByParent[parentTopicId]) {
+              subtopicsByParent[parentTopicId] = [];
+            }
+            
+            subtopicsByParent[parentTopicId].push({
+              ...subtopic,
+              index
+            });
+          }
+        });
+        
+        // Add subtopics to their parents at level 2
+        Object.entries(subtopicsByParent).forEach(([parentTopicId, subtopics]) => {
+          subtopics.forEach((subtopic, subIndex) => {
+            const subtopicId = `subtopic${subtopic.index + 1}`;
+            const baseYPos = nodes.find(n => n.id === parentTopicId)?.position?.y || 150;
+            const yPos = baseYPos - 80 + (subIndex * 80);
+            
+            const hasChildren = subtopic.children && 
+                              Array.isArray(subtopic.children) && 
+                              subtopic.children.length > 0;
+
+            nodes.push({
+              id: subtopicId,
+              label: subtopic.title || `Subtopic ${subtopic.index + 1}`,
+              type: "subtopic",
+              level: 2,
+              position: { x: 1000, y: yPos },
+              content: subtopic.content || subtopic.description || "",
+              parentNode: parentTopicId,
+              hasChildren: hasChildren,
+              children: []
+            });
+
+            // Add edge from parent topic to subtopic
+            edges.push({
+              id: `${parentTopicId}-${subtopicId}`,
+              source: parentTopicId,
+              target: subtopicId,
+              type: "bezier"
+            });
+            
+            // Update parent topic children
+            const parentNode = nodes.find(n => n.id === parentTopicId);
+            if (parentNode) {
+              parentNode.children.push(subtopicId);
+            }
+            
+            // Process deeper levels recursively if they exist (level 3+)
+            if (hasChildren) {
+              // Process at x position 1300 (300px right of subtopics)
+              processChildNodes(subtopic.children, subtopicId, 3, 1300);
+            }
+          });
+        });
+      }
+      
+      // Check for additional node types like sub-subtopics (level 3) directly in the mindMap
+      if (mindMap.sub_subtopic_nodes && Array.isArray(mindMap.sub_subtopic_nodes)) {
+        // Find their parents and process them
+        const subSubtopics = mindMap.sub_subtopic_nodes.map((node, index) => ({
+          ...node,
+          index
+        }));
+        
+        // Group by parent
+        const nodesByParent = {};
+        subSubtopics.forEach(node => {
+          const parentId = node.parent_id || node.parent_subtopic;
+          
+          if (!parentId) return; // Skip if no parent reference
+          
+          if (!nodesByParent[parentId]) {
+            nodesByParent[parentId] = [];
+          }
+          
+          nodesByParent[parentId].push(node);
+        });
+        
+        // For each parent, add its children
+        Object.entries(nodesByParent).forEach(([parentSubtopicTitle, childNodes]) => {
+          // Find parent node by title
+          const parentNode = nodes.find(n => 
+            n.type === "subtopic" && 
+            (n.label === parentSubtopicTitle || n.id === parentSubtopicTitle)
+          );
+          
+          if (parentNode) {
+            // Process these nodes at level 3, x position 1300
+            processChildNodes(childNodes, parentNode.id, 3, 1300);
+          }
+        });
+      }
+      
+
+      return {
+        title: mindMap.central_node?.title || "Mind Map",
+        subject: mindMap.central_node?.title || "Subject",
+        nodes: nodes,
+        edges: edges
+      };
+    }
+
+    // If not the expected structure, return as-is
+    return groqData;
+  } catch (error) {
+    console.error("Error transforming Groq response:", error);
+    return groqData;
+  }
+};
+
+// Advanced syllabus parser that creates hierarchical outline (modules -> topics -> subtopics)
+const parseSyllabusOutline = (syllabus) => {
+  console.log("📝 Starting syllabus parsing...");
+  
+  // Clean and normalize the syllabus text
+  let processedSyllabus = syllabus
+    .replace(/\r\n/g, '\n')  // Normalize line endings
+    .replace(/\r/g, '\n')    // Handle old Mac line endings
     .trim();
   
-  return extractedContent || rawSyllabus; // Return original if extraction fails
+  // Split by unit headers and process each section
+  const unitSections = [];
+  const lines = processedSyllabus.split('\n');
+  let currentUnit = null;
+  let currentContent = [];
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+      // Check if this line is a unit header
+    // Enhanced regex to match "Unit I", "UNIT I", "Unit-I" and other common formats
+    const unitMatch = trimmedLine.match(/^(Unit[\s\-]+[IVX\d]+|UNIT[\s\-]+[IVX\d]+|Module[\s\-]+[IVX\d]+|MODULE[\s\-]+[IVX\d]+)[\s:]*(.*)$/i);
+    
+    if (unitMatch) {
+      // Save previous unit if exists
+      if (currentUnit) {
+        unitSections.push({
+          header: currentUnit,
+          content: currentContent.join('\n').trim()
+        });
+      }
+      
+      // Start new unit
+      currentUnit = unitMatch[1].trim();
+      currentContent = [];
+      
+      // Add unit title if present
+      if (unitMatch[2].trim()) {
+        currentContent.push(unitMatch[2].trim());
+      }    } else if (currentUnit && trimmedLine) {
+      // Add content to current unit (but skip textbook sections)
+      if (!trimmedLine.toLowerCase().includes('text book') && 
+          !trimmedLine.toLowerCase().includes('reference book') &&
+          !trimmedLine.toLowerCase().includes('modes of evaluation') &&
+          !trimmedLine.toLowerCase().includes('examination scheme') &&
+          !trimmedLine.toLowerCase().includes('relationship between') &&
+          !trimmedLine.match(/^\d+\.\s*[A-Z]/) && // Skip numbered textbook entries
+          !trimmedLine.includes('Edition') &&
+          !trimmedLine.includes('McGraw-Hill') &&
+          !trimmedLine.includes('Pearson') &&
+          !trimmedLine.includes('Prentice Hall')) {
+        currentContent.push(trimmedLine);
+      }
+    }
+  }
+  
+  // Add the last unit
+  if (currentUnit) {
+    unitSections.push({
+      header: currentUnit,
+      content: currentContent.join('\n').trim()
+    });
+  }
+  
+  console.log(`📝 Found ${unitSections.length} units using proper parsing`);
+    // Convert units to outline format
+  const outline = unitSections.map((unit, index) => {
+    // Enhanced unit matching to better handle Unit-I format
+    const unitMatch = unit.header.match(/(Unit|MODULE?)[\s\-]*([IVX\d]+)/i);
+    const unitType = unitMatch ? unitMatch[1] : 'Unit';
+    const unitNum = unitMatch ? unitMatch[2] : String(index + 1);
+    
+    // Clean the content by removing lecture hours, textbook references, etc.
+    let cleanContent = unit.content
+      .replace(/\d+\s*Lecture\s*Hours?\s*/gi, '') // Remove lecture hours
+      .replace(/Text\s*Books?:[\s\S]*$/i, '') // Remove textbook sections
+      .replace(/Reference\s*Books?:[\s\S]*$/i, '') // Remove reference sections
+      .replace(/\d+\.\s*Artificial Intelligence[\s\S]*$/i, '') // Remove numbered textbook entries
+      .trim();
+    
+    // Extract topics from cleaned content
+    const contentLines = cleanContent.split('\n').filter(line => {
+      const trimmedLine = line.trim();
+      return trimmedLine && 
+             !trimmedLine.match(/^\d+\s*Lecture\s*Hours?/i) &&
+             !trimmedLine.match(/^\d+\.\s*[A-Z]/) && // Remove numbered textbook entries
+             !trimmedLine.includes('Edition') &&
+             !trimmedLine.includes('McGraw-Hill') &&
+             !trimmedLine.includes('Pearson') &&
+             !trimmedLine.includes('Prentice Hall') &&
+             trimmedLine.length > 5;
+    });
+    
+    const topics = [];
+      // Look for the main unit title (usually after the colon)
+    let unitMainTitle = null;
+    
+    // First try to find a specific subject in the unit header itself
+    const unitHeaderMatch = unit.header.match(/^Unit[\s\-]+[IVX\d]+[\s:]*([A-Za-z].*)/i);
+    if (unitHeaderMatch && unitHeaderMatch[1] && unitHeaderMatch[1].trim().length > 3) {
+      unitMainTitle = unitHeaderMatch[1].trim()
+        .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*\(\s*\d+\s*hours?\s*\)/i, '')
+        .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, '')
+        .trim();
+    }
+    
+    // If no title found in the header, look at the content
+    if (!unitMainTitle && contentLines.length > 0) {
+      const firstLine = contentLines[0].trim();
+      // Clean lecture hours and other metadata from unit title
+      let cleanTitle = firstLine
+        .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*\(\s*\d+\s*hours?\s*\)/i, '')
+        .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, '')
+        .replace(/\s*\d+\s*marks?\s*/i, '')
+        .replace(/\s*\d+\s*periods?\s*/i, '')
+        .replace(/^[:\s,;-]+|[:\s,;-]+$/g, '') // Clean punctuation at start/end
+        .trim();
+      
+      // If the title ends with a colon, it's likely a category label, not a title
+      if (cleanTitle.endsWith(':')) {
+        cleanTitle = cleanTitle.replace(/:$/, '');
+      }
+
+      // If the cleaned title is meaningful, use it
+      if (cleanTitle && cleanTitle.length > 3 && 
+          !cleanTitle.match(/^(and|or|the|of|in|for|with|by|to|from|on|at|as)/i)) {
+        unitMainTitle = cleanTitle;
+      }
+    }
+    
+    // If we haven't found a good title yet, try the second line
+    if ((!unitMainTitle || unitMainTitle === "Introduction") && contentLines.length > 1) {
+      const secondLine = contentLines[1].trim();
+      if (secondLine && secondLine.length > 3 && 
+          !secondLine.match(/^(and|or|the|of|in|for|with|by|to|from|on|at|as)/i) &&
+          !secondLine.endsWith(':')) {
+        unitMainTitle = secondLine;
+      }
+    }
+    
+    // If still no good title found, use first meaningful phrase from content
+    if (!unitMainTitle) {
+      // Find first meaningful phrase in content
+      for (const line of contentLines) {
+        const cleanedLine = line.trim()
+          .replace(/^[:\s,;-]+|[:\s,;-]+$/g, '') // Clean punctuation
+          .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+          .trim();
+          
+        if (cleanedLine.length > 5 && !cleanedLine.endsWith(':') && 
+            !cleanedLine.match(/^(and|or|the|of|in|for|with|by|to|from|on|at|as)/i)) {
+          unitMainTitle = cleanedLine;
+          break;
+        }
+      }
+    }
+      // Default to unit name if no good title found
+    if (!unitMainTitle) {
+      unitMainTitle = `${unitType} ${unitNum}`;
+    }
+    
+    // Extract topics from cleaned content
+    const topicPatterns = [
+      /(?:^|\n)(?:[•\-\*]|\d+\.)\s*([A-Za-z][^\n]+)/g, // Bullet points or numbered items
+      /(?:^|\n)Unit\s*-\s*([IVX\d]+)\s*:\s*([^\n]+)/i, // Unit-X format
+      /(?:^|\n)(?:Unit|Module)\s*([IVX\d]+)[\s:.-]*([^\n]+)/i, // Unit I, Module I formats
+      /(?:^|\n)(?:Chapter|Topic)[:\s-]*([IVX\d]+)[:\s-]+(.+)/i // Chapter or Topic formats
+    ];
+    
+    let extractedTopics = [];
+    
+    for (const pattern of topicPatterns) {
+      const matches = cleanContent.match(pattern);
+      if (matches) {
+        extractedTopics = extractedTopics.concat(matches);
+      }
+    }
+    
+    // Clean and format extracted topics
+    const formattedTopics = extractedTopics.map((topic, idx) => {
+      // Clean lecture hours and other metadata
+      let cleanTopic = topic
+        .replace(/\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*Lecture\s*Hours?\s*/i, '')
+        .replace(/\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*-?\s*\d+\s*hours?\s*/i, '')
+        .replace(/\s*\(\s*\d+\s*hours?\s*\)/i, '')
+        .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, '')
+        .replace(/\s*\d+\s*marks?\s*/i, '')
+        .replace(/\s*\d+\s*periods?\s*/i, '')
+        .replace(/^[:\s,;-]+|[:\s,;-]+$/g, '') // Clean punctuation
+        .trim();
+      
+      // If the topic is empty after cleaning, fallback to a default topic name
+      if (!cleanTopic || cleanTopic.length < 3) {
+        cleanTopic = `Topic ${idx + 1}`;
+      }
+      
+      return cleanTopic;
+    });
+    
+    // Limit to top 6 topics for the mind map
+    const selectedTopics = formattedTopics.slice(0, 6);
+    
+    // Add as topics in the outline
+    const unitTitle = unitMainTitle || `${unitType} ${unitNum}`;
+    
+    return {
+      id: `unit_${index + 1}`,
+      title: unitTitle,
+      type: 'module',
+      unitType: unitType,
+      unitNumber: unitNum,
+      content: cleanContent,
+      topics: selectedTopics.map((title, idx) => ({
+        id: `topic_${index + 1}_${idx + 1}`,
+        title: title,
+        content: `Details about ${title} within ${unitType} ${unitNum}.`
+      }))
+    };
+  });
+  console.log(`📘 Created ${outline.length} structured modules`);
+  outline.forEach((module, index) => {
+    console.log(`📘 Module ${index + 1}: ${module.title.substring(0, 50)}...`);
+  });
+  
+  return outline;
 };
 
 // Detect if syllabus has tabular/structured format (like Geography example)
@@ -466,178 +1407,322 @@ const detectTabularFormat = (syllabus) => {
     /\|\s*module\s*\|\s*content/i,
     /unit\s+chapter\s+periods?\s+weightage/i,
     /unit\s+topics?\s+hours?\s+marks?/i,
-    /(unit|chapter|topic|module)\s+[1-9][\.\):\-\s]+.+\s+[1-9]+[\s\%]/i
+    /(unit|chapter|topic|module)\s+[1-9][\.\):\-\s]+.+\s+[1-9]+[\s\%]/i,
   ];
-  
-  return indicators.some(pattern => pattern.test(syllabus));
+
+  return indicators.some((pattern) => pattern.test(syllabus));
 };
 
 // Extract content from structured/tabular format
 const extractStructuredContent = (syllabus) => {
-  const lines = syllabus.split('\n');
+  const lines = syllabus.split("\n");
   const structuredTopics = [];
-  
+
   let currentUnit = null;
   let isInTableData = false;
-  
+
   for (const line of lines) {
     const trimmedLine = line.trim();
-    
+
     // Skip header rows and separators
-    if (trimmedLine.includes('Unit') && trimmedLine.includes('Chapter') && 
-        (trimmedLine.includes('Periods') || trimmedLine.includes('Hours') || trimmedLine.includes('Weightage'))) {
+    if (
+      trimmedLine.includes("Unit") &&
+      trimmedLine.includes("Chapter") &&
+      (trimmedLine.includes("Periods") ||
+        trimmedLine.includes("Hours") ||
+        trimmedLine.includes("Weightage"))
+    ) {
       isInTableData = true;
       continue;
     }
-    
+
     if (trimmedLine.match(/^[\|\-\+\s]+$/)) {
       continue; // Skip separator lines
     }
-    
+
     if (isInTableData && trimmedLine) {
       // Parse tabular data - handle various formats
-      const unitChapterMatch = trimmedLine.match(/^[\|\s]*(?:unit\s*)?([1-9]+)[\.\)\|\s]+(.+?)[\|\s]+([1-9]+[\s\%]*)/i);
-      const simpleTopicMatch = trimmedLine.match(/^[\|\s]*([^|\d]+?)[\|\s]+([1-9]+[\s\%]*)/i);
-      
-      if (unitChapterMatch) {
+      const unitChapterMatch = trimmedLine.match(
+        /^[\|\s]*(?:unit\s*)?([1-9]+)[\.\)\|\s]+(.+?)[\|\s]+([1-9]+[\s\%]*)/i
+      );
+      const simpleTopicMatch = trimmedLine.match(
+        /^[\|\s]*([^|\d]+?)[\|\s]+([1-9]+[\s\%]*)/i
+      );      if (unitChapterMatch) {
         const [, unitNum, chapterContent, periods] = unitChapterMatch;
-        const cleanContent = chapterContent.replace(/[\|\-]+/g, ' ').trim();
-        
+        let cleanContent = chapterContent.replace(/[\|\-]+/g, " ").trim();
+          // Clean lecture hours from tabular content
+        cleanContent = cleanContent
+          .replace(/\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*-\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*,\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*;\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, "")
+          .replace(/\s*[\-,;]\s*$/i, "")
+          .trim();
+
         if (cleanContent && cleanContent.length > 3) {
-          currentUnit = `Unit ${unitNum}`;
-          structuredTopics.push(`${currentUnit}: ${cleanContent}`);
+          currentUnit = unitNum; // Store unit number for context
+          structuredTopics.push(cleanContent); // Push only the clean content without unit prefix
         }
       } else if (simpleTopicMatch) {
         const [, topicContent, periods] = simpleTopicMatch;
-        const cleanContent = topicContent.replace(/[\|\-]+/g, ' ').trim();
-        
-        if (cleanContent && cleanContent.length > 3 && !cleanContent.toLowerCase().includes('unit')) {
-          if (currentUnit) {
-            structuredTopics.push(`${currentUnit} - ${cleanContent}`);
-          } else {
-            structuredTopics.push(cleanContent);
-          }
+        let cleanContent = topicContent.replace(/[\|\-]+/g, " ").trim();
+          // Clean lecture hours from simple topic content
+        cleanContent = cleanContent
+          .replace(/\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*-\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*,\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*;\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+          .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, "")
+          .replace(/\s*[\-,;]\s*$/i, "")
+          .trim();if (
+          cleanContent &&
+          cleanContent.length > 3 &&
+          !cleanContent.toLowerCase().includes("unit")
+        ) {
+          // Push only the clean content without unit prefix
+          structuredTopics.push(cleanContent);
         }
       }
-    }
-    
-    // Also capture non-tabular unit descriptions
-    const unitHeaderMatch = trimmedLine.match(/^unit[:\s-]*([1-9]+)[:\s-]+(.+)/i);
+    }    // Also capture non-tabular unit descriptions
+    const unitHeaderMatch = trimmedLine.match(
+      /^unit[:\s-]*([1-9]+)[:\s-]+(.+)/i
+    );
     if (unitHeaderMatch && !isInTableData) {
-      const [, unitNum, unitTitle] = unitHeaderMatch;
-      structuredTopics.push(`Unit ${unitNum}: ${unitTitle.trim()}`);
-    }
-    
-    // Capture chapter/topic entries
-    const chapterMatch = trimmedLine.match(/^(?:chapter|topic)[:\s-]*([1-9]+)[:\s-]+(.+)/i);
+      const [, unitNum, unitTitle] = unitHeaderMatch;      // Clean lecture hours from unit titles
+      let cleanTitle = unitTitle.trim()
+        .replace(/\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*-\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*,\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*;\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, "")
+        .replace(/\s*[\-,;]\s*$/i, "")
+        .trim();
+      if (cleanTitle.length > 3) {
+        structuredTopics.push(cleanTitle); // Push only the clean title without unit prefix
+      }
+    }    // Capture chapter/topic entries
+    const chapterMatch = trimmedLine.match(
+      /^(?:chapter|topic)[:\s-]*([1-9]+)[:\s-]+(.+)/i
+    );
     if (chapterMatch) {
-      const [, chapterNum, chapterTitle] = chapterMatch;
-      structuredTopics.push(`Chapter ${chapterNum}: ${chapterTitle.trim()}`);
+      const [, chapterNum, chapterTitle] = chapterMatch;      // Clean lecture hours from chapter titles
+      let cleanChapterTitle = chapterTitle.trim()
+        .replace(/\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*-\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*,\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*;\s*\d+\s*Lecture\s*Hours?\s*$/i, "")
+        .replace(/\s*\(\s*\d+\s*Lecture\s*Hours?\s*\)/i, "")
+        .replace(/\s*[\-,;]\s*$/i, "")
+        .trim();
+      if (cleanChapterTitle.length > 3) {
+        structuredTopics.push(cleanChapterTitle); // Push only the clean title without chapter prefix
+      }
     }
   }
-  
-  return structuredTopics.length > 0 ? structuredTopics.join('\n') : syllabus;
+
+  return structuredTopics.length > 0 ? structuredTopics.join("\n") : syllabus;
 };
 
 // Determine subject domain for intelligent content generation
 const detectSubjectDomain = (subjectName, syllabusContent) => {
   const subjectLower = subjectName.toLowerCase();
   const contentLower = syllabusContent.toLowerCase();
-  
+
   // Mathematics/Engineering domains (heavy equation usage)
-  const mathDomains = ['mathematics', 'calculus', 'algebra', 'statistics', 'physics', 'engineering', 'mechanics', 'thermodynamics', 'electromagnetic', 'quantum', 'differential', 'linear algebra', 'numerical analysis'];
-  
+  const mathDomains = [
+    "mathematics",
+    "calculus",
+    "algebra",
+    "statistics",
+    "physics",
+    "engineering",
+    "mechanics",
+    "thermodynamics",
+    "electromagnetic",
+    "quantum",
+    "differential",
+    "linear algebra",
+    "numerical analysis",
+  ];
+
   // Computer Science domains (code examples)
-  const csDomains = ['computer science', 'programming', 'software', 'algorithm', 'data structure', 'machine learning', 'artificial intelligence', 'database', 'network', 'cybersecurity', 'web development', 'software engineering'];
-  
+  const csDomains = [
+    "computer science",
+    "programming",
+    "software",
+    "algorithm",
+    "data structure",
+    "machine learning",
+    "ai",
+    "artificial intelligence",
+    "neural networks",
+    "deep learning",
+    "reinforcement learning",
+    "nlp",
+    "natural language processing",
+    "computer vision",
+    "database",
+    "network",
+    "cybersecurity",
+    "web development",
+    "software engineering",
+  ];
+
   // Science domains (moderate equations, more descriptions)
-  const scienceDomains = ['chemistry', 'biology', 'biochemistry', 'molecular', 'genetics', 'pharmacology', 'anatomy', 'physiology', 'ecology', 'botany', 'zoology', 'microbiology'];
-  
+  const scienceDomains = [
+    "chemistry",
+    "biology",
+    "biochemistry",
+    "molecular",
+    "genetics",
+    "pharmacology",
+    "anatomy",
+    "physiology",
+    "ecology",
+    "botany",
+    "zoology",
+    "microbiology",
+  ];
+
   // Business/Social domains (minimal equations, more concepts)
-  const businessDomains = ['business', 'management', 'marketing', 'finance', 'economics', 'accounting', 'organizational', 'strategic', 'human resource', 'psychology', 'sociology', 'political science', 'history', 'geography', 'literature', 'philosophy'];
-  
-  if (mathDomains.some(domain => subjectLower.includes(domain) || contentLower.includes(domain))) {
-    return 'mathematics';
+  const businessDomains = [
+    "business",
+    "management",
+    "marketing",
+    "finance",
+    "economics",
+    "accounting",
+    "organizational",
+    "strategic",
+    "human resource",
+    "psychology",
+    "sociology",
+    "political science",
+    "history",
+    "geography",
+    "literature",
+    "philosophy",
+  ];
+
+  if (
+    mathDomains.some(
+      (domain) => subjectLower.includes(domain) || contentLower.includes(domain)
+    )
+  ) {
+    return "mathematics";
   }
-  
-  if (csDomains.some(domain => subjectLower.includes(domain) || contentLower.includes(domain))) {
-    return 'computer_science';
+
+  if (
+    csDomains.some(
+      (domain) => subjectLower.includes(domain) || contentLower.includes(domain)
+    )
+  ) {
+    return "computer_science";
   }
-  
-  if (scienceDomains.some(domain => subjectLower.includes(domain) || contentLower.includes(domain))) {
-    return 'science';
+
+  if (
+    scienceDomains.some(
+      (domain) => subjectLower.includes(domain) || contentLower.includes(domain)
+    )
+  ) {
+    return "science";
   }
-  
-  if (businessDomains.some(domain => subjectLower.includes(domain) || contentLower.includes(domain))) {
-    return 'business';
+
+  if (
+    businessDomains.some(
+      (domain) => subjectLower.includes(domain) || contentLower.includes(domain)
+    )
+  ) {
+    return "business";
   }
-  
-  return 'general';
+
+  return "general";
 };
 
-// Enhanced AI prompt generator for mind maps with intelligent content adaptation
-const generateMindMapPrompt = (subjectName, syllabusContent) => {
-  // Detect subject domain for intelligent content adaptation
-  const subjectDomain = detectSubjectDomain(subjectName, syllabusContent);
+// Get intelligent guidelines for natural content generation
+const getIntelligentGuidelines = (domain) => {
+  const guidelines = {
+    mathematics: `## MATHEMATICAL EXPERTISE GUIDELINES
+Write with the authority of a mathematics professor who can explain complex concepts clearly. 
+- Use precise mathematical language but make it accessible
+- Include relevant equations naturally when they illuminate concepts
+- Connect abstract mathematics to real-world applications
+- Show the beauty and elegance of mathematical thinking
+- Build concepts systematically from fundamentals to advanced topics`,
+
+    computer_science: `## COMPUTER SCIENCE EXPERTISE GUIDELINES
+Write as a senior software engineer and computer scientist with deep theoretical and practical knowledge.
+- Balance theoretical computer science with practical programming insights
+- Include code examples that illustrate important concepts clearly
+- Explain algorithms and data structures with clarity and depth
+- Connect academic concepts to industry practices and emerging technologies
+- Emphasize problem-solving methodologies and computational thinking`,
+
+    science: `## SCIENTIFIC EXPERTISE GUIDELINES
+Write as a research scientist who understands both laboratory work and theoretical foundations.
+- Use the scientific method as a framework for understanding
+- Connect basic principles to cutting-edge research and applications
+- Include relevant equations when they help explain natural phenomena
+- Emphasize experimental validation and real-world evidence
+- Show how scientific knowledge drives technological innovation`,
+
+    business: `## BUSINESS EXPERTISE GUIDELINES
+Write as an experienced business leader with academic grounding and practical experience.
+- Focus on strategic thinking and practical implementation
+- Use business frameworks naturally to organize thinking
+- Include relevant financial calculations when they add insight
+- Connect theoretical business concepts to real market dynamics
+- Emphasize decision-making under uncertainty and competitive advantage`,
+
+    general: `## ACADEMIC EXPERTISE GUIDELINES
+Write as a distinguished scholar who makes complex subjects accessible and engaging.
+- Adapt your communication style to the academic discipline
+- Use appropriate technical language while remaining clear
+- Connect theory to practice in meaningful ways
+- Build understanding systematically and logically
+- Inspire curiosity and deeper exploration of the subject`,
+  };
+
+  return guidelines[domain] || guidelines.general;
+};
+
+// Get domain-specific hints for intelligent content adaptation
+const getDomainSpecificHints = (domain) => {
+  const hints = {
+    mathematics:
+      "**Content Intelligence Hints:**\n- Include equations using KaTeX when they clarify concepts\n- Explain mathematical intuition behind formulas\n- Use proof techniques and mathematical reasoning\n- Connect pure mathematics to applied contexts\n- Show computational methods and problem-solving strategies",
+
+    computer_science:
+      "**Content Intelligence Hints:**\n- Include relevant code snippets that demonstrate concepts clearly\n- Explain algorithmic thinking and computational complexity\n- Balance theory with practice\n- Show how abstract CS concepts apply to real software systems\n- Include pseudocode for algorithms when helpful",
+
+    science:
+      "**Content Intelligence Hints:**\n- Use scientific equations judiciously when they illuminate principles\n- Emphasize experimental methods and empirical evidence\n- Connect basic scientific principles to current research\n- Include real-world applications and technological implications\n- Show how scientific knowledge evolves through discovery",
+
+    business:
+      "**Content Intelligence Hints:**\n- Include business metrics when relevant\n- Use strategic frameworks naturally\n- Focus on practical decision-making and real market dynamics\n- Include case study thinking and scenario analysis\n- Emphasize leadership, management, and organizational behavior",
+
+    general:
+      "**Content Intelligence Hints:**\n- Adapt your approach to the specific academic discipline\n- Use domain-appropriate technical language and concepts\n- Include relevant examples and applications from the field\n- Balance theoretical understanding with practical applications\n- Create content that builds knowledge systematically",
+  };
+
+  return hints[domain] || hints.general;
+};
+
+// Enhanced AI prompt generator - uses AI-parsed data
+const generateMindMapPrompt = (subjectName, aiParsedData) => {
+  // Use the AI-parsed data to create a focused prompt
+  const topicsList = aiParsedData.main_topics.map((topic, index) => 
+    `${index + 1}. ${topic.title}`
+  ).join('\n');
   
-  // Get domain-specific content guidelines
-  const domainGuidelines = getDomainSpecificGuidelines(subjectDomain);
-  
-  return `You are an expert educational content creator and academic writer specializing in ${subjectName}. Create a comprehensive mind map structure based on this syllabus content:
+  return `You are an expert educational content creator. Create a comprehensive mind map for the subject "${subjectName}".
 
-${syllabusContent}
+MAIN TOPICS IDENTIFIED:
+${topicsList}
 
-SUBJECT DOMAIN: ${subjectDomain.toUpperCase()}
-${domainGuidelines}
+Create a detailed mind map JSON with this structure:
 
-CRITICAL CONTENT REQUIREMENTS - EACH NODE MUST HAVE DETAILED THEORY:
-
-1. CENTRAL NODE: Write 300-400 words covering:
-   - Complete overview of the subject
-   - Historical context and importance
-   - Key learning outcomes
-   - How topics interconnect
-   - Real-world applications
-
-2. MAIN TOPIC NODES: Write 250-350 words for each including:
-   - Detailed definition and explanation
-   - Key concepts and terminology
-   ${subjectDomain === 'mathematics' ? '- Mathematical formulas and proofs (use $formula$ for inline, $$formula$$ for block equations)' : ''}
-   ${subjectDomain === 'computer_science' ? '- Code examples using ```language code blocks when relevant' : ''}
-   ${subjectDomain === 'science' ? '- Scientific principles and moderate use of equations when necessary' : ''}
-   ${subjectDomain === 'business' ? '- Conceptual frameworks, models, and strategic approaches' : ''}
-   - Practical examples and applications
-   - How it connects to other topics
-   - Common misconceptions and important notes
-
-3. SUBTOPIC NODES: Write 200-300 words including:
-   - Comprehensive explanation of the concept
-   - Step-by-step processes or methodologies
-   ${getSubtopicDomainSpecifics(subjectDomain)}
-   - Real-world examples and case studies
-   - Problem-solving techniques
-   - Key points to remember
-
-FORMATTING GUIDELINES FOR CONTENT:
-- Use ## for main headings
-- Use ### for subheadings
-- Use **bold** for emphasis
-- Use - for bullet points
-- Use numbered lists for sequential steps
-${getFormattingGuidelines(subjectDomain)}
-
-DETAILED CONTENT EXAMPLES FOR REFERENCE:
-
-${getDomainSpecificExamples(subjectDomain)}
-
-STRUCTURAL REQUIREMENTS:
-1. Analyze syllabus and identify main topics/units mentioned
-2. Create hierarchical structure: Main Topic → Subtopics → Sub-subtopics
-3. Generate 6-10 main nodes maximum
-4. Position nodes for visual appeal
-5. Ensure each content field has 200-400 words of detailed theory
-
-REQUIRED JSON FORMAT:
 {
   "title": "${subjectName}",
   "subject": "${subjectName}",
@@ -647,1068 +1732,28 @@ REQUIRED JSON FORMAT:
       "label": "${subjectName}",
       "type": "root",
       "level": 0,
-      "position": { "x": 300, "y": 200 },
-      "content": "300-400 words comprehensive overview with historical context, importance, learning outcomes, interconnections, and applications...",
+      "position": { "x": 400, "y": 300 },
+      "content": "[300-400 word comprehensive overview of ${subjectName}]",
       "isRoot": true,
       "hasChildren": true,
       "children": ["topic1", "topic2", ...]
     },
-    {
-      "id": "topic1",
-      "label": "Main Topic Name",
-      "type": "topic",
-      "level": 1,
-      "position": { "x": 600, "y": 100 },
-      "content": "250-350 words detailed explanation with definitions, key concepts, ${subjectDomain === 'mathematics' ? 'mathematical formulas using KaTeX,' : subjectDomain === 'computer_science' ? 'code examples,' : ''} examples, applications, and connections...",
-      "parentNode": "central",
-      "hasChildren": true,
-      "children": ["subtopic1_1", "subtopic1_2"]
-    },
-    {
-      "id": "subtopic1_1",
-      "label": "Subtopic Name",
-      "type": "subtopic",
-      "level": 2,
-      "position": { "x": 900, "y": 80 },
-      "content": "200-300 words comprehensive explanation with processes, ${subjectDomain === 'mathematics' ? 'equations,' : ''} examples, problem-solving techniques, and key points...",
-      "parentNode": "topic1",
-      "hasChildren": false,
-      "children": []
-    }
+    // Add topic nodes and subtopic nodes with detailed content
   ],
   "edges": [
-    {
-      "id": "central-topic1",
-      "source": "central",
-      "target": "topic1",
-      "type": "bezier"
-    }
+    // Connect all nodes appropriately
   ]
 }
 
-POSITIONING GUIDELINES:
-- Central node at (300, 200)
-- Main topics at x=600, spread vertically (y=50, 150, 250, etc.)
-- Subtopics at x=900, positioned relative to parent
-- Ensure no overlapping nodes
+Generate comprehensive, educational content for each node. Make it engaging and informative.
 
-Return ONLY valid JSON. No markdown formatting around the JSON, no explanations, just the pure JSON structure with detailed content for each node.`;
+Return ONLY valid JSON.`;
 };
-
-// Get domain-specific content guidelines
-const getDomainSpecificGuidelines = (domain) => {
-  const guidelines = {
-    mathematics: `
-MATHEMATICS DOMAIN GUIDELINES:
-- Heavy use of mathematical equations and formulas using KaTeX syntax
-- Include derivations, proofs, and mathematical reasoning
-- Focus on problem-solving techniques and computational methods
-- Emphasize theoretical foundations and practical applications
-- Use precise mathematical terminology and notation`,
-
-    computer_science: `
-COMPUTER SCIENCE DOMAIN GUIDELINES:
-- Include relevant code examples in appropriate programming languages
-- Focus on algorithms, data structures, and computational complexity
-- Explain implementation details and best practices
-- Cover both theoretical concepts and practical programming
-- Use technical terminology and industry-standard practices`,
-
-    science: `
-SCIENCE DOMAIN GUIDELINES:
-- Include scientific principles and moderate use of equations when necessary
-- Focus on experimental methods, observations, and empirical evidence
-- Explain natural phenomena and scientific processes
-- Include real-world examples from research and applications
-- Balance theoretical understanding with practical implications`,
-
-    business: `
-BUSINESS DOMAIN GUIDELINES:
-- Focus on conceptual frameworks, strategic models, and business principles
-- Minimal use of equations - only for financial calculations when relevant
-- Emphasize case studies, real-world examples, and practical applications
-- Include management theories, organizational behavior concepts
-- Focus on decision-making processes and strategic thinking`,
-
-    general: `
-GENERAL DOMAIN GUIDELINES:
-- Adapt content style to match the subject matter naturally
-- Use equations, code, or frameworks only when truly relevant
-- Focus on clear explanations and practical understanding
-- Include diverse examples and applications appropriate to the field`
-  };
-  
-  return guidelines[domain] || guidelines.general;
-};
-
-// Get subtopic domain-specific content requirements
-const getSubtopicDomainSpecifics = (domain) => {
-  const specifics = {
-    mathematics: '- Detailed mathematical derivations and equation explanations\n   - Problem-solving algorithms and computational techniques',
-    computer_science: '- Algorithm implementations and code snippets\n   - Complexity analysis and optimization techniques',
-    science: '- Experimental procedures and scientific methodologies\n   - Empirical evidence and research findings',
-    business: '- Strategic frameworks and business models\n   - Case study analysis and practical implementation',
-    general: '- Relevant technical details appropriate to the subject\n   - Domain-specific methodologies and best practices'
-  };
-  
-  return specifics[domain] || specifics.general;
-};
-
-// Get formatting guidelines specific to domain
-const getFormattingGuidelines = (domain) => {
-  const guidelines = {
-    mathematics: `- Include equations using KaTeX syntax:
-  * Inline: $E = mc^2$
-  * Block: $$\\frac{d^2y}{dx^2} + p(x)\\frac{dy}{dx} + q(x)y = f(x)$$
-- Use mathematical notation and symbols appropriately`,
-
-    computer_science: `- Include code blocks for relevant examples:
-  \`\`\`python
-  def algorithm_example():
-      return "code here"
-  \`\`\`
-- Use inline code for \`variables\` and \`functions\``,
-
-    science: `- Include equations sparingly and only when essential:
-  * Simple: $F = ma$
-  * Complex: $$E = \\sqrt{(pc)^2 + (mc^2)^2}$$
-- Focus more on descriptive explanations`,
-
-    business: `- Use business terminology and frameworks
-- Include financial formulas only when necessary: $ROI = \\frac{Gain - Cost}{Cost} \\times 100\\%$
-- Focus on conceptual models and strategic thinking`,
-
-    general: `- Use appropriate technical formatting based on subject matter
-- Include relevant equations, code, or frameworks as needed`
-  };
-  
-  return guidelines[domain] || guidelines.general;
-};
-
-// Get domain-specific examples for the AI to reference
-const getDomainSpecificExamples = (domain) => {
-  const examples = {
-    mathematics: `
-EXAMPLE - MATHEMATICAL TOPIC (280+ words):
-"content": "## Partial Differential Equations
-
-Partial Differential Equations (PDEs) are fundamental mathematical tools used to describe phenomena involving multiple variables and their rates of change. Unlike ordinary differential equations, PDEs involve partial derivatives and are essential for modeling complex physical systems across engineering, physics, and applied mathematics.
-
-### Mathematical Foundation
-
-A PDE involves an unknown function $u(x,y,t)$ of multiple independent variables and its partial derivatives. The general form can be expressed as:
-
-$$F\\left(x, y, t, u, \\frac{\\partial u}{\\partial x}, \\frac{\\partial u}{\\partial y}, \\frac{\\partial u}{\\partial t}, \\frac{\\partial^2 u}{\\partial x^2}, \\frac{\\partial^2 u}{\\partial y^2}, \\frac{\\partial^2 u}{\\partial t^2}, ...\\right) = 0$$
-
-### Classification and Types
-
-PDEs are classified based on their **order** (highest derivative) and **linearity**:
-
-- **First-order PDEs**: $\\frac{\\partial u}{\\partial t} + c\\frac{\\partial u}{\\partial x} = 0$ (transport equation)
-- **Second-order PDEs**: Include elliptic, parabolic, and hyperbolic types
-- **Linear vs Nonlinear**: Linear PDEs follow superposition principle
-
-### Solution Methods
-
-**Separation of Variables**: Assume $u(x,t) = X(x)T(t)$ and separate the PDE into ODEs.
-
-**Method of Characteristics**: For first-order PDEs, find characteristic curves along which the PDE becomes an ODE.
-
-**Fourier Series Method**: Expand solutions in terms of eigenfunctions of related Sturm-Liouville problems.
-
-### Real-World Applications
-
-- **Heat conduction**: $\\frac{\\partial T}{\\partial t} = \\alpha \\nabla^2 T$ (thermal diffusion)
-- **Wave propagation**: $\\frac{\\partial^2 u}{\\partial t^2} = c^2 \\nabla^2 u$ (sound, electromagnetic waves)
-- **Quantum mechanics**: Schrödinger equation $i\\hbar\\frac{\\partial \\psi}{\\partial t} = \\hat{H}\\psi$
-
-Understanding PDEs is crucial for modeling continuous systems and forms the mathematical foundation for computational methods like finite element analysis."`,
-
-    computer_science: `
-EXAMPLE - COMPUTER SCIENCE TOPIC (300+ words):
-"content": "## Algorithm Design and Analysis
-
-Algorithm design is the systematic process of creating step-by-step procedures to solve computational problems efficiently. This fundamental area of computer science focuses on developing optimal solutions while considering time complexity, space complexity, and correctness.
-
-### Design Paradigms
-
-**Divide and Conquer**: Break problems into smaller subproblems, solve recursively, and combine results.
-
-\`\`\`python
-def merge_sort(arr):
-    if len(arr) <= 1:
-        return arr
-    
-    mid = len(arr) // 2
-    left = merge_sort(arr[:mid])
-    right = merge_sort(arr[mid:])
-    
-    return merge(left, right)
-\`\`\`
-
-**Dynamic Programming**: Solve overlapping subproblems once and store results for reuse.
-
-**Greedy Algorithms**: Make locally optimal choices at each step, hoping to find global optimum.
-
-### Complexity Analysis
-
-**Time Complexity**: Measures how runtime scales with input size.
-- **O(1)**: Constant time operations
-- **O(log n)**: Logarithmic time (binary search)
-- **O(n)**: Linear time (single loop)
-- **O(n log n)**: Linearithmic time (merge sort)
-- **O(n²)**: Quadratic time (bubble sort)
-
-**Space Complexity**: Measures memory usage relative to input size.
-
-### Algorithm Correctness
-
-**Invariants**: Properties that remain true throughout algorithm execution.
-
-**Proof Techniques**:
-- **Mathematical Induction**: Prove base case and inductive step
-- **Loop Invariants**: Prove correctness of iterative algorithms
-- **Contradiction**: Assume incorrectness and derive contradiction
-
-### Advanced Topics
-
-**Approximation Algorithms**: Provide near-optimal solutions for NP-hard problems.
-
-**Randomized Algorithms**: Use random choices during execution for efficiency or simplicity.
-
-**Parallel Algorithms**: Designed for concurrent execution on multiple processors.
-
-### Real-World Applications
-
-- **Search Engines**: PageRank algorithm for ranking web pages
-- **Machine Learning**: Gradient descent optimization
-- **Network Routing**: Shortest path algorithms (Dijkstra's, A*)
-- **Database Systems**: Query optimization and indexing
-- **Cryptography**: Encryption and digital signature algorithms
-
-Understanding algorithm design principles enables efficient problem-solving and forms the foundation for advanced computer science topics including artificial intelligence, systems programming, and computational theory."`,
-
-    science: `
-EXAMPLE - SCIENCE TOPIC (270+ words):
-"content": "## Photosynthesis and Cellular Energy Conversion
-
-Photosynthesis is the fundamental biological process by which plants, algae, and some bacteria convert light energy into chemical energy, producing glucose and oxygen from carbon dioxide and water. This process sustains virtually all life on Earth by providing the primary source of organic compounds and atmospheric oxygen.
-
-### Overall Reaction
-
-The simplified equation for photosynthesis is:
-$$6CO_2 + 6H_2O + \\text{light energy} \\rightarrow C_6H_{12}O_6 + 6O_2$$
-
-### Light-Dependent Reactions (Photosystem)
-
-**Location**: Thylakoid membranes of chloroplasts
-
-**Process**: Chlorophyll absorbs photons, exciting electrons to higher energy levels. This energy drives:
-- **Water photolysis**: $2H_2O \\rightarrow 4H^+ + 4e^- + O_2$
-- **ATP synthesis**: ADP + Pi + energy → ATP
-- **NADPH formation**: NADP+ + 2e- + H+ → NADPH
-
-**Key Components**:
-- **Photosystem II**: Absorbs light at 680nm, splits water molecules
-- **Electron transport chain**: Transfers electrons between photosystems
-- **Photosystem I**: Absorbs light at 700nm, reduces NADP+
-
-### Light-Independent Reactions (Calvin Cycle)
-
-**Location**: Stroma of chloroplasts
-
-**Carbon Fixation**: CO₂ combines with ribulose-1,5-bisphosphate (RuBP) via RuBisCO enzyme.
-
-**Reduction Phase**: 3-phosphoglycerate reduced to glyceraldehyde-3-phosphate using ATP and NADPH.
-
-**Regeneration**: RuBP regenerated to continue the cycle.
-
-### Environmental Factors
-
-**Light Intensity**: Affects rate of light reactions until saturation point.
-
-**Temperature**: Influences enzyme activity, particularly RuBisCO efficiency.
-
-**CO₂ Concentration**: Can be limiting factor in carbon fixation.
-
-### Adaptations and Variations
-
-**C4 Photosynthesis**: Spatial separation of CO₂ fixation and Calvin cycle (corn, sugarcane).
-
-**CAM Photosynthesis**: Temporal separation - open stomata at night (cacti, succulents).
-
-### Ecological Significance
-
-Photosynthesis produces approximately 170 billion tons of carbohydrates annually, supporting food webs and maintaining atmospheric oxygen levels. Understanding this process is crucial for addressing climate change, improving crop yields, and developing renewable energy technologies."`,
-
-    business: `
-EXAMPLE - BUSINESS TOPIC (280+ words):
-"content": "## Strategic Management and Competitive Advantage
-
-Strategic Management encompasses the comprehensive planning, execution, and evaluation of organizational initiatives designed to achieve long-term competitive advantage. This multidisciplinary field integrates insights from economics, psychology, sociology, and organizational theory to guide firms toward sustainable success in dynamic business environments.
-
-### Theoretical Foundations
-
-**Resource-Based View (RBV)**: Firms achieve competitive advantage through unique, valuable, rare, inimitable, and non-substitutable (VRIN) resources. Value creation can be expressed as:
-$$\\text{Value} = \\text{Benefits} - \\text{Costs}$$
-
-**Dynamic Capabilities Framework**: Organizations must continuously adapt by developing capabilities to integrate, build, and reconfigure internal and external competencies.
-
-**Porter's Five Forces Model**: Industry attractiveness depends on:
-1. **Threat of new entrants**: Barriers to entry and switching costs
-2. **Bargaining power of suppliers**: Supplier concentration and differentiation
-3. **Bargaining power of buyers**: Customer concentration and price sensitivity
-4. **Threat of substitutes**: Alternative products or services
-5. **Competitive rivalry**: Industry growth rate and competitor diversity
-
-### Strategic Analysis Tools
-
-**SWOT Analysis**: Systematic evaluation of Strengths, Weaknesses, Opportunities, and Threats.
-
-**Value Chain Analysis**: Examines primary activities (inbound logistics, operations, outbound logistics, marketing, service) and support activities (procurement, technology, human resources, infrastructure).
-
-**BCG Growth-Share Matrix**: Portfolio analysis categorizing business units as Stars, Cash Cows, Question Marks, or Dogs.
-
-### Competitive Strategy Types
-
-**Cost Leadership**: Achieving lowest operational costs through economies of scale and operational efficiency.
-
-**Differentiation**: Creating unique value propositions through innovation, quality, or brand positioning.
-
-**Focus Strategy**: Concentrating on specific market segments, applying either cost leadership or differentiation within narrow scope.
-
-### Implementation Framework
-
-**Balanced Scorecard**: Integrates four perspectives:
-- Financial performance measures
-- Customer relationship metrics
-- Internal process efficiency
-- Learning and growth capabilities
-
-Success requires alignment between organizational structure, culture, systems, and strategic objectives. Key performance indicators should reflect both financial metrics (ROI, EVA) and non-financial measures (customer satisfaction, innovation rate).
-
-Strategic management remains essential for navigating complexity, uncertainty, and technological change in global markets."`,
-
-    general: `
-EXAMPLE - GENERAL ACADEMIC TOPIC (250+ words):
-"content": "## Core Learning Principles and Knowledge Acquisition
-
-This topic represents a fundamental area of study that requires systematic understanding and practical application. The content integrates theoretical foundations with real-world applications, providing learners with comprehensive knowledge and practical skills.
-
-### Conceptual Framework
-
-The subject matter is built upon established principles that have evolved through research and practice. Key theoretical components include:
-
-- **Foundational Concepts**: Basic principles that form the building blocks of understanding
-- **Advanced Applications**: Complex scenarios requiring synthesis of multiple concepts
-- **Interdisciplinary Connections**: Relationships with other fields of study
-- **Practical Implementation**: Real-world application of theoretical knowledge
-
-### Learning Methodology
-
-**Progressive Development**: Knowledge builds systematically from basic concepts to advanced applications.
-
-**Active Engagement**: Learners must participate actively in problem-solving and critical analysis.
-
-**Practical Application**: Theory must be connected to real-world scenarios and case studies.
-
-### Key Components
-
-**Analytical Thinking**: Developing skills to break down complex problems into manageable components.
-
-**Synthesis Skills**: Combining different concepts and ideas to create comprehensive understanding.
-
-**Evaluation Techniques**: Assessing the validity and reliability of information and solutions.
-
-### Assessment and Mastery
-
-Understanding is demonstrated through:
-- Conceptual comprehension and explanation
-- Problem-solving capabilities
-- Application to novel situations
-- Critical analysis of related issues
-
-### Real-World Relevance
-
-This area of study has significant applications in professional practice, academic research, and personal development. Mastery provides foundation for advanced study and practical problem-solving in various contexts.
-
-The systematic approach to this subject ensures comprehensive understanding and practical competency essential for academic success and professional advancement."`
-  };
-  
-  return examples[domain] || examples.general;
-};
-
-// Mind Map Generation API
-app.post('/api/mindmap/generate', verifyToken, async (req, res) => {
-  try {
-    const { subjectName, syllabus } = req.body;
-
-    if (!subjectName) {
-      return res.status(400).json({ error: 'Subject name is required' });
-    }
-
-    console.log('Generating mind map for:', subjectName);
-    console.log('Syllabus length:', syllabus?.length || 0);
-
-    // Extract relevant content from syllabus
-    const cleanedSyllabus = extractSyllabusContent(syllabus || '');
-    console.log('Extracted syllabus content:', cleanedSyllabus.substring(0, 200) + '...');
-
-    // Generate enhanced prompt
-    const prompt = generateMindMapPrompt(subjectName, cleanedSyllabus);    // Try to call the Groq API with available models
-    let completion;
-    const groqModels = [
-      "llama3-70b-8192", // First choice: latest stable Llama 3 model
-      "mixtral-8x7b-32768", // Second choice: alternative model
-      "gemma-7b-it"  // Third choice: fallback model
-    ];
-    
-    let modelError = null;
-    // Try each model in sequence until one works
-    for (const model of groqModels) {
-      try {
-        console.log(`Attempting to use Groq model: ${model}`);
-        completion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert educational content creator specializing in mind maps and structured learning. Always respond with valid JSON only, no additional text or formatting."
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          model: model,
-          temperature: 0.2, // Lower temperature for more consistent results
-          max_tokens: 6000, // Increased for more detailed content
-          top_p: 0.9,
-        });
-        console.log(`Successfully generated content using model: ${model}`);
-        modelError = null;
-        break; // Break the loop if successful
-      } catch (error) {
-        console.error(`Error with model ${model}:`, error.message);
-        modelError = error;
-      }
-    }
-    
-    // If all models failed, throw an error
-    if (modelError) {
-      throw new Error(`Failed to generate content with any available model: ${modelError.message}`);
-    }
-
-    let mindMapData;
-    try {
-      const responseText = completion.choices[0]?.message?.content || '';
-      console.log('Groq response preview:', responseText.substring(0, 500) + '...');
-      
-      // Clean and extract JSON
-      const cleanResponse = responseText
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim();
-      
-      const jsonMatch = cleanResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        mindMapData = JSON.parse(jsonMatch[0]);
-        
-        // Validate the structure
-        if (!mindMapData.nodes || !Array.isArray(mindMapData.nodes)) {
-          throw new Error('Invalid mind map structure: missing nodes array');
-        }
-        
-        // Ensure all required fields exist
-        mindMapData.title = mindMapData.title || subjectName;
-        mindMapData.subject = mindMapData.subject || subjectName;
-        mindMapData.created_at = new Date().toISOString();
-        mindMapData.updated_at = new Date().toISOString();
-        
-        console.log('Successfully parsed mind map with', mindMapData.nodes.length, 'nodes');
-        
-      } else {
-        throw new Error('No valid JSON found in response');
-      }
-    } catch (parseError) {
-      console.error('Error parsing Groq response:', parseError);
-      console.log('Raw response:', completion.choices[0]?.message?.content);
-      
-      // Enhanced fallback mind map structure
-      mindMapData = createFallbackMindMap(subjectName, cleanedSyllabus);
-    }    // Store in database
-    try {
-      if (db) {
-        const mindMapDoc = {
-          user_uid: req.user.uid,
-          subject_name: subjectName,
-          syllabus: syllabus || '',
-          mindmap_data: mindMapData,
-          created_at: new Date(),
-          updated_at: new Date()
-        };
-
-        const result = await db.collection('mindmaps').insertOne(mindMapDoc);
-        mindMapData.id = result.insertedId.toString();
-        console.log('Mind map saved to database with ID:', mindMapData.id);
-      } else {
-        mindMapData.id = `temp_${Date.now()}`; // Temporary ID
-      }
-      
-    } catch (dbError) {
-      console.log('Database not available, continuing without storage:', dbError.message);
-      mindMapData.id = `temp_${Date.now()}`; // Temporary ID
-    }
-
-    res.json({
-      success: true,
-      mindMap: mindMapData
-    });
-
-  } catch (error) {
-    console.error('Error generating mind map:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate mind map', 
-      details: error.message 
-    });
-  }
-});
-
-// Create fallback mind map structure
-// Create intelligent fallback mind map structure with domain-aware content
-const createFallbackMindMap = (subjectName, syllabusContent) => {
-  // Determine subject domain
-  const domain = detectSubjectDomain(subjectName, syllabusContent);
-  
-  // Try to extract topics from syllabus content using intelligent parsing
-  const cleanedSyllabus = extractSyllabusContent(syllabusContent);
-  const lines = cleanedSyllabus.split('\n').filter(line => line.trim());
-  const topics = [];
-  
-  // Enhanced topic extraction patterns
-  lines.forEach(line => {
-    const unitMatch = line.match(/unit[:\s-]+[ivx1-9]+[:\s]*(.+)/i);
-    const chapterMatch = line.match(/chapter[:\s]+\d+[:\s]*(.+)/i);
-    const topicMatch = line.match(/^[1-9]\.\s*(.+)/);
-    const bulletMatch = line.match(/^[-•*]\s*(.+)/);
-    
-    if (unitMatch && unitMatch[1]) {
-      topics.push(unitMatch[1].trim());
-    } else if (chapterMatch && chapterMatch[1]) {
-      topics.push(chapterMatch[1].trim());
-    } else if (topicMatch && topicMatch[1]) {
-      topics.push(topicMatch[1].trim());
-    } else if (bulletMatch && bulletMatch[1] && bulletMatch[1].length > 10) {
-      topics.push(bulletMatch[1].trim());
-    }
-  });
-  
-  // Intelligent fallback topics based on domain if extraction fails
-  if (topics.length === 0) {
-    topics.push(...getDomainSpecificFallbackTopics(subjectName, domain));
-  }
-  
-  // Limit to 6 topics maximum
-  const limitedTopics = topics.slice(0, 6);
-  
-  const nodes = [
-    {
-      id: "central",
-      label: subjectName,
-      type: "root",
-      level: 0,
-      position: { x: 300, y: 200 },
-      content: generateDomainSpecificContent(subjectName, 'central', domain, subjectName),
-      isRoot: true,
-      hasChildren: true,
-      children: []
-    }
-  ];
-  
-  const edges = [];
-  
-  limitedTopics.forEach((topic, index) => {
-    const nodeId = `topic_${index + 1}`;
-    nodes[0].children.push(nodeId);
-    
-    // Position nodes in a radial pattern
-    const yPos = 50 + (index * 100);
-    
-    nodes.push({
-      id: nodeId,
-      label: topic,
-      type: "topic",
-      level: 1,
-      position: { x: 600, y: yPos },
-      content: generateDomainSpecificContent(topic, 'topic', domain, subjectName),
-      parentNode: "central",
-      hasChildren: false,
-      children: []
-    });
-    
-    edges.push({
-      id: `central-${nodeId}`,
-      source: "central",
-      target: nodeId,
-      type: "bezier"
-    });
-  });
-  
-  return {
-    title: subjectName,
-    subject: subjectName,
-    nodes: nodes,
-    edges: edges,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-};
-
-// Get domain-specific fallback topics
-const getDomainSpecificFallbackTopics = (subjectName, domain) => {
-  const fallbackTopics = {
-    mathematics: [
-      `Introduction to ${subjectName}`,
-      'Fundamental Theorems and Principles',
-      'Mathematical Methods and Techniques',
-      'Advanced Problem Solving',
-      'Applications and Modeling',
-      'Computational Methods'
-    ],
-    computer_science: [
-      `${subjectName} Fundamentals`,
-      'Algorithms and Data Structures',
-      'Implementation Techniques',
-      'Performance Analysis',
-      'Real-World Applications',
-      'Advanced Topics and Trends'
-    ],
-    science: [
-      `Introduction to ${subjectName}`,
-      'Basic Principles and Concepts',
-      'Experimental Methods',
-      'Advanced Phenomena',
-      'Applications and Technology',
-      'Current Research and Future Directions'
-    ],
-    business: [
-      `${subjectName} Overview`,
-      'Theoretical Frameworks',
-      'Strategic Analysis',
-      'Implementation Strategies',
-      'Case Studies and Applications',
-      'Future Trends and Challenges'
-    ],
-    general: [
-      `Introduction to ${subjectName}`,
-      'Fundamentals and Basics',
-      'Core Concepts',
-      'Advanced Topics',
-      'Applications and Examples',
-      'Summary and Conclusion'
-    ]
-  };
-  
-  return fallbackTopics[domain] || fallbackTopics.general;
-};
-
-// Generate domain-specific content for nodes
-const generateDomainSpecificContent = (topicTitle, nodeType, domain, subjectName) => {
-  const baseTemplates = {
-    central: {
-      mathematics: `## ${subjectName}: Mathematical Foundations and Applications
-
-${subjectName} represents a fundamental area of mathematical study that combines theoretical rigor with practical applications. This comprehensive field encompasses analytical techniques, computational methods, and problem-solving strategies essential for advanced mathematical understanding.
-
-### Mathematical Framework
-
-The subject builds upon established mathematical principles, including:
-- **Theoretical Foundations**: Core mathematical concepts and proofs
-- **Analytical Methods**: Systematic approaches to problem-solving
-- **Computational Techniques**: Numerical methods and algorithmic solutions
-- **Applications**: Real-world modeling and practical implementations
-
-### Learning Objectives
-
-Students will develop:
-- Rigorous mathematical reasoning and proof techniques
-- Proficiency in analytical and computational methods
-- Ability to model complex problems mathematically
-- Understanding of theoretical foundations and practical applications
-
-### Interconnections
-
-This field connects with various mathematical disciplines including algebra, calculus, statistics, and applied mathematics. Understanding these connections enables comprehensive mathematical literacy and advanced problem-solving capabilities.
-
-### Real-World Applications
-
-${subjectName} finds applications in engineering, physics, computer science, economics, and many other fields. Mastery provides foundation for advanced study and professional applications in technical and scientific domains.
-
-The systematic study of ${subjectName} develops critical thinking, analytical skills, and mathematical intuition essential for academic success and professional advancement.`,
-
-      computer_science: `## ${subjectName}: Computational Theory and Practice
-
-${subjectName} represents a dynamic field within computer science that combines theoretical foundations with practical implementation. This discipline focuses on algorithmic thinking, computational efficiency, and software engineering principles essential for modern technology development.
-
-### Computational Framework
-
-The field encompasses several key areas:
-- **Algorithmic Design**: Systematic approaches to problem-solving
-- **Data Structures**: Efficient organization and manipulation of information
-- **Software Engineering**: Best practices for large-scale system development
-- **Performance Analysis**: Complexity theory and optimization techniques
-
-### Core Competencies
-
-Students will develop:
-- Proficiency in programming languages and development tools
-- Understanding of algorithmic complexity and optimization
-- Ability to design and implement efficient software systems
-- Knowledge of computer science theory and practical applications
-
-### Technical Skills
-
-The curriculum emphasizes both theoretical understanding and hands-on experience with:
-\`\`\`python
-# Example: Core programming concepts
-def solve_problem(input_data):
-    # Algorithm implementation
-    return optimized_solution
-\`\`\`
-
-### Industry Applications
-
-${subjectName} has extensive applications in software development, artificial intelligence, cybersecurity, data science, and emerging technologies. Understanding these applications prepares students for careers in technology and innovation.
-
-The study of ${subjectName} develops computational thinking, problem-solving skills, and technical expertise crucial for success in the digital economy.`,
-
-      science: `## ${subjectName}: Scientific Principles and Discovery
-
-${subjectName} represents a fundamental area of scientific study that explores natural phenomena through systematic observation, experimentation, and theoretical analysis. This field combines empirical investigation with theoretical understanding to advance human knowledge.
-
-### Scientific Framework
-
-The discipline encompasses:
-- **Theoretical Foundations**: Core scientific principles and laws
-- **Experimental Methods**: Systematic approaches to investigation
-- **Data Analysis**: Statistical and analytical techniques
-- **Applications**: Practical implementations and technological development
-
-### Research Methodology
-
-Scientific inquiry follows established procedures:
-1. **Observation**: Systematic data collection and analysis
-2. **Hypothesis Formation**: Theoretical explanations for observed phenomena
-3. **Experimentation**: Controlled testing of hypotheses
-4. **Analysis and Interpretation**: Statistical evaluation of results
-5. **Communication**: Peer review and scientific publication
-
-### Interdisciplinary Connections
-
-${subjectName} connects with mathematics, physics, chemistry, biology, and engineering. These interdisciplinary relationships enable comprehensive understanding and innovative research approaches.
-
-### Real-World Impact
-
-Scientific discoveries in ${subjectName} contribute to technological advancement, medical breakthroughs, environmental solutions, and improved quality of life. Understanding these applications demonstrates the practical value of scientific knowledge.
-
-The study of ${subjectName} develops critical thinking, analytical skills, and scientific literacy essential for informed citizenship and professional success in science-related fields.`,
-
-      business: `## ${subjectName}: Strategic Management and Business Excellence
-
-${subjectName} represents a comprehensive area of business study that integrates strategic thinking, operational management, and organizational leadership. This field combines theoretical frameworks with practical applications to drive business success and competitive advantage.
-
-### Business Framework
-
-The discipline encompasses several key components:
-- **Strategic Analysis**: Market assessment and competitive positioning
-- **Organizational Management**: Leadership, culture, and human resources
-- **Operational Excellence**: Process optimization and quality management
-- **Financial Performance**: Resource allocation and value creation
-
-### Core Competencies
-
-Business professionals develop:
-- Strategic thinking and decision-making capabilities
-- Leadership and interpersonal skills
-- Analytical and problem-solving abilities
-- Understanding of global business environments
-
-### Management Principles
-
-Key concepts include:
-- **Value Creation**: $\\text{Value} = \\text{Benefits} - \\text{Costs}$
-- **Competitive Advantage**: Sustainable differentiation strategies
-- **Organizational Effectiveness**: Alignment of structure, culture, and strategy
-- **Stakeholder Management**: Balancing diverse interests and expectations
-
-### Industry Applications
-
-${subjectName} applies across all industries and sectors, from startups to multinational corporations. Understanding these applications prepares students for leadership roles in business and management.
-
-The study of ${subjectName} develops strategic thinking, leadership capabilities, and business acumen essential for professional success and organizational effectiveness.`,
-
-      general: `## ${subjectName}: Comprehensive Learning and Understanding
-
-${subjectName} represents an important area of academic study that combines theoretical knowledge with practical applications. This field provides students with comprehensive understanding and essential skills for academic and professional success.
-
-### Academic Framework
-
-The discipline encompasses:
-- **Foundational Concepts**: Core principles and theories
-- **Analytical Methods**: Critical thinking and problem-solving approaches
-- **Practical Applications**: Real-world implementations and case studies
-- **Advanced Topics**: Specialized areas and emerging trends
-
-### Learning Objectives
-
-Students will develop:
-- Comprehensive understanding of fundamental concepts
-- Critical thinking and analytical skills
-- Ability to apply knowledge in practical contexts
-- Communication and presentation capabilities
-
-### Interdisciplinary Connections
-
-${subjectName} connects with various fields of study, enabling students to understand relationships between different disciplines and apply knowledge across multiple domains.
-
-### Career Preparation
-
-The study of ${subjectName} prepares students for diverse career opportunities and provides foundation for advanced study in related fields. Understanding these applications demonstrates the practical value of academic learning.
-
-The comprehensive approach to ${subjectName} develops intellectual capabilities, practical skills, and professional competencies essential for success in academic and professional environments.`
-    },
-
-    topic: {
-      mathematics: `## ${topicTitle}
-
-This topic covers essential mathematical concepts and techniques fundamental to understanding ${topicTitle}. The content integrates theoretical foundations with computational methods and practical applications.
-
-### Mathematical Foundations
-
-Key concepts include:
-- **Definitions and Terminology**: Precise mathematical language and notation
-- **Theoretical Framework**: Core principles and mathematical relationships
-- **Proof Techniques**: Logical reasoning and mathematical argumentation
-- **Computational Methods**: Algorithmic approaches and numerical solutions
-
-### Problem-Solving Approaches
-
-Students learn systematic methods for:
-1. **Problem Analysis**: Understanding mathematical requirements
-2. **Solution Strategies**: Selecting appropriate mathematical techniques
-3. **Implementation**: Applying mathematical methods effectively
-4. **Verification**: Checking solutions and ensuring accuracy
-
-### Applications and Examples
-
-Real-world applications demonstrate the practical relevance of mathematical concepts. Examples include modeling, optimization, and quantitative analysis in various fields.
-
-Understanding ${topicTitle} provides essential foundation for advanced mathematical study and professional applications requiring quantitative analysis and problem-solving skills.`,
-
-      computer_science: `## ${topicTitle}
-
-This topic explores fundamental concepts in ${topicTitle}, combining theoretical computer science with practical programming and system design. The content emphasizes both conceptual understanding and hands-on implementation.
-
-### Technical Framework
-
-Core areas include:
-- **Algorithmic Design**: Systematic approaches to problem-solving
-- **Implementation Techniques**: Programming best practices and patterns
-- **Performance Analysis**: Complexity evaluation and optimization
-- **System Integration**: Connecting components and ensuring reliability
-
-### Programming Concepts
-
-Key technical skills include:
-\`\`\`python
-# Example implementation pattern
-class TopicImplementation:
-    def __init__(self, parameters):
-        self.config = parameters
-    
-    def process(self, data):
-        return self.algorithm(data)
-\`\`\`
-
-### Industry Applications
-
-Real-world applications demonstrate practical relevance in software development, system architecture, and technology innovation. Understanding these applications prepares students for professional software development roles.
-
-Mastery of ${topicTitle} provides essential foundation for advanced computer science study and professional development in technology fields.`,
-
-      science: `## ${topicTitle}
-
-This topic explores the scientific principles and phenomena related to ${topicTitle}. The content combines theoretical understanding with experimental investigation and practical applications.
-
-### Scientific Principles
-
-Fundamental concepts include:
-- **Theoretical Framework**: Core scientific laws and principles
-- **Experimental Methods**: Systematic investigation techniques
-- **Data Analysis**: Statistical interpretation and evaluation
-- **Applications**: Practical implementations and technology development
-
-### Research Methodology
-
-Scientific investigation follows established procedures:
-1. **Observation**: Systematic data collection
-2. **Hypothesis Development**: Theoretical explanations
-3. **Experimental Design**: Controlled testing procedures
-4. **Analysis**: Statistical evaluation and interpretation
-
-### Real-World Applications
-
-Scientific understanding of ${topicTitle} contributes to technological advancement, environmental solutions, and improved quality of life. These applications demonstrate the practical value of scientific knowledge.
-
-Understanding ${topicTitle} provides foundation for advanced scientific study and professional applications in research, technology, and related fields.`,
-
-      business: `## ${topicTitle}
-
-This topic covers essential business concepts and practices related to ${topicTitle}. The content integrates strategic thinking with operational management and practical implementation.
-
-### Business Framework
-
-Key components include:
-- **Strategic Analysis**: Market evaluation and competitive assessment
-- **Operational Management**: Process optimization and resource allocation
-- **Performance Measurement**: Key indicators and success metrics
-- **Implementation Strategies**: Practical approaches to achieving objectives
-
-### Management Principles
-
-Core concepts include:
-- **Value Creation**: Maximizing stakeholder benefits
-- **Competitive Strategy**: Achieving sustainable advantage
-- **Organizational Effectiveness**: Aligning resources and capabilities
-- **Risk Management**: Identifying and mitigating potential challenges
-
-### Industry Applications
-
-Business principles related to ${topicTitle} apply across multiple industries and organizational contexts. Understanding these applications prepares students for leadership and management roles.
-
-Mastery of ${topicTitle} provides foundation for advanced business study and professional success in management and leadership positions.`,
-
-      general: `## ${topicTitle}
-
-This topic provides comprehensive coverage of ${topicTitle}, integrating theoretical understanding with practical applications. The content emphasizes critical thinking, analytical skills, and real-world relevance.
-
-### Conceptual Framework
-
-Key areas include:
-- **Foundational Concepts**: Core principles and theories
-- **Analytical Methods**: Critical thinking and problem-solving
-- **Practical Applications**: Real-world implementations
-- **Advanced Considerations**: Specialized topics and emerging trends
-
-### Learning Objectives
-
-Students develop:
-- Comprehensive understanding of fundamental concepts
-- Analytical and critical thinking skills
-- Ability to apply knowledge in practical contexts
-- Communication and presentation capabilities
-
-### Applications and Examples
-
-Real-world examples demonstrate practical relevance and career applications. Understanding these connections helps students appreciate the value of academic learning.
-
-Mastery of ${topicTitle} provides foundation for advanced study and professional applications in related fields.`
-    }
-  };
-
-  const domainTemplate = baseTemplates[nodeType]?.[domain] || baseTemplates[nodeType]?.general;
-  return domainTemplate || `This section covers important concepts related to ${topicTitle}. The content provides comprehensive understanding and practical applications essential for mastering this topic.`;
-};
-
-// Get user's mind maps
-app.get('/api/mindmap/list', verifyToken, async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(500).json({ error: 'Database not available' });
-    }
-
-    const mindMaps = await db.collection('mindmaps')
-      .find({ user_uid: req.user.uid })
-      .project({ _id: 1, subject_name: 1, created_at: 1 })
-      .sort({ created_at: -1 })
-      .toArray();
-
-    // Convert _id to id for compatibility
-    const formattedMindMaps = mindMaps.map(map => ({
-      id: map._id.toString(),
-      subject_name: map.subject_name,
-      created_at: map.created_at
-    }));
-
-    res.json({
-      success: true,
-      mindMaps: formattedMindMaps
-    });
-  } catch (error) {
-    console.error('Error fetching mind maps:', error);
-    res.status(500).json({ error: 'Failed to fetch mind maps' });
-  }
-});
-
-// Get specific mind map
-app.get('/api/mindmap/:id', verifyToken, async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(500).json({ error: 'Database not available' });
-    }
-
-    const mindMap = await db.collection('mindmaps').findOne({
-      _id: new ObjectId(req.params.id),
-      user_uid: req.user.uid
-    });
-
-    if (!mindMap) {
-      return res.status(404).json({ error: 'Mind map not found' });
-    }
-
-    // Convert _id to id for compatibility
-    mindMap.id = mindMap._id.toString();
-    delete mindMap._id;
-
-    res.json({
-      success: true,
-      mindMap: mindMap
-    });
-  } catch (error) {
-    console.error('Error fetching mind map:', error);
-    res.status(500).json({ error: 'Failed to fetch mind map' });
-  }
-});
-
-// Temporary CORS setup for initial deployment
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://adhyayan-ai.vercel.app',
-        'https://adhyayan-ai-git-main.vercel.app', 
-        'https://adhyayan-ai-git-main-sanks011.vercel.app' 
-      ]
-    : ['http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Add a health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV
-  });
-});
-
-// Add this to keep service warm
-setInterval(() => {
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Keep alive ping:', new Date().toISOString());
-  }
-}, 14 * 60 * 1000); // Ping every 14 minutes
-
+// Set the port for the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`API available at: http://localhost:${PORT}/api`);
+});

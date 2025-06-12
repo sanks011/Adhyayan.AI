@@ -145,13 +145,18 @@ export const SkeletonThree = () => {
   );
 };
 
-export const SkeletonTwo = () => {  const images = [
+export const SkeletonTwo = () => {  
+  const images = [
     "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=3546&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     "https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=3542&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   ];
+
+  // Pre-defined rotation values to prevent hydration mismatch
+  const rotationValues = [5.778, -6.385, 7.505, -5.307, -7.209];
+  const rotationValues2 = [-1.855, 7.023, 6.388, -7.739, -8.731];
 
   const imageVariants = {
     whileHover: {
@@ -174,7 +179,7 @@ export const SkeletonTwo = () => {  const images = [
             variants={imageVariants}
             key={"images-first" + idx}
             style={{
-              rotate: Math.random() * 20 - 10,
+              rotate: rotationValues[idx % rotationValues.length], // Use pre-defined rotation value
             }}
             whileHover="whileHover"
             whileTap="whileTap"
@@ -194,7 +199,7 @@ export const SkeletonTwo = () => {  const images = [
           <motion.div
             key={"images-second" + idx}
             style={{
-              rotate: Math.random() * 20 - 10,
+              rotate: rotationValues2[idx % rotationValues2.length], // Use pre-defined rotation value
             }}
             variants={imageVariants}
             whileHover="whileHover"
