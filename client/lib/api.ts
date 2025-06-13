@@ -69,14 +69,17 @@ class ApiService {
         // Wrap the fetch in a try-catch to handle any connection issues
         let response;
         
-        while (retryCount <= MAX_RETRIES) {
-          try {
+        while (retryCount <= MAX_RETRIES) {          try {
+            // Use a longer timeout for podcast generation (120 seconds) and shorter for other requests
+            const isPodcastRequest = endpoint.includes('podcast');
+            const baseTimeout = isPodcastRequest ? 120000 : 30000; // 120 seconds for podcast, 30 seconds for others
+            
             response = await fetch(`${API_BASE_URL}${endpoint}`, {
               method: 'POST',
               headers: this.getHeaders(),
               body: JSON.stringify(data),
               // Adding signal support for better abort handling
-              signal: AbortSignal.timeout(30000 - (retryCount * 5000)), // Reduce timeout on retries
+              signal: AbortSignal.timeout(baseTimeout - (retryCount * 5000)), // Reduce timeout on retries
             });
             
             // If successful, break out of the retry loop
@@ -100,8 +103,12 @@ class ApiService {
             } else {
               throw fetchError;
             }
-          }
-        }
+          }        }
+
+      // Ensure response is defined before accessing properties
+      if (!response) {
+        throw new Error('Failed to get response from server');
+      }
 
       console.log('Response status:', response.status);
       console.log('Response headers:', response.headers);

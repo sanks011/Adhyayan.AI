@@ -1178,34 +1178,50 @@ More detailed content will be available soon with comprehensive explanations, eq
         return topic;
       });
     });
-  }, [topicsReadStatus]);
-  // Function to generate podcast for selected topic
+  }, [topicsReadStatus]);  // Function to generate podcast for selected topic
   const handleGeneratePodcast = useCallback(async () => {
     if (!selectedNode) return;
     
     setIsGeneratingPodcast(true);
     setGeneratedPodcastUrl(null);
     
-    try {
-      // TODO: Replace with actual API call to backend
-      // const response = await fetch('/api/generate-podcast', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ topicId: selectedNode })
-      // });
-      // const data = await response.json();
-      // setGeneratedPodcastUrl(data.podcastUrl);
+    try {      // Get the node details
+      const nodes = getNodes();
+      const nodeData = nodes.find(node => node.id === selectedNode);
       
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      setGeneratedPodcastUrl(`/podcasts/${selectedNode}-podcast.mp3`);
+      if (!nodeData) {
+        throw new Error('Selected node not found');
+      }
+      
+      // Get the node description if available
+      const description = nodeDescriptions[selectedNode] || '';
+      
+      // Get the node label safely
+      const nodeLabel = nodeData.data && typeof nodeData.data === 'object' && 'label' in nodeData.data 
+        ? String(nodeData.data.label) 
+        : 'Unknown Topic';
+      
+      // Call the API to generate the podcast
+      const response = await apiService.post('/mindmap/generate-podcast', {
+        nodeId: selectedNode,
+        topic: nodeLabel,
+        description: description
+      });
+      
+      console.log('Podcast generation response:', response);
+      
+      if (response && response.success && response.podcastUrl) {
+        setGeneratedPodcastUrl(response.podcastUrl);
+      } else {
+        throw new Error(response?.error || 'Failed to generate podcast');
+      }
     } catch (error) {
       console.error('Error generating podcast:', error);
       // Handle error (show toast, etc.)
     } finally {
       setIsGeneratingPodcast(false);
     }
-  }, [selectedNode]);
+  }, [selectedNode, nodeDescriptions, getNodes]);
 
   // Function to get topic-specific placeholders for AI chat
   const getTopicPlaceholders = useCallback((nodeId: string | null) => {
@@ -1740,14 +1756,13 @@ Would you like me to explain any specific aspect in more detail? I can provide e
                       onClick={handleGeneratePodcast}
                       disabled={isGeneratingPodcast}
                       className="bg-neutral-700 hover:bg-neutral-600 disabled:bg-neutral-800 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 border border-neutral-600 hover:border-neutral-500 text-sm"
-                      title="Generate Audio Learning"
-                    >
-                      {isGeneratingPodcast ? (
+                      title="Generate Educational Podcast"
+                    >                      {isGeneratingPodcast ? (
                         <IconLoader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <IconHeadphones className="h-4 w-4" />
                       )}
-                      {isGeneratingPodcast ? 'Generating...' : 'Audio'}
+                      {isGeneratingPodcast ? 'Generating...' : 'Podcast'}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -1759,7 +1774,7 @@ Would you like me to explain any specific aspect in more detail? I can provide e
                         onClick={handleGeneratePodcast}
                         disabled={isGeneratingPodcast}
                         className="bg-neutral-600 hover:bg-neutral-700 text-white px-2 py-1 rounded text-xs transition-colors"
-                        title="Regenerate Audio"
+                        title="Regenerate Podcast"
                       >
                         ↻
                       </button>
@@ -1767,10 +1782,9 @@ Would you like me to explain any specific aspect in more detail? I can provide e
                   )}
                 </div>
               </div>
-              
-              {/* Audio player when ready */}
+                {/* Audio player when ready */}
               {generatedPodcastUrl && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-2">
                   <audio
                     controls
                     className="w-full h-8"
@@ -1779,6 +1793,18 @@ Would you like me to explain any specific aspect in more detail? I can provide e
                     <source src={generatedPodcastUrl} type="audio/mpeg" />
                     Your browser does not support the audio element.
                   </audio>
+                  <div className="flex justify-end">
+                    <a 
+                      href={generatedPodcastUrl} 
+                      download={`podcast-${selectedNode}.mp3`}
+                      className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download Podcast
+                    </a>
+                  </div>
                 </div>
               )}
             </div>            {/* Content area - beautifully formatted with KaTeX support */}

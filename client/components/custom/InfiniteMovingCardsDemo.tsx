@@ -45,7 +45,7 @@ const testimonials = [
   {
     quote:
       "The AI-powered explanations are incredible. When I don't understand a concept, the system breaks it down in different ways until it clicks. It's like having multiple tutors with different teaching styles.",
-    name: "Alex Thompson",
+    name: "Sankk Thompson",
     title: "High School Student",
   },
   {

@@ -9,9 +9,11 @@ const pdfParse = require("pdf-parse");
 const tesseract = require("tesseract.js");
 const sharp = require("sharp");
 const mammoth = require("mammoth");
+const path = require("path");
 const fs = require("fs").promises;
 const { fixBrokenJSON } = require("./fix_json"); // Import the JSON fixing utility
 const { transformGroqResponse } = require("./transform"); // Import the transform utility
+const ElevenLabsService = require("./elevenlabs-service"); // Import the ElevenLabs service
 require("dotenv").config();
 
 // Ensure JWT_SECRET exists or use a fallback for development
@@ -27,6 +29,9 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from public directory (for podcasts)
+app.use('/podcasts', express.static(path.join(__dirname, 'public', 'podcasts')));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -46,6 +51,12 @@ const groq = new Groq({
 const parsingGroq = new Groq({
   apiKey: process.env.PARSING_GROQ_API_KEY,
 });
+
+// Initialize ElevenLabs service for podcast generation
+const elevenLabsService = new ElevenLabsService(
+  process.env.ELEVENLABS_API_KEY,
+  process.env.GEMINI_API_KEY
+);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -1738,6 +1749,49 @@ Please provide a 300-400 word detailed description with proper formatting, inclu
     return res.status(500).json({
       success: false,
       error: "Failed to generate node description",
+      details: error.message,
+    });  }
+});
+
+// Mind Map Podcast Generation Endpoint
+app.post("/api/mindmap/generate-podcast", verifyToken, async (req, res) => {
+  try {
+    const { nodeId, topic, description } = req.body;
+
+    if (!nodeId || !topic) {
+      return res.status(400).json({
+        success: false,
+        error: "Node ID and topic are required",
+      });
+    }
+
+    console.log(`Generating podcast for topic: ${topic} (${nodeId})`);
+
+    // Initialize the ElevenLabs service
+    await elevenLabsService.initialize();
+
+    // Generate podcast script using Gemini
+    const podcastScript = await elevenLabsService.generatePodcastScript(topic, description);
+    
+    // Convert script to audio using ElevenLabs
+    const result = await elevenLabsService.convertScriptToAudio(podcastScript, nodeId);
+
+    if (!result || !result.audioUrl) {
+      throw new Error("Failed to generate podcast audio");
+    }
+
+    // Return the URL to the generated podcast
+    return res.json({
+      success: true,
+      podcastUrl: result.audioUrl,
+      script: result.script
+    });
+
+  } catch (error) {
+    console.error("Error generating podcast:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate podcast",
       details: error.message,
     });
   }
