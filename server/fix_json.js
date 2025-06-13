@@ -6,57 +6,84 @@ const fixBrokenJSON = (jsonString) => {
   
   // Common fixes for broken JSON
   try {
-    // For our specific Groq response issue, look for the common patterns of array syntax errors
-    // This is a more specialized approach for our typical Groq errors
-    let fixedJson = jsonString;
+    // Pre-processing: Strip any markdown formatting or comments
+    let fixedJson = jsonString
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .replace(/\/\/.*$/gm, '') // Remove any JS-style comments
+      .replace(/[\u201C\u201D]/g, '"') // Replace curly quotes with straight quotes
+      .replace(/[\u2018\u2019]/g, "'"); // Replace curly apostrophes
+      
+    console.log("Pre-processed JSON length:", fixedJson.length);
     
-    // PRE-PROCESSING CLEANUP
-    // Remove any potential markdown code blocks or extra formatting
-    fixedJson = fixedJson.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    // PHASE 1: Basic syntax fixes
     
-    // 1. Fix array syntax errors
-    
-    // Fix arrays missing closing bracket (look for specific patterns like subtopics)
-    const arrayPatterns = [
-      /"subtopics":\s*\[([^\]]*?)(?=\n\s*[}\]])/g, 
-      /"items":\s*\[([^\]]*?)(?=\n\s*[}\]])/g,
-      /"children":\s*\[([^\]]*?)(?=\n\s*[}\]])/g
-    ];
-    
-    for (const pattern of arrayPatterns) {
-      const matches = fixedJson.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          // Extract the array content and ensure it has a closing bracket
-          const patternStr = match.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
-          const fixedStr = match + ']';
-          fixedJson = fixedJson.replace(new RegExp(patternStr, 'g'), fixedStr);
-        }
+    // Check if the response starts with text rather than JSON
+    if (fixedJson.trim().startsWith('Here is') || fixedJson.trim().startsWith('The mind map') || 
+        !fixedJson.trim().startsWith('{')) {
+      // Try to find JSON structure in the text
+      const jsonMatch = fixedJson.match(/(\{[\s\S]*\})/);
+      if (jsonMatch && jsonMatch[1]) {
+        fixedJson = jsonMatch[1];
+        console.log("Extracted JSON structure from text response");
+      } else {
+        console.warn("Response appears to be text, not JSON. Proceeding with advanced reconstruction.");
       }
     }
-      // Fix missing comma between array items
-    fixedJson = fixedJson.replace(/("(?:\\.|[^"\\])*"|[\d\w]+)\s*\n\s*("(?:\\.|[^"\\])*"|[\d\w]+)/g, '$1,\n$2');
-    fixedJson = fixedJson.replace(/(["'}])\s*\n\s*(?=["'{])/g, '$1,\n');
     
-    // Fix missing comma between object elements 
-    fixedJson = fixedJson.replace(/}(\s*){/g, '},\n$1{');
-      // Fix issues with property values missing quotes - improved pattern
-    fixedJson = fixedJson.replace(/"([^"]+)":\s*([^",\{\[\d\s][^,\}\]]*?)(\s*[,\}\]])/g, '"$1": "$2"$3');
+    // Fix common JSON syntax errors
+    fixedJson = fixedJson
+      // Fix missing quotes around property names for common mind map properties (expanded)
+      .replace(/([{,]\s*)(title|content|description|subtopics|sub_subtopics|sub_topics|sub_sub_subtopics|sub_sub_sub_subtopics|nested_topics|children|mind_map|central_node|module_nodes|units|main_subject|parsed_structure)\s*:/g, '$1"$2":')
+      // Fix missing commas between properties
+      .replace(/"\s*}\s*"/g, '", "')
+      // Fix missing commas between array items
+      .replace(/"\s*\[\s*"/g, '", ["')
+      // Fix unquoted values (that aren't numbers, true, false, null, or objects/arrays)
+      .replace(/:(\s*)([^"{}\[\],\s][^,}\]]*?)(\s*[},\]])/g, ': "$2"$3')
+      // Remove trailing commas in arrays and objects
+      .replace(/,(\s*[}\]])/g, '$1')
+      // Fix missing commas between objects in array
+      .replace(/}(\s*){/g, '},\n$1{')
+      // Fix unclosed quotes in object values
+      .replace(/:(\s*)"([^"]*?)(\s*[},])/g, ': "$2"$3')
+      // Fix quoted booleans/nulls
+      .replace(/:\s*"(true|false|null)"/g, ': $1');
     
-    // Fix additional unquoted property values that might be causing issues
-    fixedJson = fixedJson.replace(/"([^"]+)":\s*([^",\{\[\d\s][^,\}\]]*)/g, '"$1": "$2"');
+    // Fix issues with multi-level nested structures - supporting deeper nesting levels
+    fixedJson = fixedJson
+      // Handle any level of subtopic nesting
+      .replace(/"(sub_?)+subtopics"\s*:\s*([^[])/g, '"$1subtopics": [$2')
+      .replace(/"(sub_?)+topics"\s*:\s*([^[])/g, '"$1topics": [$2')
+      .replace(/"(sub_?)+nodes"\s*:\s*([^[])/g, '"$1nodes": [$2')
+      .replace(/"children"\s*:\s*([^[])/g, '"children": [$1')
+      .replace(/"nested_topics"\s*:\s*([^[])/g, '"nested_topics": [$1')
+      // Fix issues with hanging arrays
+      .replace(/]([^,}\]]*?)}/g, ']}')
+      // Fix issues with missing closing brackets in deeply nested structures
+      .replace(/("(sub_?)+subtopics"\s*:\s*\[)([^]]*?)(\s*"title")/g, '$1$3],$4')
+      // Fix common issue with extra commas after arrays
+      .replace(/],\s*}/g, ']}')
+      .replace(/],\s*]/g, ']]');
+      // PHASE 2: Advanced syntax fixes for deeply nested structures
     
-    // Fix issues with extra commas before closing brackets/braces
-    fixedJson = fixedJson.replace(/,(\s*[\}\]])/g, '$1');
+    // Fix issues with inconsistent naming patterns for nested subtopics
+    const nestedSubtopicPatterns = [
+      'subtopics', 'sub_subtopics', 'subSubtopics', 'sub_sub_subtopics',
+      'subSubSubtopics', 'sub_sub_sub_subtopics', 'nested_topics', 'nested_subtopics',
+      'children', 'child_topics', 'childTopics'
+    ];
     
-    // Fix missing commas between object properties
-    fixedJson = fixedJson.replace(/}(\s*){/g, '},\n$1{');
+    // Generate a regex pattern to match all possible nested subtopic naming patterns
+    const nestedPatternRegex = new RegExp(`"(${nestedSubtopicPatterns.join('|')})\\s*":\\s*\\[\\s*\\]`, 'g');
     
-    // Fix trailing commas in arrays
-    fixedJson = fixedJson.replace(/,(\s*[\]\}])/g, '$1');
+    // Fix empty arrays that should be objects
+    fixedJson = fixedJson.replace(nestedPatternRegex, match => {
+      return match.replace('[]', '[]'); // Simply preserve empty arrays
+    });
+      // PHASE 3: Structure balance
     
-    // 2. Fix structural balance
-    // Count opening and closing braces/brackets to add missing ones
+    // Count brackets to ensure they're balanced
     const countChar = (str, char) => (str.match(new RegExp(char, 'g')) || []).length;
     
     const openBraces = countChar(fixedJson, '{');
@@ -64,153 +91,239 @@ const fixBrokenJSON = (jsonString) => {
     const openBrackets = countChar(fixedJson, '\\[');
     const closeBrackets = countChar(fixedJson, '\\]');
     
-    console.log(`JSON structure: { ${openBraces}:${closeBraces}, [ ${openBrackets}:${closeBrackets} }`);
+    console.log(`JSON structure balance: { ${openBraces}:${closeBraces}, [ ${openBrackets}:${closeBrackets} }`);
     
-    // Add missing closing braces/brackets
-    if (openBraces > closeBraces) {
-      fixedJson += "}".repeat(openBraces - closeBraces);
-      console.log(`Added ${openBraces - closeBraces} closing braces`);
+    // Advanced balancing - track positions to close at the right places
+    if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+      // First do an analysis of the structure to understand the nesting
+      const bracketMap = new Map();
+      
+      // First analyze proper JSON structure by finding all opening and closing brackets
+      // and their positions to better understand the structure
+      let tempStack = [];
+      const chars = fixedJson.split('');
+      
+      for (let i = 0; i < chars.length; i++) {
+        if (chars[i] === '{' || chars[i] === '[') {
+          tempStack.push({ type: chars[i], index: i });
+          bracketMap.set(i, { type: 'open', char: chars[i], matched: false });
+        } else if (chars[i] === '}' || chars[i] === ']') {
+          const expectedChar = chars[i] === '}' ? '{' : '[';
+          const lastOpenIndex = [...tempStack].reverse().findIndex(item => item.type === expectedChar);
+          
+          if (lastOpenIndex !== -1) {
+            const actualIndex = tempStack.length - 1 - lastOpenIndex;
+            bracketMap.set(tempStack[actualIndex].index, { 
+              type: 'open', 
+              char: tempStack[actualIndex].type, 
+              matched: true,
+              closedAt: i 
+            });
+            bracketMap.set(i, { 
+              type: 'close', 
+              char: chars[i], 
+              matched: true,
+              openedAt: tempStack[actualIndex].index 
+            });
+            
+            tempStack.splice(actualIndex, 1);
+          } else {
+            bracketMap.set(i, { type: 'close', char: chars[i], matched: false });
+          }
+        }
+      }
+
+      // Now proceed with the classic stack approach for fixing the imbalances
+      const stack = [];
+      for (let i = 0; i < chars.length; i++) {
+        if (chars[i] === '{' || chars[i] === '[') {
+          stack.push({ char: chars[i], index: i });
+        } else if (chars[i] === '}' || chars[i] === ']') {
+          // Check if we have a matching opening bracket
+          if (stack.length > 0) {
+            const last = stack[stack.length - 1];
+            if ((last.char === '{' && chars[i] === '}') || 
+                (last.char === '[' && chars[i] === ']')) {
+              stack.pop();
+            } else {
+              console.warn(`Mismatched bracket at position ${i}: expected closing for ${last.char}, got ${chars[i]}`);
+            }
+          } else {
+            console.warn(`Extra closing bracket ${chars[i]} at position ${i}`);
+          }
+        }
+      }
+      
+      // If we still have unclosed brackets/braces, add them at appropriate positions
+      if (stack.length > 0) {
+        console.log(`Found ${stack.length} unclosed brackets/braces`);
+        
+        // Get the resulting JSON string
+        fixedJson = chars.join('');
+        
+        // Add the corresponding closing brackets/braces
+        // Since we're adding at the end, reverse the stack to close inner brackets first
+        const closings = stack.reverse().map(item => {
+          return item.char === '{' ? '}' : ']';
+        });
+        
+        fixedJson += closings.join('');
+      }
     }
     
-    if (openBrackets > closeBrackets) {
-      fixedJson += "]".repeat(openBrackets - closeBrackets);
-      console.log(`Added ${openBrackets - closeBrackets} closing brackets`);
-    }
-    
-    // 3. Fix general syntax issues
-    // Fix trailing commas
-    fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    
-    // Fix missing quotes around property names - this is a last resort and may cause issues
-    // Only apply to Groq's common property names to avoid false positives
-    const commonProps = ['title', 'content', 'description', 'subtopics', 'id', 'label', 'central_node', 'module_nodes'];
-    for (const prop of commonProps) {
-      fixedJson = fixedJson.replace(new RegExp(`([{,]\\s*)(${prop})\\s*:`, 'g'), '$1"$2":');
-    }
-      // Try parsing the fixed JSON
+    // PHASE 4: Try parsing the fixed JSON
     try {
       const parsedJson = JSON.parse(fixedJson);
-      console.log("JSON fix successful!");      return fixedJson;
+      console.log("JSON fix successful!");
+      return fixedJson;
     } catch (parseError) {
-      console.error("JSON fix attempt failed:", parseError.message);
-      console.error("Parse error position:", parseError.message.match(/\d+/)?.[0]);
+      console.error("Basic JSON fix failed:", parseError.message);
       
-      // If it still fails, try a more aggressive approach for Groq's mind_map structure
-      if (fixedJson.includes("mind_map")) {
-        console.log("Initial fix failed, trying mind map specific structure reconstruction...");
+      // PHASE 4: Advanced reconstruction - try to extract the hierarchical structure
+      try {
+        // Extract as much information as possible
+        const centralNode = {};
         
-        try {
-          // More aggressive regex patterns with looser matching
-          let centralNode = {};
-          let moduleNodes = [];
-          let subtopicNodes = [];
-          
-          // Extract central node title and content
-          const centralNodeTitleMatch = fixedJson.match(/"central_node"[^{]*{[^}]*"title"\s*:\s*"([^"]*)/);
-          const centralNodeContentMatch = fixedJson.match(/"content"\s*:\s*"([^"]*)"/);
-          
-          if (centralNodeTitleMatch) {
-            centralNode.title = centralNodeTitleMatch[1];
-          }
-          
-          if (centralNodeContentMatch) {
-            centralNode.content = centralNodeContentMatch[1];
-          }
-          
-          // Extract module nodes by finding title patterns
-          const moduleMatches = fixedJson.match(/"title"\s*:\s*"([^"]*)"/g);
-          if (moduleMatches) {
-            moduleMatches.forEach((match, index) => {
-              if (index > 0) { // Skip first title (likely central node)
-                const title = match.match(/"title"\s*:\s*"([^"]*)"/)[1];
-                moduleNodes.push({
-                  title: title,
-                  content: `Content for ${title}`
-                });
-              }
+        // Extract central node title
+        const titleMatch = fixedJson.match(/"title"\s*:\s*"([^"]+)"/);
+        if (titleMatch && titleMatch[1]) {
+          centralNode.title = titleMatch[1];
+        } else {
+          centralNode.title = "Unknown Subject";
+        }
+        
+        // Extract central node content/description
+        const contentMatch = fixedJson.match(/"content"\s*:\s*"([^"]+)"/);
+        if (contentMatch && contentMatch[1]) {
+          centralNode.content = contentMatch[1];
+        } else {
+          centralNode.description = `Mind map for ${centralNode.title}`;
+        }
+        
+        // Extract topic titles for module nodes
+        const moduleNodes = [];
+        const topicMatches = fixedJson.matchAll(/"title"\s*:\s*"([^"]+)"/g);
+        
+        // Convert iterator to array and skip the first title (central node)
+        const titles = Array.from(topicMatches).map(match => match[1]);
+        
+        // Skip the first match (usually the central node) and limit to about 8 modules
+        const uniqueTitles = [...new Set(titles)];
+        const moduleCount = Math.min(uniqueTitles.length - 1, 8);
+        
+        // Create module nodes from extracted titles
+        for (let i = 1; i <= moduleCount; i++) {
+          if (uniqueTitles[i]) {
+            moduleNodes.push({
+              title: uniqueTitles[i],
+              content: `Content related to ${uniqueTitles[i]}`,
+              subtopics: []
             });
           }
+        }
+        
+        // Try to extract subtopics by looking for patterns in the JSON string
+        for (let i = 0; i < moduleNodes.length; i++) {
+          // Look for subtopic sections that might be related to this module
+          const moduleTitle = moduleNodes[i].title;
+          const subtopicRegex = new RegExp(`"title"\\s*:\\s*"${moduleTitle}"[^{]*?{[^}]*?"subtopics"\\s*:\\s*\\[(.*?)\\]`, 's');
+          const subtopicMatch = fixedJson.match(subtopicRegex);
           
-          // Reconstruct a valid mind map structure
-          const reconstructed = {
-            mind_map: {
-              central_node: centralNode,
-              module_nodes: moduleNodes,
-              subtopic_nodes: subtopicNodes
-            }
-          };
-          
-          console.log("Successfully reconstructed mind map structure");
-          return reconstructed;
-        } catch (structureError) {
-          console.log("Structure reconstruction failed, trying simpler approach");
-          
-          // Fallback to more basic extraction
-          const centralNodeMatch = fixedJson.match(/"central_node"\s*:\s*{([^}]*?)}/);
-          const moduleNodesMatch = fixedJson.match(/"module_nodes"\s*:\s*\[(.*?)\]/s);
-          
-          if (centralNodeMatch && moduleNodesMatch) {
-            // Manually fix common JSON issues in the extracted portions
-            let centralNodeContent = centralNodeMatch[1].trim();
-            // Ensure the central_node object has proper closure for arrays
-            centralNodeContent = centralNodeContent.replace(/\["([^"\]]+)(?=\s*$|\s*,)/, '["$1"]');
+          if (subtopicMatch && subtopicMatch[1]) {
+            // Extract subtopic titles using regex
+            const subtopicTitles = subtopicMatch[1].match(/"title"\s*:\s*"([^"]+)"/g);
             
-            // Try to extract module_nodes array with manual fixes
-            let moduleNodesContent = moduleNodesMatch[0].split(':')[1].trim();
-            if (!moduleNodesContent.endsWith(']')) {
-              moduleNodesContent += ']';
-            }
-            
-            // Reconstruct a minimal valid JSON with the extracted parts
-            const reconstructed = `{
-              "mind_map": {
-                "central_node": {${centralNodeContent}},
-                "module_nodes": ${moduleNodesContent}
-              }
-            }`;
-            
-            try {
-              return JSON.parse(reconstructed);
-            } catch (parseError) {
-              // Last resort fallback - create a minimal valid structure
-              return {
-                mind_map: {
-                  central_node: { 
-                    title: "Recovered Content",
-                    content: "This is a reconstructed mind map due to JSON parsing error."
-                  },
-                  module_nodes: []
-                }
-              };
+            if (subtopicTitles) {
+              subtopicTitles.forEach(subtitleMatch => {
+                const subtitle = subtitleMatch.match(/"title"\s*:\s*"([^"]+)"/)[1];
+                moduleNodes[i].subtopics.push({
+                  title: subtitle,
+                  content: `Details about ${subtitle}`
+                });
+              });
             }
           }
         }
-      }      
-      // Last resort fallback if all specific fixes fail
-      return {
-        mind_map: {
-          central_node: { 
-            title: "Recovered Content",
-            content: "This is a fallback mind map created due to JSON parsing error."
-          },
-          module_nodes: []
-        }
-      };
+            // Create a valid structure based on the context of the original JSON
+      let reconstructedStructure;
+      
+      // Check if the original JSON seems to be a parsed_structure or mind_map
+      const isParsedStructure = jsonString.includes("parsed_structure") || 
+                              jsonString.includes("main_subject") || 
+                              jsonString.includes("units");
+                              
+      if (isParsedStructure) {
+        reconstructedStructure = {
+          parsed_structure: {
+            main_subject: {
+              title: centralNode.title || "Unknown Subject",
+              description: centralNode.content || "Course overview"
+            },
+            units: moduleNodes.map(module => ({
+              title: module.title,
+              description: module.content || `Content for ${module.title}`,
+              subtopics: module.subtopics || []
+            }))
+          }
+        };
+        console.log("Created reconstructed parsed structure with main subject and", 
+                   reconstructedStructure.parsed_structure.units.length, "units");
+      } else {
+        // Default to mind map structure
+        reconstructedStructure = {
+          mind_map: {
+            central_node: centralNode,
+            module_nodes: moduleNodes.length > 0 ? moduleNodes : [
+              { title: "Topic 1", content: "Content for Topic 1", subtopics: [] },
+              { title: "Topic 2", content: "Content for Topic 2", subtopics: [] }
+            ]
+          }
+        };
+        console.log("Created reconstructed mind map with central node and", 
+                   reconstructedStructure.mind_map.module_nodes.length, "module nodes");
+      }
+      
+      return JSON.stringify(reconstructedStructure);
+      } catch (reconstructionError) {
+        console.error("Advanced reconstruction failed:", reconstructionError.message);
+        
+        // PHASE 5: Last resort - create a minimal valid structure
+        const fallbackMindMap = {
+          mind_map: {
+            central_node: { 
+              title: centralNode?.title || "Unknown Subject",
+              content: "An error occurred while parsing the mind map data. This is a fallback structure.",
+              description: "Fallback content"
+            },
+            module_nodes: [
+              { title: "Topic 1", content: "Fallback content for Topic 1", subtopics: [] },
+              { title: "Topic 2", content: "Fallback content for Topic 2", subtopics: [] }
+            ]
+          }
+        };
+        
+        return JSON.stringify(fallbackMindMap);
+      }
     }
   } catch (error) {
     console.error("Failed to fix JSON:", error.message);
-    console.error("Current JSON state:", jsonString.substring(0, 500) + "...");
     
-    // Return a valid structure rather than throwing to prevent API failures
-    return {
+    // Last resort fallback - always return a valid structure
+    const fallbackMindMap = {
       mind_map: {
         central_node: { 
           title: "Error Recovery",
-          content: "An error occurred while parsing the mind map data. This is a fallback structure."
+          content: "An error occurred while parsing the mind map data. This is a fallback structure.",
+          description: "Fallback content"
         },
-        module_nodes: []
+        module_nodes: [
+          { title: "Topic 1", content: "Fallback content for Topic 1", subtopics: [] },
+          { title: "Topic 2", content: "Fallback content for Topic 2", subtopics: [] }
+        ]
       }
     };
+    
+    return JSON.stringify(fallbackMindMap);
   }
 };
 
