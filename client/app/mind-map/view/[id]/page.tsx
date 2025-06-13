@@ -272,11 +272,13 @@ function MindMapContent() {
   
   // Track sidebar width for resizing
   const [sidebarWidth, setSidebarWidth] = useState(480);
-  const [isResizing, setIsResizing] = useState(false);
-  
-  // Track chat messages for AI interaction
+  const [isResizing, setIsResizing] = useState(false);  // Track chat messages for AI interaction
   const [chatMessages, setChatMessages] = useState<Array<{id: string, type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
+  
+  // Node descriptions state
+  const [nodeDescriptions, setNodeDescriptions] = useState<Record<string, string>>({});
+  const [loadingDescription, setLoadingDescription] = useState<string | null>(null);
   
   // React Flow instance ref for controlling view
   const { getNodes, setCenter, getZoom } = useReactFlow();
@@ -595,6 +597,61 @@ function MindMapContent() {
       }
     }, 100);
   };
+  // Function to fetch detailed node description from the server
+  const fetchNodeDescription = useCallback(async (nodeId: string) => {
+    // Don't fetch if we already have it or are currently loading it
+    if (nodeDescriptions[nodeId] || loadingDescription === nodeId) return;
+    
+    try {
+      setLoadingDescription(nodeId);
+      
+      // Find the node to get its label and related info
+      const nodes = getNodes();
+      const nodeData = nodes.find(node => node.id === nodeId);
+      
+      if (!nodeData) {
+        console.error('Node not found:', nodeId);
+        setLoadingDescription(null);
+        return;
+      }
+      
+      // Get parent and child nodes to provide more context
+      const parentNodeId = nodeData.data.parentNode;
+      const parentNode = parentNodeId ? nodes.find(n => n.id === parentNodeId) : null;
+      
+      const childNodes = nodes
+        .filter(node => node.data.parentNode === nodeId)
+        .map(node => ({
+          id: node.id,
+          label: node.data.label
+        }));
+          const nodeLabel = nodeData.data.label as string;
+      console.log('Fetching detailed description for node:', nodeLabel);
+      
+      // Call the API to get the description
+      const response = await apiService.getMindMapNodeDescription(
+        nodeId,
+        nodeLabel,
+        "", // No syllabus available here
+        parentNode ? [{ id: parentNode.id, label: parentNode.data.label as string }] : [],
+        childNodes
+      );
+      
+      if (response.success && response.description) {
+        console.log('Description received for node:', nodeData.data.label);
+        setNodeDescriptions(prev => ({
+          ...prev,
+          [nodeId]: response.description
+        }));
+      } else {
+        console.error('Failed to get node description:', response.error || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Error fetching node description:', error);
+    } finally {
+      setLoadingDescription(null);
+    }
+  }, [getNodes, nodeDescriptions, loadingDescription]);
 
   // Handle node click for selection and centering
   const handleNodeClick = useCallback((nodeId: string) => {
@@ -603,28 +660,45 @@ function MindMapContent() {
     // Set the selected node
     setSelectedNode(nodeId);
     
+    // Fetch detailed description for this node
+    fetchNodeDescription(nodeId);
+    
     // Find the node in the mind map and center on it
     const nodes = getNodes();
     const selectedNodeData = nodes.find(node => node.id === nodeId);
     if (selectedNodeData && !selectedNodeData.hidden) {
       // Center the view on the selected node with smooth animation
       setCenter(selectedNodeData.position.x, selectedNodeData.position.y, { zoom: getZoom(), duration: 800 });
-    }  }, [getNodes, setCenter, getZoom]);  // Function to get content for selected node with AI-generated detailed theory
+    }
+  }, [getNodes, setCenter, getZoom, fetchNodeDescription]);  // Function to get content for selected node with AI-generated detailed theory
   const getSelectedNodeContent = useCallback((nodeId: string | null) => {
     if (!nodeId || !backendData?.nodes) return null;
     
-    // Find the node in backend data
+    // First, check if we have a cached detailed description from the node description API
+    if (nodeDescriptions[nodeId]) {
+      return nodeDescriptions[nodeId];
+    }
+    
+    // If no cached description, find the node in backend data
     const node = backendData.nodes.find(n => n.id === nodeId);
     
-    // If node has content, return it
+    // If we're loading the description, return loading message
+    if (loadingDescription === nodeId) {
+      return "# Loading detailed content...\n\nGenerating a comprehensive description of this topic. Please wait a moment.";
+    }
+    
+    // If node has content, return it as fallback
     if (node?.content) {
       return node.content;
     }
     
-    // Generate detailed AI theory content based on node ID or type
-    const generateDetailedTheory = (nodeId: string): string => {
-      const theories: Record<string, string> = {
-        'central': `# Photosynthesis: The Foundation of Life
+    // If nothing else, return a placeholder message
+    return "# Content will be generated\n\nDetailed information about this topic will appear here shortly.";
+  }, [nodeDescriptions, backendData, loadingDescription]);
+    // Fallback content generator
+  const generateDetailedTheory = (nodeId: string): string => {
+    const theories: Record<string, string> = {
+      'central': `# Photosynthesis: The Foundation of Life
 
 Photosynthesis is arguably the most important biological process on Earth, converting light energy into chemical energy that sustains virtually all life forms. This complex biochemical process occurs primarily in plants, algae, and some bacteria.
 
@@ -918,9 +992,8 @@ Factors affecting WUE:
 - **Stomatal conductance**: Degree of stomatal opening
 - **Leaf-to-air temperature difference**: Affects transpiration rate
 
-Understanding water relations is essential for drought-resistant crop development and water-efficient agriculture.`
-      };
-
+Understanding water relations is essential for drought-resistant crop development and water-efficient agriculture.`      };
+      
       return theories[nodeId] || `# ${nodeId.charAt(0).toUpperCase() + nodeId.slice(1)}
 
 This topic contains important information about photosynthesis. While detailed content is being generated, here are some key points:
@@ -942,10 +1015,75 @@ Understanding this topic helps in:
 - Developing biotechnological applications
 
 More detailed content will be available soon with comprehensive explanations, equations, and practical applications.`;
+  };
+  
+  // Default function for getting node content    
+  const getNodeContent = (id: string | null) => {
+    if (!id) return null;
+    return generateDetailedTheory(id);
+  };
+
+  // Effect to fetch detailed node description when a node is selected
+  useEffect(() => {
+    const fetchNodeDescription = async () => {
+      if (!selectedNode || !backendData?.nodes) return;
+      
+      // Skip if we already have this description
+      if (nodeDescriptions[selectedNode]) return;
+      
+      // Skip if we're already loading this description
+      if (loadingDescription === selectedNode) return;
+      
+      // Find the node in backend data
+      const nodeData = backendData.nodes.find(n => n.id === selectedNode);
+      if (!nodeData) return;
+      
+      // Set loading state
+      setLoadingDescription(selectedNode);
+      
+      try {
+        // Find parent and child nodes for context
+        const parentNodeId = nodeData.parentId || null;
+        const parentNode = parentNodeId ? backendData.nodes.find(n => n.id === parentNodeId) : null;
+        
+        // Find child nodes
+        const childNodes = backendData.nodes
+          .filter(n => n.parentId === selectedNode)
+          .map(n => ({ id: n.id, label: n.label }));
+        
+        console.log('Fetching detailed description for node:', nodeData.label);
+        
+        // Call the API to get the description
+        const response = await apiService.getMindMapNodeDescription(
+          selectedNode,
+          nodeData.label,
+          "", // No syllabus available here
+          parentNode ? [{ id: parentNode.id, label: parentNode.label }] : [],
+          childNodes
+        );
+        
+        if (response && response.success && response.description) {
+          console.log('Description received:', response.description.substring(0, 50) + '...');
+          
+          // Store the description
+          setNodeDescriptions(prev => ({
+            ...prev,
+            [selectedNode]: response.description
+          }));
+        } else {
+          console.error('Failed to get node description:', response?.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error fetching node description:', error);
+      } finally {
+        setLoadingDescription(null);
+      }
     };
     
-    return generateDetailedTheory(nodeId);
-  }, [backendData]);
+    if (selectedNode) {
+      fetchNodeDescription();
+    }
+  }, [selectedNode, backendData, nodeDescriptions, loadingDescription]);
 
   // Function to get related topics for selected node
   const getRelatedTopics = useCallback((nodeId: string | null) => {
@@ -1326,7 +1464,8 @@ Would you like me to explain any specific aspect in more detail? I can provide e
         position: { x: 600, y: yPos },
         data: { 
           label: topic.title, 
-          expanded: false,          hasChildren: topic.subtopics.length > 0,
+          expanded: false,
+          hasChildren: topic.subtopics.length > 0,
           parentNode: 'central',
           isRead: topicsReadStatus[topic.id],
           isSelected: selectedNode === topic.id,
@@ -1355,7 +1494,8 @@ Would you like me to explain any specific aspect in more detail? I can provide e
               expanded: false,
               hasChildren: false,
               parentNode: topic.id,
-              isRead: topicsReadStatus[subtopic.id],              isSelected: selectedNode === subtopic.id,
+              isRead: topicsReadStatus[subtopic.id],              
+              isSelected: selectedNode === subtopic.id,
               onToggleReadStatus: handleToggleReadStatus,
               onNodeClick: handleNodeClick
             },
@@ -1641,59 +1781,128 @@ Would you like me to explain any specific aspect in more detail? I can provide e
               )}
             </div>            {/* Content area - beautifully formatted with KaTeX support */}
             <div className="flex-1 p-6 overflow-y-auto flex flex-col">
-              {/* Topic Content Section */}
-              <div className="text-neutral-300 leading-relaxed space-y-4">
+              {/* Topic Content Section */}              <div className="text-neutral-300 leading-relaxed space-y-4">                
                 {(() => {
-                  const nodeContent = getSelectedNodeContent(selectedNode);
-                    if (nodeContent) {
+                  // Get content for the selected node
+                  let nodeContent;
+                  
+                  // First check if we have a selected node
+                  if (!selectedNode) {
+                    // If no node is selected, return loading placeholder
                     return (
-                      <>
-                        {/* Main Content Card with formatted content */}
-                        <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-6">
-                          <ContentFormatter content={nodeContent} className="w-full" />
+                      <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
+                          <div className="h-4 bg-neutral-600 rounded w-1/2 mb-3"></div>
+                          <div className="h-4 bg-neutral-600 rounded w-5/6"></div>
                         </div>
-                        
-                        {/* Related Topics Card */}
-                        {(() => {
-                          const relatedTopics = getRelatedTopics(selectedNode);
-                          if (relatedTopics.length > 0) {
-                            return (
-                              <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
-                                <h4 className="text-lg font-medium text-white mb-3">Related Topics</h4>
-                                <div className="space-y-2">
-                                  {relatedTopics.map((topic) => (
-                                    <button
-                                      key={topic.id}
-                                      onClick={() => handleNodeClick(topic.id)}
-                                      className="w-full text-left p-3 rounded bg-neutral-700 hover:bg-neutral-600 transition-colors border border-neutral-600 hover:border-neutral-500"
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-neutral-200 font-medium">{topic.label}</span>
-                                        <IconChevronRight className="h-4 w-4 text-neutral-400" />
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </>
+                        <p className="text-neutral-400 text-sm mt-4 italic">
+                          Select a node to see its content...
+                        </p>
+                      </div>
                     );
                   }
+
+                  // If we have a cached detailed description from the API
+                  if (nodeDescriptions[selectedNode]) {
+                    nodeContent = nodeDescriptions[selectedNode];
+                  } 
+                  // If we're loading, show loading message
+                  else if (loadingDescription === selectedNode) {
+                    nodeContent = "# Loading detailed content...\n\nGenerating a comprehensive description of this topic. Please wait a moment.";
+                  } 
+                  // Otherwise use basic content
+                  else {
+                    // Try to fetch if we don't have the description yet
+                    if (!nodeDescriptions[selectedNode] && loadingDescription !== selectedNode) {
+                      // Set loading state to prevent duplicate requests
+                      setLoadingDescription(selectedNode);
+                      
+                      // Get the node details
+                      const nodes = getNodes();
+                      const nodeData = nodes.find(node => node.id === selectedNode);
+                      
+                      if (nodeData) {
+                        console.log('Fetching detailed description for node:', nodeData.data.label);
+                        
+                        // Get parent and child nodes for context
+                        const parentNodeId = nodeData.data.parentNode;
+                        const parentNode = parentNodeId ? nodes.find(node => node.id === parentNodeId) : null;
+                        
+                        const childNodes = nodes
+                          .filter(node => node.data.parentNode === selectedNode)
+                          .map(node => ({ id: node.id, label: node.data.label }));
+                        
+                        // Call the API
+                        apiService.getMindMapNodeDescription(
+                          selectedNode,
+                          nodeData.data.label,
+                          "", // No syllabus available here
+                          parentNode ? [{ id: parentNode.id, label: parentNode.data.label }] : [],
+                          childNodes
+                        )
+                        .then(response => {
+                          if (response && response.success && response.description) {
+                            console.log('Description received:', response.description.substring(0, 50) + '...');
+                            
+                            // Store the description
+                            setNodeDescriptions(prev => ({
+                              ...prev,
+                              [selectedNode]: response.description
+                            }));
+                          } else {
+                            console.error('Failed to get node description:', response?.error || 'Unknown error');
+                          }
+                        })
+                        .catch(error => {
+                          console.error('Error fetching node description:', error);
+                        })
+                        .finally(() => {
+                          setLoadingDescription(null);
+                        });
+                      }
+                    }
+                    
+                    // Use the default content from the node
+                    const node = getNodes().find(node => node.id === selectedNode);
+                    nodeContent = node?.data?.content || "# Loading content...\n\nContent will appear here shortly.";
+                  }
                   
+                  // Return the content and related topics
                   return (
-                    <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
-                      <div className="animate-pulse">
-                        <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
-                        <div className="h-4 bg-neutral-600 rounded w-1/2 mb-3"></div>
-                        <div className="h-4 bg-neutral-600 rounded w-5/6"></div>
+                    <>
+                      {/* Main Content Card with formatted content */}
+                      <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-6">
+                        <ContentFormatter content={nodeContent} className="w-full" />
                       </div>
-                      <p className="text-neutral-400 text-sm mt-4 italic">
-                        Loading content for this topic...
-                      </p>
-                    </div>
+                        
+                      {/* Related Topics Card */}
+                      {(() => {
+                        const relatedTopics = getRelatedTopics(selectedNode);
+                        if (relatedTopics.length > 0) {
+                          return (
+                            <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+                              <h4 className="text-lg font-medium text-white mb-3">Related Topics</h4>
+                              <div className="space-y-2">
+                                {relatedTopics.map((topic) => (
+                                  <button
+                                    key={topic.id}
+                                    onClick={() => handleNodeClick(topic.id)}
+                                    className="w-full text-left p-3 rounded bg-neutral-700 hover:bg-neutral-600 transition-colors border border-neutral-600 hover:border-neutral-500"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-neutral-200 font-medium">{topic.label}</span>
+                                      <IconChevronRight className="h-4 w-4 text-neutral-400" />
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </>
                   );
                 })()}{/* AI Responses - shown inline with content */}
                 {chatMessages.map((message) => (
@@ -1754,8 +1963,3 @@ Would you like me to explain any specific aspect in more detail? I can provide e
     </div>
   );
 }
-
-// Removed the global initializeReactFlowData function since it should be inside the MindMapContent component
-
-// Generate fallback mind map data for visualization
-// Using generateFallbackMindMapData from mind-map-utils.ts

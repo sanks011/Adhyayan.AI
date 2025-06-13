@@ -223,6 +223,17 @@ class ApiService {
   async getMindMap(id: string) {
     return this.get(`/mindmap/${id}`);
   }
+  
+  // New method for getting detailed node descriptions
+  async getMindMapNodeDescription(nodeId: string, nodeLabel: string, syllabus?: string, parentNodes?: any[], childNodes?: any[]) {
+    return this.post('/mindmap/node-description', { 
+      nodeId, 
+      nodeLabel, 
+      syllabus,
+      parentNodes,
+      childNodes
+    });
+  }
 
   // File upload method for syllabus
   async uploadSyllabusFile(file: File) {

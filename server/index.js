@@ -1347,6 +1347,27 @@ mindMapCompletion = await groq.chat.completions.create({
                 "sub_sub_subtopics": []
               }
             ]
+          },
+          {
+            "title": "Planning",
+            "description": "State-space planning, partial-order planning, and real-world applications",
+            "sub_subtopics": []
+          }
+        ]
+      },
+      {
+        "title": "Knowledge Representation and Reasoning",
+        "description": "Methods for representing and reasoning with knowledge in AI",
+        "subtopics": [
+          {
+            "title": "Logical Agents",
+            "description": "Agents that use logic to make decisions",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Propositional Logic",
+            "description": "Basic logic for representing knowledge",
+            "sub_subtopics": []
           }
         ]
       }
@@ -1613,6 +1634,113 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     dbConnected: !!db,
   });
+});
+
+// Mind Map Node Description Endpoint - New endpoint for detailed node descriptions
+app.post("/api/mindmap/node-description", verifyToken, async (req, res) => {
+  try {
+    const { nodeId, nodeLabel, syllabus, parentNodes, childNodes } = req.body;
+
+    if (!nodeId || !nodeLabel) {
+      return res.status(400).json({
+        success: false,
+        error: "Node ID and label are required",
+      });
+    }
+
+    console.log(`Generating detailed description for node: ${nodeLabel} (${nodeId})`);
+
+    // Initialize Groq client with API key from environment variables
+    const groq = new Groq({
+      apiKey: process.env.DESCRIPTION_GROQ_API_KEY,
+    });
+
+    let nodeDescription;
+    try {
+      // Formulate context based on syllabus and node hierarchy
+      const nodeContext = syllabus || ""; 
+      const parentContext = parentNodes ? 
+        `This topic is part of: ${parentNodes.map(n => n.label).join(" > ")}` : 
+        "";
+      const childContext = childNodes && childNodes.length > 0 ? 
+        `This topic includes subtopics: ${childNodes.map(n => n.label).join(", ")}` : 
+        "";
+
+      // Create the prompt for the AI
+      nodeDescription = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are an exceptional educational AI designed to create detailed, informative, and engaging learning content about any topic. When given a topic and context, you will generate a comprehensive explanation (300-400 words) that is perfectly formatted for educational purposes.
+
+Your response should:
+1. Be comprehensive and educational (300-400 words)
+2. Include proper formatting with markdown headings, bullet points, and emphasis where appropriate
+3. Include KaTeX mathematical equations when relevant (using LaTeX syntax with $$ for display equations and $ for inline equations)
+4. Include code snippets with proper syntax highlighting when relevant to programming or technical topics
+5. Be tailored to the specific topic, considering its context, parent topics, and subtopics
+6. Be academically rigorous yet accessible, with clear explanations of complex concepts
+7. Include concrete examples, applications, or analogies where appropriate
+
+Formatting requirements:
+- Use markdown formatting (## for headings, * for bullet points, etc.)
+- For mathematical equations, use LaTeX syntax with $$ for display equations and $ for inline equations
+- For code, use triple backticks with language identifier (e.g. \`\`\`python)
+- Ensure all formatting is consistent and readable
+- Structure should include: 
+  * A brief introduction to the topic
+  * Main content with appropriate headings
+  * Key concepts clearly explained
+  * Examples, applications or visualizations described (where relevant)
+  * Brief conclusion or connection to related concepts
+
+Your explanation should be authoritative, academically accurate, and designed to enhance understanding of the topic in its educational context.`
+          },
+          {
+            role: "user",
+            content: `Generate a comprehensive educational description for the topic: "${nodeLabel}"
+
+Context:
+${nodeContext}
+
+${parentContext}
+${childContext}
+
+Please provide a 300-400 word detailed description with proper formatting, including any necessary equations (using KaTeX/LaTeX syntax), code examples, or visual descriptions as appropriate for this specific topic.`,
+          },
+        ],
+        model: "llama3-70b-8192",
+        temperature: 0.2,
+        max_tokens: 1024,
+        top_p: 0.9,
+        stop: null,
+      });
+    } catch (descriptionError) {
+      console.error("Error from Groq API:", descriptionError.message);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to generate node description",
+        details: descriptionError.message,
+      });
+    }
+
+    // Extract the content from the response
+    const descriptionContent = nodeDescription.choices[0]?.message?.content || "";
+    
+    // Return the generated description
+    return res.json({
+      success: true,
+      description: descriptionContent
+    });
+
+  } catch (error) {
+    console.error("Error generating node description:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate node description",
+      details: error.message,
+    });
+  }
 });
 
 // Global error handling middleware (must be last)
