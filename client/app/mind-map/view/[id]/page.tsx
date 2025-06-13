@@ -505,14 +505,17 @@ function MindMapContent() {
     setIsResizing(true);
     e.preventDefault();
   }, []);
-
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return;
     
+    // Calculate max width based on viewport width, reserving 300px for the left sidebar
+    const maxWidth = window.innerWidth - 300;
+    // Calculate new width from mouse position
     const newWidth = window.innerWidth - e.clientX;
-    if (newWidth >= 320 && newWidth <= 800) { // Min 320px, Max 800px
-      setSidebarWidth(newWidth);
-    }
+    
+    // Enforce constraints: Min 320px, Max is either 800px or maxWidth (whichever is smaller)
+    const constrainedWidth = Math.max(320, Math.min(newWidth, Math.min(800, maxWidth)));
+    setSidebarWidth(constrainedWidth);
   }, [isResizing]);
 
   const handleMouseUp = useCallback(() => {
@@ -1708,7 +1711,7 @@ Would you like me to explain any specific aspect in more detail? I can provide e
       </div>      {/* Right sidebar for detailed content */}
       {selectedNode && (
         <div 
-          className="h-full bg-neutral-900 border-l border-neutral-700 flex shadow-2xl relative"
+          className="h-full bg-neutral-900 border-l border-neutral-700 flex shadow-2xl relative max-w-[calc(100vw-300px)] overflow-x-hidden"
           style={{ width: `${sidebarWidth}px` }}
         >
           {/* Resize handle */}
@@ -1716,9 +1719,8 @@ Would you like me to explain any specific aspect in more detail? I can provide e
             className="absolute left-0 top-0 bottom-0 w-1 bg-neutral-600 hover:bg-neutral-500 cursor-col-resize z-10"
             onMouseDown={handleMouseDown}
           />
-          
-          {/* Sidebar content */}
-          <div className="flex-1 flex flex-col ml-1">            {/* Content header with clean design */}
+            {/* Sidebar content */}
+          <div className="flex-1 flex flex-col ml-1 overflow-x-hidden">{/* Content header with clean design */}
             <div className="p-6 border-b border-neutral-700 bg-neutral-800">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1">
