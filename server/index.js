@@ -827,11 +827,11 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
 
     let parsingCompletion;
     try {
-     parsingCompletion = await parsingGroq.chat.completions.create({
+parsingCompletion = await parsingGroq.chat.completions.create({
   messages: [
     {
       role: "system",
-      content: `You are the ULTIMATE syllabus parsing AI, engineered to extract EVERY detail from ANY academic syllabus with INFINITE hierarchical depth and produce PERFECT JSON output. Your mission is to analyze the syllabus, identify all structural components (units, modules, chapters, topics, subtopics, etc.), and create a comprehensive, learner-focused JSON structure that captures 100% of the educational content with precise nesting and rich descriptions.
+      content: `You are the ULTIMATE syllabus parsing AI, engineered to extract EVERY detail from ANY academic syllabus with INFINITE hierarchical depth and produce PERFECT, VALID JSON output. Your mission is to analyze the syllabus, identify all structural components (units, modules, chapters, topics, subtopics, etc.), and create a comprehensive, learner-focused JSON structure that captures 100% of the educational content with precise nesting and rich descriptions. You MUST iteratively validate JSON syntax during generation to ensure no bracket mismatches or syntax errors.
 
 ---
 
@@ -840,7 +840,12 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
 2. **Intelligent Structure Recognition**: Identify units, modules, chapters, or topic lists, and group related content logically, even in mixed or unstructured formats.
 3. **Clean Titles**: Remove administrative clutter (e.g., "Unit-I", "Module 1", hours, codes) to create learner-friendly topic names.
 4. **Rich Descriptions**: Generate concise, educational descriptions for each node based on syllabus content and context.
-5. **Perfect JSON**: Output valid JSON with proper syntax, double-quoted keys/values, correct commas, no trailing commas, and escaped quotes.
+5. **Perfect JSON**: Output valid JSON with:
+   - Double-quoted keys/values.
+   - Correct commas (no trailing commas).
+   - Escaped quotes in strings.
+   - Balanced brackets (\`{\` matches \`}\`, \`[\` matches \`]\`).
+   - No syntax errors.
 
 ---
 
@@ -854,22 +859,16 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
     "units": [
       {
         "title": "Clean Main Topic Title",
-        "description": "Educational description of this main topic, summarizing its content and purpose",
+        "description": "Educational description summarizing content and purpose",
         "subtopics": [
           {
             "title": "Subtopic Title",
-            "description": "Detailed explanation of this subtopic, including key concepts",
+            "description": "Detailed explanation of this subtopic",
             "sub_subtopics": [
               {
                 "title": "Sub-Subtopic Title",
                 "description": "In-depth explanation of this concept",
-                "sub_sub_subtopics": [
-                  {
-                    "title": "Deeper Concept Title",
-                    "description": "Specific details of this concept",
-                    "sub_sub_sub_subtopics": []
-                  }
-                ]
+                "sub_sub_subtopics": []
               }
             ]
           }
@@ -882,7 +881,7 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
 ---
 
 ### SYLLABUS PROCESSING RULES
-1. **Identify Main Subject**: Extract the subject name from the syllabus title or course code (e.g., "Object Oriented Programming" from "CSE11109 Object Oriented Programming").
+1. **Identify Main Subject**: Extract the subject name from the syllabus title or course code (e.g., "Introduction to Artificial Intelligence" from "CSE11112 Introduction to Artificial Intelligence").
 2. **Detect Structure**:
    - **Unit-Based**: Extract "Unit-I", "Unit-II", etc., as main topics.
    - **Module-Based**: Identify "Module 1", "Module 2", etc.
@@ -890,16 +889,16 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
    - **Topic-Based**: Group listed topics into logical units if no explicit units/modules.
    - **Mixed Formats**: Combine units, modules, and topics intelligently, preserving hierarchy.
 3. **Extract Hierarchy**:
-   - Main topics → units array.
-   - Subtopics → subtopics array within each unit.
-   - Sub-subtopics → sub_subtopics array, and continue nesting infinitely (sub_sub_subtopics, etc.).
+   - Main topics → \`units\` array.
+   - Subtopics → \`subtopics\` array within each unit.
+   - Sub-subtopics → \`sub_subtopics\` array, and continue nesting infinitely.
 4. **Clean Titles**:
-   - Remove prefixes (e.g., "Unit-I" → "OOP Concepts", "Module 1:" → "Introduction").
-   - Strip hours, codes, or administrative text (e.g., "09 Lecture Hours").
+   - Remove prefixes (e.g., "Unit-I" → "Introduction", "Module 1:" → "Search Strategies").
+   - Strip hours, codes, or administrative text (e.g., "10 Lecture Hours").
 5. **Generate Descriptions**:
    - Use syllabus content for descriptions.
-   - Enhance with educational context (e.g., explain why a topic is important).
-   - Keep descriptions concise yet informative.
+   - Enhance with educational context (e.g., why the topic matters, its applications).
+   - Keep descriptions concise (50–100 words).
 6. **Handle Edge Cases**:
    - Unstructured syllabi: Group related topics logically.
    - Missing details: Infer context from course objectives or description.
@@ -908,39 +907,40 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
 ---
 
 ### JSON VALIDATION RULES
-1. Every \`{\` must have a matching \`}\`.
-2. Every \`[\` must have a matching \`]\`.
-3. All property names and string values MUST be double-quoted (e.g., "title": "Value").
-4. Commas required between array items and object properties, EXCEPT after the last item.
-5. Escape quotes in strings (e.g., "Text with \\"quotes\\"").
-6. Validate bracket balance before output.
-7. Ensure no trailing commas or syntax errors.
+1. **Iterative Validation**: During generation:
+   - Track open \`{\` and \`[\` brackets.
+   - Ensure each has a matching \`}\` or \`]\` before proceeding.
+   - Count brackets after each unit to confirm balance.
+2. **Final Validation**: Before outputting:
+   - Parse the JSON string using a JSON parser (or simulate parsing).
+   - If parsing fails, rebalance brackets and retry.
+3. **Syntax Rules**:
+   - All keys/values MUST be double-quoted (e.g., \`"title": "Value"\`).
+   - Commas required between array items/properties, EXCEPT after the last item.
+   - Escape quotes in strings (e.g., \`"Text with \\"quotes\\""\`).
+   - No trailing commas.
+   - No unquoted keys or values (except numbers, \`true\`, \`false\`, \`null\`).
 
 ---
 
-### EXAMPLE INPUT 1: UNIT-BASED SYLLABUS (Object Oriented Programming)
+### EXAMPLE INPUT 1: UNIT-BASED SYLLABUS (Introduction to Artificial Intelligence)
 **Input Syllabus:**
 \`\`\`
-CSE11109 Object Oriented Programming L T P C
+CSE11112 Introduction to Artificial Intelligence L T P C
 Version 1.0 Contact Hours 45 3 0 0 3
 Course Description:
-This course investigates object-oriented methods including object-oriented programming methodologies and techniques...
+Artificial intelligence (AI) is a research field that studies how to realize the intelligent human behaviors on a computer...
 Course Content:
-Unit-I 09 Lecture Hours
-OOP Concepts - Data Abstraction, Encapsulation, Inheritance, Benefits of Inheritance, Polymorphism, Classes and Objects...
-Unit-II 09 Lecture Hours
-Exception Handling - Dealing With Errors, Advantages Of Exception Handling...
-Multithreading - Difference Between Multiple Processes And Multiple Threads...
-Unit-III 09 Lecture Hours
-Collection Framework - Introduction, Generics and Common Use Of Collection Classes...
-Files - Streams - Byte Streams, Character Streams...
-Connecting To Database JDBC / ODBC Type 1 To 4 Drivers...
-Unit-IV 09 Lecture Hours
-GUI Programming - The AWT Class Hierarchy, Introduction To Swing...
-Event Handling - Events, Sources, Classes, Listeners...
-Applets - Inheritance Hierarchy For Applets...
-Unit-V 09 Lecture Hours
-Application Development: Design of real life GUI applications using Swing/AWT/JDBC...
+Unit-I 10 Lecture Hours
+Introduction: Introduction, Agents, Problem formulation, Forward and backward chaining, Unification, Resolution.
+Unit-II 8 Lecture Hours
+Search in State Space and Planning: Uninformed search strategies, Heuristics, Informed search strategies...
+Unit-III 9 Lecture Hours
+Knowledge Representation & Reasoning: Introduction & Overview, Logical agents, Propositional logic...
+Unit-IV 9 Lecture Hours
+Uncertainty: Quantifying Uncertainty, Probabilistic Reasoning, Probabilistic Reasoning over Time...
+Unit-V 9 Lecture Hours
+Various wings of AI: Introduction to various wings of AI Neurophysiology, cognitive science, pattern recognition...
 \`\`\`
 
 **Expected Output:**
@@ -948,37 +948,36 @@ Application Development: Design of real life GUI applications using Swing/AWT/JD
 {
   "parsed_structure": {
     "main_subject": {
-      "title": "Object Oriented Programming",
-      "description": "Comprehensive study of object-oriented programming methodologies, including encapsulation, inheritance, polymorphism, exception handling, multithreading, GUI development, and database connectivity using Java"
+      "title": "Introduction to Artificial Intelligence",
+      "description": "Foundational study of AI, focusing on creating systems that learn, plan, and solve problems autonomously, covering problem solving, reasoning, planning, and machine learning"
     },
     "units": [
       {
-        "title": "OOP Fundamentals",
-        "description": "Introduction to core object-oriented programming concepts and basic Java programming constructs",
+        "title": "Introduction",
+        "description": "Overview of AI concepts, including intelligent agents, problem formulation, and logical inference techniques",
         "subtopics": [
           {
-            "title": "OOP Concepts",
-            "description": "Fundamental principles including data abstraction, encapsulation, inheritance, and polymorphism",
+            "title": "Intelligent Agents",
+            "description": "Systems that perceive and act rationally in their environment",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Problem Formulation",
+            "description": "Defining problems for AI systems to solve",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Logical Inference",
+            "description": "Techniques like forward/backward chaining, unification, and resolution",
             "sub_subtopics": [
               {
-                "title": "Data Abstraction",
-                "description": "Hiding implementation details and showing only essential features",
+                "title": "Forward and Backward Chaining",
+                "description": "Methods for deriving conclusions from rules",
                 "sub_sub_subtopics": []
               },
               {
-                "title": "Encapsulation",
-                "description": "Bundling data and methods within a class to protect object integrity",
-                "sub_sub_subtopics": []
-              }
-            ]
-          },
-          {
-            "title": "Java Basics",
-            "description": "Core Java programming constructs including data types, variables, and control flow",
-            "sub_subtopics": [
-              {
-                "title": "Data Types and Variables",
-                "description": "Primitive and reference types, variable scope, and constants",
+                "title": "Resolution",
+                "description": "Proof technique for logical statements",
                 "sub_sub_subtopics": []
               }
             ]
@@ -986,19 +985,45 @@ Application Development: Design of real life GUI applications using Swing/AWT/JD
         ]
       },
       {
-        "title": "Exception Handling and Multithreading",
-        "description": "Techniques for robust error handling and concurrent programming in Java",
+        "title": "Search and Planning",
+        "description": "Strategies for state-space search and planning in AI systems",
         "subtopics": [
           {
-            "title": "Exception Handling",
-            "description": "Mechanisms to handle runtime errors using try, catch, throw, and finally",
+            "title": "Search Strategies",
+            "description": "Uninformed and informed search methods for problem solving",
             "sub_subtopics": [
               {
-                "title": "Exception Hierarchy",
-                "description": "Checked and unchecked exceptions and their classifications",
+                "title": "Uninformed Search",
+                "description": "Breadth-first, depth-first, and other blind search techniques",
+                "sub_sub_subtopics": []
+              },
+              {
+                "title": "Informed Search",
+                "description": "Heuristic-based methods like A* search",
                 "sub_sub_subtopics": []
               }
             ]
+          },
+          {
+            "title": "Planning",
+            "description": "State-space planning, partial-order planning, and real-world applications",
+            "sub_subtopics": []
+          }
+        ]
+      },
+      {
+        "title": "Knowledge Representation and Reasoning",
+        "description": "Methods for representing and reasoning with knowledge in AI",
+        "subtopics": [
+          {
+            "title": "Logical Agents",
+            "description": "Agents that use logic to make decisions",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Propositional Logic",
+            "description": "Basic logic for representing knowledge",
+            "sub_subtopics": []
           }
         ]
       }
@@ -1084,14 +1109,15 @@ Topic List:
 - Generate clean, learner-friendly titles and educational descriptions.
 - Produce perfect JSON syntax with no errors.
 - Handle any syllabus format (unit-based, module-based, topic-based, mixed).
-- Validate JSON structure before output to ensure bracket balance and syntax.
+- Validate JSON structure iteratively during generation and before output.
 
 ---
 
 **OUTPUT INSTRUCTIONS**:
 - Respond with valid JSON only, starting with \`{\` and ending with \`}\`.
 - Do NOT include markdown, code blocks (\`\`\`json), or explanations.
-- Ensure all content is extracted and hierarchically organized.`,
+- Ensure all content is extracted and hierarchically organized.
+- If JSON parsing fails during validation, rebalance brackets and retry before outputting.`,
     },
     {
       role: "user",
@@ -1107,9 +1133,9 @@ RESPOND WITH VALID JSON ONLY:`,
     },
   ],
   model: "llama3-70b-8192",
-  temperature: 0.05,
-  max_tokens: 8000,
-  top_p: 0.85,
+  temperature: 0.0, // Lowered to minimize creative deviations
+  max_tokens: 8192, // Increased to handle large syllabi
+  top_p: 0.9,
   stop: null,
 });
     } catch (parsingError) {
@@ -1161,20 +1187,25 @@ RESPOND WITH VALID JSON ONLY:`,
     console.log("Generating mind map from parsed structure...");
     let mindMapCompletion;
     try {
-      mindMapCompletion = await groq.chat.completions.create({
+mindMapCompletion = await groq.chat.completions.create({
   messages: [
     {
       role: "system",
-      content: `You are the ULTIMATE mind map creation AI, designed to transform ANY parsed syllabus structure into a FLAWLESS, COMPREHENSIVE mind map JSON with INFINITE hierarchical depth. Your mission is to convert the parsed structure into a learner-focused mind map that preserves 100% of the content, enhances educational value with rich descriptions, and maintains perfect JSON syntax.
+      content: `You are the ULTIMATE mind map creation AI, designed to transform ANY parsed syllabus structure into a FLAWLESS, COMPREHENSIVE mind map JSON with INFINITE hierarchical depth. Your mission is to convert the parsed structure into a learner-focused mind map that preserves 100% of the content, enhances educational value with rich descriptions, and maintains perfect JSON syntax. You MUST iteratively validate JSON syntax during generation to ensure no bracket mismatches or syntax errors.
 
 ---
 
 ### CORE OBJECTIVES
 1. **Complete Transformation**: Map every element from the parsed structure (main subject, units, subtopics, etc.) to the mind map format.
 2. **Hierarchical Preservation**: Maintain exact nesting (units → subtopics → sub_subtopics → infinite depth).
-3. **Educational Enhancement**: Generate detailed, learner-friendly descriptions that combine original content with context, applications, and learning objectives.
+3. **Educational Enhancement**: Generate detailed, learner-friendly descriptions combining original content with context, applications, and learning objectives.
 4. **Clean Titles**: Ensure titles are concise and optimized for learning.
-5. **Perfect JSON**: Output valid JSON with double-quoted keys/values, correct commas, no trailing commas, and escaped quotes.
+5. **Perfect JSON**: Output valid JSON with:
+   - Double-quoted keys/values.
+   - Correct commas (no trailing commas).
+   - Escaped quotes in strings.
+   - Balanced brackets (\`{\` matches \`}\`, \`[\` matches \`]\`).
+   - No syntax errors.
 
 ---
 
@@ -1182,29 +1213,23 @@ RESPOND WITH VALID JSON ONLY:`,
 {
   "mind_map": {
     "central_node": {
-      "title": "Subject Name from parsed_structure.main_subject.title",
-      "description": "Use parsed_structure.main_subject.description",
-      "content": "Enhanced overview combining description with learning objectives, scope, and practical applications"
+      "title": "Subject Name",
+      "description": "Parsed description",
+      "content": "Enhanced overview with objectives and applications"
     },
     "module_nodes": [
       {
-        "title": "Clean Title from parsed_structure.units[i].title",
-        "content": "Rich educational description combining unit description with learning objectives and context",
+        "title": "Main Topic Title",
+        "content": "Rich description with objectives and context",
         "subtopics": [
           {
-            "title": "Subtopic from parsed_structure.units[i].subtopics[j].title",
-            "content": "Detailed explanation of this subtopic, including importance and applications",
+            "title": "Subtopic Title",
+            "content": "Explanation with applications",
             "sub_subtopics": [
               {
-                "title": "Sub-subtopic from parsed_structure.units[i].subtopics[j].sub_subtopics[k].title",
-                "content": "In-depth explanation with theoretical foundations and practical examples",
-                "sub_sub_subtopics": [
-                  {
-                    "title": "Deeper Concept Title",
-                    "content": "Comprehensive details with connections to broader subject",
-                    "sub_sub_sub_subtopics": []
-                  }
-                ]
+                "title": "Sub-Subtopic Title",
+                "content": "In-depth explanation with examples",
+                "sub_sub_subtopics": []
               }
             ]
           }
@@ -1220,79 +1245,83 @@ RESPOND WITH VALID JSON ONLY:`,
 1. **Map Main Subject**:
    - \`parsed_structure.main_subject.title\` → \`mind_map.central_node.title\`.
    - \`parsed_structure.main_subject.description\` → \`mind_map.central_node.description\`.
-   - Enhance \`central_node.content\` with learning objectives, scope, and applications.
+   - Enhance \`central_node.content\` with objectives, scope, and applications.
 2. **Map Units**:
    - Each \`parsed_structure.units[i]\` → \`mind_map.module_nodes[i]\`.
-   - Use \`units[i].title\` for \`module_nodes[i].title\`, keeping it clean.
-   - Enhance \`module_nodes[i].content\` with educational context and objectives.
+   - Use \`units[i].title\` for \`module_nodes[i].title\`.
+   - Enhance \`module_nodes[i].content\` with context and objectives.
 3. **Map Subtopics**:
    - \`units[i].subtopics[j]\` → \`module_nodes[i].subtopics[j]\`.
-   - Preserve all deeper levels (\`sub_subtopics\`, \`sub_sub_subtopics\`, etc.).
-   - Generate detailed \`content\` for each subtopic, including importance and applications.
+   - Preserve deeper levels (\`sub_subtopics\`, etc.).
+   - Generate \`content\` with importance and applications.
 4. **Infinite Depth**:
-   - Continue mapping deeper hierarchies (e.g., \`sub_sub_subtopics\` → \`sub_sub_subtopics\).
-   - Ensure no content is omitted, regardless of nesting level.
+   - Map all deeper hierarchies without truncation.
 5. **Content Enhancement**:
-   - Combine original descriptions with:
-     - Why the topic is important.
-     - Practical applications or examples.
-     - Connections to other topics or the broader subject.
-   - Keep descriptions academic yet accessible.
+   - Combine descriptions with:
+     - Importance of the topic.
+     - Practical applications/examples.
+     - Connections to the subject.
+   - Keep descriptions academic and concise (50–100 words).
 6. **Handle Edge Cases**:
-   - Empty subtopics: Include empty arrays (\`[]\`) for consistency.
-   - Missing descriptions: Generate based on title and context.
-   - Long descriptions: Summarize while preserving key details.
+   - Empty subtopics: Use empty arrays (\`[]\`).
+   - Missing descriptions: Generate from title/context.
+   - Long descriptions: Summarize key details.
 
 ---
 
 ### JSON VALIDATION RULES
-1. Every \`{\` must have a matching \`}\`.
-2. Every \`[\` must have a matching \`]\`.
-3. All property names and string values MUST be double-quoted.
-4. Commas required between array items and object properties, EXCEPT after the last item.
-5. Escape quotes in strings (e.g., "Text with \\"quotes\\"").
-6. Validate bracket balance before output.
-7. Ensure no trailing commas or syntax errors.
+1. **Iterative Validation**: During generation:
+   - Track open \`{\` and \`[\` brackets.
+   - Ensure each has a matching \`}\` or \`]\` before proceeding.
+   - Count brackets after each module to confirm balance.
+2. **Final Validation**: Before outputting:
+   - Parse the JSON string using a JSON parser (or simulate parsing).
+   - If parsing fails, rebalance brackets and retry.
+3. **Syntax Rules**:
+   - All keys/values MUST be double-quoted.
+   - Commas required between array items/properties, EXCEPT after the last item.
+   - Escape quotes in strings.
+   - No trailing commas.
+   - No unquoted keys/values (except numbers, \`true\`, \`false\`, \`null\`).
 
 ---
 
-### EXAMPLE INPUT 1: PARSED STRUCTURE (Object Oriented Programming)
+### EXAMPLE INPUT 1: PARSED STRUCTURE (Introduction to Artificial Intelligence)
 **Input Parsed Structure:**
 \`\`\`json
 {
   "parsed_structure": {
     "main_subject": {
-      "title": "Object Oriented Programming",
-      "description": "Comprehensive study of object-oriented programming methodologies, including encapsulation, inheritance, polymorphism, exception handling, multithreading, GUI development, and database connectivity using Java"
+      "title": "Introduction to Artificial Intelligence",
+      "description": "Foundational study of AI, focusing on creating systems that learn, plan, and solve problems autonomously, covering problem solving, reasoning, planning, and machine learning"
     },
     "units": [
       {
-        "title": "OOP Fundamentals",
-        "description": "Introduction to core object-oriented programming concepts and basic Java programming constructs",
+        "title": "Introduction",
+        "description": "Overview of AI concepts, including intelligent agents, problem formulation, and logical inference techniques",
         "subtopics": [
           {
-            "title": "OOP Concepts",
-            "description": "Fundamental principles including data abstraction, encapsulation, inheritance, and polymorphism",
+            "title": "Intelligent Agents",
+            "description": "Systems that perceive and act rationally in their environment",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Problem Formulation",
+            "description": "Defining problems for AI systems to solve",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Logical Inference",
+            "description": "Techniques like forward/backward chaining, unification, and resolution",
             "sub_subtopics": [
               {
-                "title": "Data Abstraction",
-                "description": "Hiding implementation details and showing only essential features",
+                "title": "Forward and Backward Chaining",
+                "description": "Methods for deriving conclusions from rules",
                 "sub_sub_subtopics": []
               },
               {
-                "title": "Encapsulation",
-                "description": "Bundling data and methods within a class to protect object integrity",
-                "sub_sub_subtopics": []
-              }
-            ]
-          },
-          {
-            "title": "Java Basics",
-            "description": "Core Java programming constructs including data types, variables, and control flow",
-            "sub_subtopics": [
-              {
-                "title": "Data Types and Variables",
-                "description": "Primitive and reference types, variable scope, and constants",
+                "title": "Resolution",
+                "description": "Proof technique for logical statements",
                 "sub_sub_subtopics": []
               }
             ]
@@ -1300,16 +1329,21 @@ RESPOND WITH VALID JSON ONLY:`,
         ]
       },
       {
-        "title": "Exception Handling and Multithreading",
-        "description": "Techniques for robust error handling and concurrent programming in Java",
+        "title": "Search and Planning",
+        "description": "Strategies for state-space search and planning in AI systems",
         "subtopics": [
           {
-            "title": "Exception Handling",
-            "description": "Mechanisms to handle runtime errors using try, catch, throw, and finally",
+            "title": "Search Strategies",
+            "description": "Uninformed and informed search methods for problem solving",
             "sub_subtopics": [
               {
-                "title": "Exception Hierarchy",
-                "description": "Checked and unchecked exceptions and their classifications",
+                "title": "Uninformed Search",
+                "description": "Breadth-first, depth-first, and other blind search techniques",
+                "sub_sub_subtopics": []
+              },
+              {
+                "title": "Informed Search",
+                "description": "Heuristic-based methods like A* search",
                 "sub_sub_subtopics": []
               }
             ]
@@ -1326,38 +1360,37 @@ RESPOND WITH VALID JSON ONLY:`,
 {
   "mind_map": {
     "central_node": {
-      "title": "Object Oriented Programming",
-      "description": "Comprehensive study of object-oriented programming methodologies, including encapsulation, inheritance, polymorphism, exception handling, multithreading, GUI development, and database connectivity using Java",
-      "content": "Object Oriented Programming (OOP) is a paradigm that organizes software design around objects and classes. This course covers core OOP principles, Java programming techniques, and advanced features like multithreading, exception handling, GUI development, and database connectivity. Students will learn to design robust, scalable applications for real-world problems."
+      "title": "Introduction to Artificial Intelligence",
+      "description": "Foundational study of AI, focusing on creating systems that learn, plan, and solve problems autonomously, covering problem solving, reasoning, planning, and machine learning",
+      "content": "This course introduces AI, enabling computers to learn, plan, and solve problems autonomously. It covers core topics like search strategies, knowledge representation, uncertainty, and machine learning, with applications in robotics, vision, and more."
     },
     "module_nodes": [
       {
-        "title": "OOP Fundamentals",
-        "content": "Introduces the foundational concepts of object-oriented programming and essential Java constructs, enabling students to build modular and reusable code",
+        "title": "Introduction",
+        "content": "Explores foundational AI concepts, including how agents operate and how problems are formulated, setting the stage for advanced AI techniques",
         "subtopics": [
           {
-            "title": "OOP Concepts",
-            "content": "Core principles that define OOP, including data abstraction, encapsulation, inheritance, and polymorphism, essential for designing flexible software systems",
+            "title": "Intelligent Agents",
+            "content": "Study of agents that act rationally, critical for autonomous systems like self-driving cars",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Problem Formulation",
+            "content": "Techniques to define problems for AI solutions, foundational for search and planning",
+            "sub_subtopics": []
+          },
+          {
+            "title": "Logical Inference",
+            "content": "Methods like chaining and resolution for logical reasoning, used in expert systems",
             "sub_subtopics": [
               {
-                "title": "Data Abstraction",
-                "content": "Hiding complex implementation details to expose only necessary features, simplifying system design and maintenance",
+                "title": "Forward and Backward Chaining",
+                "content": "Rule-based inference techniques for decision-making",
                 "sub_sub_subtopics": []
               },
               {
-                "title": "Encapsulation",
-                "content": "Protecting object data by bundling it with methods, ensuring data integrity and modularity, as seen in Java classes",
-                "sub_sub_subtopics": []
-              }
-            ]
-          },
-          {
-            "title": "Java Basics",
-            "content": "Fundamental Java programming elements, including data types, variables, and control structures, critical for writing effective Java applications",
-            "sub_subtopics": [
-              {
-                "title": "Data Types and Variables",
-                "content": "Understanding Java's primitive and reference types, variable scope, and constants, foundational for all Java programming tasks",
+                "title": "Resolution",
+                "content": "Logical proof method for automated reasoning",
                 "sub_sub_subtopics": []
               }
             ]
@@ -1365,16 +1398,21 @@ RESPOND WITH VALID JSON ONLY:`,
         ]
       },
       {
-        "title": "Exception Handling and Multithreading",
-        "content": "Advanced Java techniques for handling errors and enabling concurrent execution, crucial for building robust and responsive applications",
+        "title": "Search and Planning",
+        "content": "Covers search algorithms and planning methods to solve complex AI problems efficiently",
         "subtopics": [
           {
-            "title": "Exception Handling",
-            "content": "Mechanisms to manage runtime errors, ensuring application stability using try, catch, throw, and finally blocks",
+            "title": "Search Strategies",
+            "content": "Uninformed and informed search techniques, essential for pathfinding and optimization",
             "sub_subtopics": [
               {
-                "title": "Exception Hierarchy",
-                "content": "Structure of Java's exception classes, distinguishing between checked and unchecked exceptions for effective error management",
+                "title": "Uninformed Search",
+                "content": "Blind search methods like BFS and DFS, used in simple AI tasks",
+                "sub_sub_subtopics": []
+              },
+              {
+                "title": "Informed Search",
+                "content": "Heuristic-driven searches like A*, applied in game AI",
                 "sub_sub_subtopics": []
               }
             ]
@@ -1406,22 +1444,6 @@ RESPOND WITH VALID JSON ONLY:`,
             "title": "Overview",
             "description": "Introduction to data structures and their importance",
             "sub_subtopics": []
-          },
-          {
-            "title": "Types",
-            "description": "Linear vs non-linear data structures",
-            "sub_subtopics": []
-          }
-        ]
-      },
-      {
-        "title": "Arrays",
-        "description": "Contiguous memory structures for data storage",
-        "subtopics": [
-          {
-            "title": "Array Operations",
-            "description": "Insertion, deletion, and traversal operations",
-            "sub_subtopics": []
           }
         ]
       }
@@ -1437,32 +1459,16 @@ RESPOND WITH VALID JSON ONLY:`,
     "central_node": {
       "title": "Data Structures",
       "description": "Study of fundamental data organization techniques for efficient computation",
-      "content": "Data Structures is a core computer science discipline focused on organizing data for efficient storage, retrieval, and manipulation. This course covers linear and non-linear structures, their operations, and applications in solving computational problems."
+      "content": "Explores data structures for efficient storage and computation, critical for algorithm design and software development."
     },
     "module_nodes": [
       {
         "title": "Introduction",
-        "content": "Foundational overview of data structures, their types, and significance in algorithm design and software development",
+        "content": "Introduces data structures and their role in optimizing computational tasks",
         "subtopics": [
           {
             "title": "Overview",
-            "content": "Introduction to the role of data structures in optimizing computational tasks and their impact on program efficiency",
-            "sub_subtopics": []
-          },
-          {
-            "title": "Types",
-            "content": "Classification of data structures into linear (e.g., arrays, lists) and non-linear (e.g., trees, graphs) categories",
-            "sub_sub_subtopics": []
-          }
-        ]
-      },
-      {
-        "title": "Arrays",
-        "content": "Study of arrays as fundamental data structures for sequential data storage with efficient random access",
-        "subtopics": [
-          {
-            "title": "Array Operations",
-            "content": "Core operations like insertion, deletion, and traversal, with analysis of their time complexities and practical applications",
+            "content": "Significance of data structures in programming and algorithm efficiency",
             "sub_subtopics": []
           }
         ]
@@ -1480,14 +1486,15 @@ RESPOND WITH VALID JSON ONLY:`,
 - Generate enhanced, educational descriptions for all nodes.
 - Produce clean, learner-friendly titles and content.
 - Output perfect JSON syntax with no errors.
-- Include practical applications and connections to the broader subject.
+- Validate JSON structure iteratively during generation and before output.
 
 ---
 
 **OUTPUT INSTRUCTIONS**:
 - Respond with valid JSON only, starting with \`{\` and ending with \`}\`.
 - Do NOT include markdown, code blocks (\`\`\`json), or explanations.
-- Ensure all content is transformed and hierarchically organized.`,
+- Ensure all content is transformed and hierarchically organized.
+- If JSON parsing fails during validation, rebalance brackets and retry.`,
     },
     {
       role: "user",
@@ -1499,9 +1506,9 @@ RESPOND WITH VALID MIND MAP JSON ONLY:`,
     },
   ],
   model: "llama3-70b-8192",
-  temperature: 0.05,
-  max_tokens: 8000,
-  top_p: 0.85,
+  temperature: 0.0, // Lowered to minimize creative deviations
+  max_tokens: 8192, // Increased to handle large syllabi
+  top_p: 0.9,
   stop: null,
 });
     } catch (mindMapError) {
