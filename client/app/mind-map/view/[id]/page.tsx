@@ -7,7 +7,7 @@ import { FloatingDock } from "@/components/ui/floating-dock";
 import { MindMapSidebar } from "@/components/custom/MindMapSidebar";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
-import { ContentFormatter } from "@/components/ui/content-formatter";
+import ContentFormatter from "@/components/ui/content-formatter";
 import { cn } from "@/lib/utils";
 import { convertBackendDataToSidebarFormat, getFallbackData, generateFallbackMindMapData, BackendNode, BackendData, SidebarTopic, SidebarSubtopic } from "@/lib/mind-map-utils";
 import Head from 'next/head';
