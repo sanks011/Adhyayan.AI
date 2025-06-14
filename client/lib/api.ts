@@ -284,6 +284,21 @@ class ApiService {
       childNodes
     });
   }
+  // Method for getting node-specific questions
+  async getMindMapNodeQuestions(nodeId: string, nodeDescription: string) {
+    return this.post('/mindmap/node-questions', { 
+      nodeId, 
+      nodeDescription 
+    });
+  }
+  // Method for getting AI responses to user questions
+  async getMindMapChatResponse(nodeId: string, nodeDescription: string, userMessage: string) {
+    return this.post('/mindmap/chat-response', { 
+      nodeId, 
+      nodeDescription,
+      userMessage 
+    });
+  }
   // File upload method for syllabus
   async uploadSyllabusFile(file: File) {
     try {
@@ -405,7 +420,7 @@ class ApiService {
         const error = await response.json();
         console.error("Server error:", error);
         // Even if server deletion fails, we've removed from localStorage
-        return { success: true, message: "Mind map removed from local storage only" };
+        return { success: true, message: "Mind map removed from local storage" };
       }
 
       const result = await response.json();

@@ -2067,6 +2067,234 @@ app.get("/api/mindmap/:mindMapId/read-status", verifyToken, async (req, res) => 
   }
 });
 
+// Mind Map Node Questions Generator Endpoint - Generates AI questions based on node content
+app.post("/api/mindmap/node-questions", verifyToken, async (req, res) => {
+  try {
+    const { nodeId, nodeDescription } = req.body;
+
+    if (!nodeId || !nodeDescription) {
+      return res.status(400).json({
+        success: false,
+        error: "Node ID and description are required",
+      });
+    }
+
+    console.log(`Generating contextual questions for node: ${nodeId}`);
+
+    try {
+      // Use the dedicated Gemini API key for question generation
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.QUERY_GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {                    text: `You are an AI tutor that generates engaging questions about educational content that a student might have.
+
+Given the following educational content about "${nodeId}", generate exactly 5 relevant questions that a student might ask after reading this content.
+
+The questions should:
+1. Cover different aspects of the content
+2. Range from basic understanding to deeper insights
+3. Be conversational and natural sounding
+4. Be specific to the content provided
+5. Encourage critical thinking
+
+Content:
+${nodeDescription}
+
+IMPORTANT: Return ONLY a valid JSON array with exactly 5 question strings. Do not include any markdown formatting, code blocks, or explanations. Do not wrap the response in backticks or any other formatting.
+
+Example of the exact format required:
+["What is the main purpose of this process?", "How does this relate to other concepts?", "What factors influence this mechanism?", "Can you provide a real-world example?", "What would happen if this process failed?"]
+
+Your response must be a valid JSON array that can be parsed directly:`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 500,
+              topP: 0.8,
+              topK: 10
+            }
+          }),
+        }
+      );
+
+      const data = await response.json();      // Extract the generated content from Gemini response
+      let questionText = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+      
+      // Clean up the response - remove markdown code blocks if present
+      questionText = questionText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      // Parse the JSON array of questions or return default questions if parsing fails
+      let questions;
+      try {
+        questions = JSON.parse(questionText);
+        
+        // Validate that we got an array of strings
+        if (!Array.isArray(questions) || questions.length === 0) {
+          throw new Error("Invalid response format - not an array");
+        }
+        
+        // Ensure we have exactly 5 questions and they are all strings
+        questions = questions.filter(q => typeof q === 'string' && q.trim().length > 0).slice(0, 5);
+        
+        if (questions.length < 5) {
+          // Fill with default questions if we don't have enough
+          const defaultQuestions = [
+            "Tell me more about this topic",
+            "What are the key concepts here?",
+            "How does this relate to other topics?",
+            "Can you explain this in simple terms?",
+            "What should I focus on learning?"
+          ];
+          while (questions.length < 5) {
+            questions.push(defaultQuestions[questions.length] || "What else should I know?");
+          }
+        }
+        
+      } catch (parseError) {
+        console.error("Failed to parse questions response:", parseError);
+        console.log("Raw response text:", questionText);
+        questions = [
+          "Tell me more about this topic",
+          "What are the key concepts here?",
+          "How does this relate to other topics?",
+          "Can you explain this in simple terms?",
+          "What should I focus on learning?"
+        ];
+      }
+
+      return res.json({
+        success: true,
+        questions
+      });
+
+    } catch (apiError) {
+      console.error("Error calling Gemini API:", apiError);
+      
+      // Return default questions on API error
+      return res.json({
+        success: true,
+        questions: [
+          "Tell me more about this topic",
+          "What are the key concepts here?",
+          "How does this relate to other topics?",
+          "Can you explain this in simple terms?",
+          "What should I focus on learning?"
+        ]
+      });
+    }
+  } catch (error) {
+    console.error("Error generating node questions:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate questions",
+      details: error.message,
+    });
+  }
+});
+
+// Mind Map Chat Response Generator Endpoint
+app.post("/api/mindmap/chat-response", verifyToken, async (req, res) => {
+  try {
+    const { nodeId, nodeDescription, userMessage } = req.body;
+
+    if (!nodeId || !nodeDescription || !userMessage) {
+      return res.status(400).json({
+        success: false,
+        error: "Node ID, description and user message are required",
+      });
+    }
+
+    console.log(`Generating chat response for node ${nodeId} and message: ${userMessage.substring(0, 50)}...`);
+
+    try {
+      // Use the dedicated Gemini API key for responses
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.QUERY_GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are a helpful and knowledgeable AI tutor specialized in educational content. You need to respond to a user's question about a specific topic.
+
+Topic Content:
+${nodeDescription}
+
+User Question: "${userMessage}"
+
+Provide a clear, informative, and educational response to the user's question. Your response should:
+1. Be comprehensive and educational (200-300 words)
+2. Include proper formatting with markdown headings, bullet points, and emphasis where appropriate
+3. Include KaTeX mathematical equations when relevant (using LaTeX syntax with $$ for display equations and $ for inline equations)
+4. Include code snippets with proper syntax highlighting when relevant to programming or technical topics
+5. Be tailored to answering the specific question
+6. Be academically rigorous yet accessible, with clear explanations of complex concepts
+7. Stay focused on the topic at hand and directly address the user's question
+8. Provide specific examples or applications if relevant
+
+Your tone should be that of a knowledgeable and engaging tutor who's passionate about helping students understand the material.`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 1024,
+              topP: 0.9
+            }
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      // Extract the generated content from Gemini response
+      const responseContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      
+      if (!responseContent) {
+        throw new Error("Empty response from Gemini API");
+      }
+
+      return res.json({
+        success: true,
+        response: responseContent
+      });
+
+    } catch (apiError) {
+      console.error("Error calling Gemini API for chat response:", apiError);
+      
+      // Return default response on API error
+      return res.json({
+        success: true,
+        response: "I apologize, but I'm having trouble generating a response right now. Could you try asking your question in a different way, or ask about another aspect of this topic?"
+      });
+    }
+  } catch (error) {
+    console.error("Error generating chat response:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate response",
+      details: error.message,
+    });
+  }
+});
+
 // Global error handling middleware (must be last)
 app.use((err, req, res, next) => {
   console.error("Unhandled server error:", err);

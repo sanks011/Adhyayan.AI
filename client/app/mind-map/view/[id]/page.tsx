@@ -1334,218 +1334,95 @@ More detailed content will be available soon with comprehensive explanations, eq
     }
   }, [selectedNode, nodeDescriptions, getNodes]);
 
-  // Function to get topic-specific placeholders for AI chat
+  // Function to get topic-specific placeholders for AI chat  // State for storing AI-generated questions for each node
+  const [nodeQuestions, setNodeQuestions] = useState<Record<string, string[]>>({});
+  
+  // Function to get questions for a node, fetch them if needed
   const getTopicPlaceholders = useCallback((nodeId: string | null) => {
     if (!nodeId) return [];
     
-    // TODO: Replace with API call to get topic-specific questions
-    const topicQuestions: Record<string, string[]> = {
-      'photosynthesis': [
-        "What is the chemical equation for photosynthesis?",
-        "How does light affect the rate of photosynthesis?",
-        "What are the two main stages of photosynthesis?",
-        "Why is photosynthesis important for life on Earth?",
-        "What factors can limit photosynthesis?"
-      ],
-      'light-dependent': [
-        "Where do light-dependent reactions occur?",
-        "What is the role of chlorophyll in light reactions?",
-        "How is ATP produced in light-dependent reactions?",
-        "What happens to water molecules during light reactions?",
-        "What is photolysis?"
-      ],
-      'light-independent': [
-        "What is the Calvin Cycle?",
-        "Where do light-independent reactions take place?",
-        "How is CO2 fixed in the Calvin Cycle?",
-        "What is RuBisCO and what does it do?",
-        "How many CO2 molecules are needed to make glucose?"
-      ],
-      'factors-affecting': [
-        "How does temperature affect photosynthesis?",
-        "What is the optimal light intensity for photosynthesis?",
-        "How does CO2 concentration impact photosynthesis?",
-        "What is a limiting factor in photosynthesis?",
-        "How do plants adapt to low light conditions?"
-      ],
-      'central': [
-        "What is photosynthesis in simple terms?",
-        "Why do plants need sunlight to grow?",
-        "How do plants make their own food?",
-        "What gas do plants take in during photosynthesis?",
-        "What do plants release as a byproduct?"
-      ]
-    };
+    // Return cached questions if available
+    if (nodeQuestions[nodeId]) {
+      return nodeQuestions[nodeId];
+    }
     
-    return topicQuestions[nodeId] || [
+    // Default questions to show while loading
+    const defaultQuestions = [
       "Tell me more about this topic",
       "What are the key concepts here?",
-      "How does this relate to photosynthesis?",
+      "How does this relate to other topics?",
       "Can you explain this in simple terms?",
       "What should I focus on learning?"
     ];
-  }, []);  // Function to handle AI chat submission with detailed responses
-  const handleChatSubmit = useCallback(async (userMessage: string) => {
-    if (!userMessage.trim()) return;
     
-    console.log("User asked:", userMessage); // Debug log
+    // If we have a description for this node, fetch questions based on it
+    if (nodeId && nodeDescriptions[nodeId]) {
+      // Fetch questions from API based on the node description
+      (async () => {
+        try {
+          console.log(`Fetching questions for node: ${nodeId}`);
+          const response = await apiService.getMindMapNodeQuestions(
+            nodeId,
+            nodeDescriptions[nodeId]
+          );
+          
+          if (response?.success && response.questions && Array.isArray(response.questions)) {
+            console.log(`Received ${response.questions.length} questions for node ${nodeId}`);
+            setNodeQuestions(prev => ({
+              ...prev,
+              [nodeId]: response.questions
+            }));
+          } else {
+            console.error('Failed to get node questions:', response?.error || 'Unknown error');
+          }
+        } catch (error) {
+          console.error('Error fetching node questions:', error);        }
+      })();
+    }
+    
+    return nodeQuestions[nodeId] || defaultQuestions;
+  }, [nodeQuestions, nodeDescriptions]);
+
+  // Function to handle AI chat submission with detailed responses
+  const handleChatSubmit = useCallback(async (userMessage: string) => {
+    if (!userMessage.trim() || !selectedNode) return;
+    
+    console.log("User asked:", userMessage);
+    
+    // Save user message
+    const userMsgId = Date.now().toString();
+    setChatMessages(prev => [...prev, {
+      id: userMsgId,
+      type: 'user',
+      content: userMessage,
+      timestamp: new Date()
+    }]);
     
     setIsAiTyping(true);
     
     try {
-      // Simulate thinking time
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Get the node description for context
+      const nodeDescription = nodeDescriptions[selectedNode] || ""; 
       
-      // Generate detailed AI response based on user input and selected topic
-      const lowerMessage = userMessage.toLowerCase();
-      const currentTopic = selectedNode || 'general';
+      // Call the API to get a response
+      const response = await apiService.getMindMapChatResponse(
+        selectedNode,
+        nodeDescription,
+        userMessage
+      );
       
-      let dummyResponse = "";
-      
-      if (lowerMessage.includes("equation") || lowerMessage.includes("formula")) {
-        dummyResponse = `## Chemical Equations in Photosynthesis
-
-Great question about the chemical equations! Here are the key equations:
-
-### Overall Photosynthesis Equation
-$$6CO_2 + 6H_2O + light \\ energy \\rightarrow C_6H_{12}O_6 + 6O_2$$
-
-### Light-Dependent Reactions
-- **Photolysis**: $2H_2O \\rightarrow 4H^+ + 4e^- + O_2$
-- **ATP synthesis**: $ADP + P_i \\rightarrow ATP$
-- **NADPH formation**: $NADP^+ + H^+ + 2e^- \\rightarrow NADPH$
-
-### Calvin Cycle (Simplified)
-- **Carbon fixation**: $CO_2 + RuBP \\rightarrow 2 \\times 3PGA$
-- **Reduction**: $3PGA + ATP + NADPH \\rightarrow G3P$
-
-These equations show how light energy is converted into chemical energy stored in glucose and ATP.`;
-      } else if (lowerMessage.includes("explain") || lowerMessage.includes("how")) {
-        if (currentTopic.includes('light')) {
-          dummyResponse = `## How Light-Dependent Reactions Work
-
-Excellent question! Let me explain the process step by step:
-
-### The Process
-1. **Light Absorption**: Chlorophyll molecules in photosystem II absorb photons
-2. **Electron Excitation**: Energy excites electrons to higher energy levels
-3. **Water Splitting**: $2H_2O \\rightarrow 4H^+ + 4e^- + O_2$
-4. **Electron Transport**: Excited electrons move through the electron transport chain
-5. **ATP Production**: Proton gradient drives ATP synthase
-
-### Key Points
-- Occurs in **thylakoid membranes**
-- Produces **ATP and NADPH** for the Calvin Cycle
-- Releases **oxygen** as a byproduct
-- Efficiency is ~95% of absorbed light energy
-
-This process is remarkably efficient and forms the foundation for all life on Earth!`;
-        } else {
-          dummyResponse = `## Understanding ${currentTopic.charAt(0).toUpperCase() + currentTopic.slice(1)}
-
-Great question! Let me break this down for you:
-
-### Key Concepts
-- This process is fundamental to how plants convert light energy into chemical energy
-- Multiple enzymatic reactions work together in a coordinated manner
-- Environmental factors significantly influence the efficiency
-
-### Important Points
-- **Location**: Primarily occurs in chloroplasts
-- **Products**: Glucose and oxygen are the main products
-- **Efficiency**: Varies with light, temperature, and CO₂ levels
-- **Significance**: Forms the base of food webs and produces atmospheric oxygen
-
-### Real-World Applications
-Understanding this helps in:
-- Agricultural optimization
-- Climate change research
-- Biotechnology development
-
-Would you like me to explain any specific aspect in more detail?`;
-        }
-      } else if (lowerMessage.includes("temperature") || lowerMessage.includes("heat")) {
-        dummyResponse = `## Temperature Effects on Photosynthesis
-
-Temperature plays a crucial role in photosynthetic efficiency:
-
-### Optimal Temperature Range
-- **Most plants**: 20-35°C
-- **Tropical plants**: 25-40°C
-- **Temperate plants**: 15-30°C
-
-### How Temperature Affects the Process
-1. **Enzyme Activity**: Higher temperatures increase reaction rates up to an optimum
-2. **RuBisCO Function**: The key enzyme has temperature-dependent efficiency
-3. **Membrane Stability**: High temperatures can damage thylakoid membranes
-4. **Photorespiration**: Increases at higher temperatures, reducing efficiency
-
-### Mathematical Relationship
-The rate follows the **Q₁₀ rule**: 
-For every 10°C increase, reaction rate approximately doubles (until the optimum is reached).
-
-### Climate Change Implications
-- Rising temperatures may initially boost photosynthesis
-- But extreme heat causes stress and reduces efficiency
-- Plants are adapting through various mechanisms
-
-This is why understanding temperature responses is crucial for predicting how plants will respond to climate change!`;
-      } else if (lowerMessage.includes("co2") || lowerMessage.includes("carbon")) {
-        dummyResponse = `## CO₂ and Photosynthesis
-
-Carbon dioxide is the raw material for glucose synthesis! Here's how it works:
-
-### Current CO₂ Levels
-- **Atmospheric concentration**: ~420 ppm (and rising)
-- **Pre-industrial level**: ~280 ppm
-- **Rate of increase**: ~2 ppm per year
-
-### CO₂ Response Curve
-The relationship follows **Michaelis-Menten kinetics**:
-$$P = \\frac{P_{max} \\times [CO_2]}{K_m + [CO_2]}$$
-
-### Key Points
-- **Limiting factor**: Often limits photosynthesis in natural conditions
-- **Saturation point**: Around 800-1200 ppm for most C3 plants
-- **Compensation point**: Where photosynthesis equals respiration
-
-### Plant Adaptations
-- **C4 plants**: Concentrate CO₂ around RuBisCO
-- **CAM plants**: Store CO₂ at night, use during day
-- **C3 plants**: Most common, directly use atmospheric CO₂
-
-Rising CO₂ levels generally benefit plant growth, but other factors may become limiting!`;
+      if (response?.success && response.response) {
+        // Add the AI response to chat
+        const aiMsgId = Date.now().toString();
+        setChatMessages(prev => [...prev, {
+          id: aiMsgId,
+          type: 'ai',
+          content: response.response,
+          timestamp: new Date()
+        }]);
       } else {
-        dummyResponse = `## About ${currentTopic.charAt(0).toUpperCase() + currentTopic.slice(1)}
-
-Thank you for your question about "${userMessage}"! This is a fascinating aspect of photosynthesis.
-
-### Overview
-This topic involves complex biochemical processes that are essential for life on Earth. The intricate mechanisms have evolved over billions of years to achieve remarkable efficiency.
-
-### Key Features
-- **Complexity**: Multiple coordinated reactions
-- **Efficiency**: Highly optimized energy conversion
-- **Importance**: Fundamental to ecosystem function
-- **Applications**: Relevant to agriculture and biotechnology
-
-### Scientific Significance
-Understanding these processes helps us:
-- Improve crop yields
-- Develop renewable energy technologies
-- Address climate change challenges
-- Advance our knowledge of life processes
-
-Would you like me to explain any specific aspect in more detail? I can provide equations, mechanisms, or practical applications!`;
+        throw new Error("Failed to get AI response");
       }
-      
-      const aiMsgId = Date.now().toString();
-      setChatMessages(prev => [...prev, {
-        id: aiMsgId,
-        type: 'ai',
-        content: dummyResponse,
-        timestamp: new Date()
-      }]);
       
     } catch (error) {
       console.error('Error generating response:', error);
@@ -1559,7 +1436,7 @@ Would you like me to explain any specific aspect in more detail? I can provide e
     } finally {
       setIsAiTyping(false);
     }
-  }, [selectedNode]);
+  }, [selectedNode, nodeDescriptions]);
   // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
   const initialNodes = useMemo(() => {
     const flowNodes: Node[] = [];    // Central node for the main topic - root node
@@ -1955,12 +1832,11 @@ Would you like me to explain any specific aspect in more detail? I can provide e
     else {
       // Get the node details
       const nodes = getNodes();
-      const nodeData = nodes.find(node => node.id === selectedNode);
-
-      // Use node content if available, otherwise use fallback
-      nodeContent =
-        nodeData?.data?.content ||
-        "# Loading content...\n\nContent will appear here shortly.";
+      const nodeData = nodes.find(node => node.id === selectedNode);      // Use node content if available, otherwise use fallback
+      nodeContent = (
+        nodeData?.data?.content as string ||
+        "# Loading content...\n\nContent will appear here shortly."
+      );
 
       // Trigger API call only if we don't have the description and aren't loading
       if (!nodeDescriptions[selectedNode] && loadingDescription !== selectedNode && nodeData) {
