@@ -10,6 +10,7 @@ import {
   MobileNavMenu,
 } from "@/components/ui/resizable-navbar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import Link from "next/link";
 import { useState } from "react";
 
 interface NavItem {
@@ -24,7 +25,7 @@ interface CustomNavbarProps {
 export const navItems = [
   { name: "Home", link: "/" },
   { name: "Features", link: "#features" },
-  { name: "Pricing", link: "#pricing" },
+  { name: "Pricing", link: "/pricing" },
   { name: "Contact", link: "#contact" },
 ];
 
@@ -54,17 +55,16 @@ export const CustomNavbar = ({ items = navItems }: CustomNavbarProps) => {
         <MobileNavMenu
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
-        >
-          {items.map((item, idx) => (
-            <a
+        >          {items.map((item, idx) => (
+            <Link
               key={`mobile-link-${idx}`}
               href={item.link}
               onClick={() => setIsMobileMenuOpen(false)}
               className="relative text-neutral-600 dark:text-neutral-300"
             >
               <span className="block">{item.name}</span>
-            </a>
-          ))}          <div className="flex w-full items-center justify-center py-4">
+            </Link>
+          ))}<div className="flex w-full items-center justify-center py-4">
             <ThemeToggle className="h-12 w-12 transition-all" />
           </div>
         </MobileNavMenu>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { IconCoin, IconPlus, IconSparkles } from '@tabler/icons-react';
 import { apiService } from '@/lib/api';
 import { HoverBorderGradient } from '@/components/ui/hover-border-gradient';
@@ -16,6 +17,7 @@ export const GyanPointsDisplay: React.FC<GyanPointsDisplayProps> = ({
 }) => {
   const [points, setPoints] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchPoints = async () => {
@@ -31,12 +33,10 @@ export const GyanPointsDisplay: React.FC<GyanPointsDisplayProps> = ({
     };
 
     fetchPoints();
-  }, []);
-
-  const handleRechargeClick = () => {
-    // For now, just show an alert
-    alert('Recharge functionality will be available soon!');
-  };  if (isLoading) {
+  }, []);  const handleRechargeClick = () => {
+    // Redirect to pricing page
+    router.push('/pricing');
+  };if (isLoading) {
     return (
       <div className={`group relative ${className}`}>
         <HoverBorderGradient
