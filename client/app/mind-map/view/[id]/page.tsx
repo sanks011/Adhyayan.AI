@@ -43,6 +43,7 @@ import {
   IconHeadphones,
   IconPlayerPlay,
   IconLoader2,
+  IconCheck,
 } from "@tabler/icons-react";
 
 // Define the data structure for the custom node
@@ -130,8 +131,7 @@ const CustomNode = ({ data, id }: NodeProps) => {
       nodeData.onNodeClick(id);
     }
   }, [nodeData, id]);
-  
-  // Determine border color based on read status and selection
+    // Determine border color based on read status and selection
   const getBorderColor = () => {
     if (nodeData.isSelected) return "border-white border-2"; // White border for selected nodes
     if (nodeData.isRoot) return "border-blue-500";
@@ -141,7 +141,7 @@ const CustomNode = ({ data, id }: NodeProps) => {
   // Determine background color
   const getBackgroundColor = () => {
     if (nodeData.isRoot) return "bg-neutral-900";
-    return nodeData.isRead ? "bg-neutral-800" : "bg-neutral-900";
+    return nodeData.isRead ? "bg-green-700" : "bg-neutral-900";
   };
   return (
     <>
@@ -321,9 +321,160 @@ function MindMapContent() {
         initialStatus[subtopic.id] = subtopic.isRead || false;
       });
     });
-    
-    return initialStatus;
+      return initialStatus;
   });
+  // Function to toggle read status of a node
+  const handleToggleReadStatus = useCallback(async (nodeId: string, isRead?: boolean): Promise<void> => {
+    try {
+      const mindMapId = params?.id as string;
+      if (!mindMapId) {
+        console.error('Mind map ID not available');
+        return;
+      }
+
+      // Determine the new read status
+      const newIsRead = isRead !== undefined ? isRead : !topicsReadStatus[nodeId];
+      
+      console.log(`Toggling read status for ${nodeId}: ${newIsRead}`);
+      
+      // Update local state immediately for better UX
+      const updatedStatus = {
+        ...topicsReadStatus,
+        [nodeId]: newIsRead
+      };
+      
+      setTopicsReadStatus(updatedStatus);
+      
+      // Update local mind map data and check for auto-parent marking
+      setLocalMindMapData(prev => {
+        const updatedData = prev.map(topic => {
+          if (topic.id === nodeId) {
+            // Direct topic toggle
+            return {
+              ...topic,
+              isRead: newIsRead
+            };
+          }
+          
+          // Check if this is a subtopic being toggled
+          const updatedTopic = {
+            ...topic,
+            subtopics: topic.subtopics.map(subtopic => 
+              subtopic.id === nodeId ? {
+                ...subtopic,
+                isRead: newIsRead
+              } : subtopic
+            )
+          };
+          
+          // Auto-mark parent as read if all subtopics are read
+          if (topic.subtopics.some(sub => sub.id === nodeId) && newIsRead) {
+            const allSubtopicsRead = updatedTopic.subtopics.every(sub => 
+              sub.id === nodeId ? newIsRead : updatedStatus[sub.id]
+            );
+            
+            if (allSubtopicsRead && topic.subtopics.length > 0) {
+              console.log(`Auto-marking parent topic ${topic.id} as read - all subtopics completed`);
+              updatedStatus[topic.id] = true;
+              setTopicsReadStatus(updatedStatus);
+              
+              // Also update in backend
+              setTimeout(() => {
+                apiService.updateNodeReadStatus(mindMapId, topic.id, true)
+                  .catch(error => console.error('Error auto-updating parent read status:', error));
+              }, 100);
+              
+              return {
+                ...updatedTopic,
+                isRead: true
+              };
+            }
+          }
+          
+          return updatedTopic;
+        });
+        
+        return updatedData;
+      });
+
+      // Update node colors in the mind map visualization
+      setNodes(nodes => nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          isRead: updatedStatus[node.id] || false
+        }
+      })));
+
+      // Persist to backend
+      try {
+        await apiService.updateNodeReadStatus(mindMapId, nodeId, newIsRead);
+        console.log(`Successfully updated read status for ${nodeId}`);
+      } catch (error) {
+        console.error('Error updating read status:', error);
+        // Revert local state on error
+        setTopicsReadStatus(prev => ({
+          ...prev,
+          [nodeId]: !newIsRead
+        }));
+        setLocalMindMapData(prev => prev.map(topic => {
+          if (topic.id === nodeId) {
+            return {
+              ...topic,
+              isRead: !newIsRead
+            };
+          }
+          return {
+            ...topic,
+            subtopics: topic.subtopics.map(subtopic => 
+              subtopic.id === nodeId ? {
+                ...subtopic,
+                isRead: !newIsRead
+              } : subtopic
+            )
+          };
+        }));
+      }
+    } catch (error) {
+      console.error('Error in handleToggleReadStatus:', error);
+    }}, [topicsReadStatus, params?.id, setLocalMindMapData]);
+
+  // Function to load read status from backend
+  const loadReadStatus = useCallback(async () => {
+    try {
+      const mindMapId = params?.id as string;
+      if (!mindMapId) return;
+      
+      const response = await apiService.getNodeReadStatus(mindMapId);
+      if (response.success && response.nodeReadStatus) {
+        // Update local state
+        setTopicsReadStatus(prev => ({
+          ...prev,
+          ...response.nodeReadStatus
+        }));
+        
+        // Update local mind map data
+        setLocalMindMapData(prev => prev.map(topic => ({
+          ...topic,
+          isRead: response.nodeReadStatus[topic.id] || false,
+          subtopics: topic.subtopics.map(subtopic => ({
+            ...subtopic,
+            isRead: response.nodeReadStatus[subtopic.id] || false
+          }))
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading read status:', error);
+    }
+  }, [params?.id, setLocalMindMapData]);
+
+  // Load read status when component mounts and mind map data is available
+  useEffect(() => {
+    if (localMindMapData.length > 0) {
+      loadReadStatus();
+    }
+  }, [localMindMapData.length > 0 ? localMindMapData[0]?.id : null, loadReadStatus]);
+  
   // Load mind map data from localStorage or API
   useEffect(() => {
     const loadMindMapData = async () => {
@@ -1044,14 +1195,13 @@ More detailed content will be available soon with comprehensive explanations, eq
       // Set loading state
       setLoadingDescription(selectedNode);
       
-      try {
-        // Find parent and child nodes for context
-        const parentNodeId = nodeData.parentId || null;
+      try {        // Find parent and child nodes for context
+        const parentNodeId = nodeData.parent || null;
         const parentNode = parentNodeId ? backendData.nodes.find(n => n.id === parentNodeId) : null;
         
         // Find child nodes
         const childNodes = backendData.nodes
-          .filter(n => n.parentId === selectedNode)
+          .filter(n => n.parent === selectedNode)
           .map(n => ({ id: n.id, label: n.label }));
         
         console.log('Fetching detailed description for node:', nodeData.label);
@@ -1137,48 +1287,9 @@ More detailed content will be available soon with comprehensive explanations, eq
       type: node.type,
       level: node.level,
       isRoot: node.isRoot || node.type === 'root'
-    };
-  }, [backendData]);
+    };  }, [backendData]);
 
-  // Function to toggle read status of a node
-  const handleToggleReadStatus = useCallback((nodeId: string) => {
-    // Update the read status in state
-    setTopicsReadStatus(prev => ({
-      ...prev,
-      [nodeId]: !prev[nodeId]
-    }));
-    
-    // Update the mindMapData state too (for sidebar)
-    setLocalMindMapData(prevData => {
-      return prevData.map(topic => {
-        // Check if this is the topic being updated
-        if (topic.id === nodeId) {
-          return {
-            ...topic,
-            isRead: !topicsReadStatus[nodeId]
-          };
-        }
-        
-        // Check if one of this topic's subtopics is being updated
-        if (topic.subtopics.some(sub => sub.id === nodeId)) {
-          return {
-            ...topic,
-            subtopics: topic.subtopics.map(subtopic => {
-              if (subtopic.id === nodeId) {
-                return {
-                  ...subtopic,
-                  isRead: !topicsReadStatus[nodeId]
-                };
-              }
-              return subtopic;
-            })
-          };
-        }
-        
-        return topic;
-      });
-    });
-  }, [topicsReadStatus]);  // Function to generate podcast for selected topic
+  // Function to generate podcast for selected topic
   const handleGeneratePodcast = useCallback(async () => {
     if (!selectedNode) return;
     
@@ -1562,13 +1673,14 @@ Would you like me to explain any specific aspect in more detail? I can provide e
           data: { curvature: 0.25 }
         });
       });
-    });
-
-    return flowEdges;
-  }, []);
+    });    return flowEdges;
+  }, []);  
+  
   // Set up state hooks for nodes and edges
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);  // Handle edge connections
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Handle edge connections
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges(eds => addEdge({
@@ -1682,11 +1794,11 @@ Would you like me to explain any specific aspect in more detail? I can provide e
   return (
     <div className="h-screen bg-black flex">
       {/* Sidebar */}      
-      <div className="h-full">
-        <MindMapSidebar 
+      <div className="h-full">        <MindMapSidebar 
           mindMapData={localMindMapData}
           onTopicSelect={handleTopicSelect}
           onSubtopicSelect={handleSubtopicSelect}
+          onToggleReadStatus={handleToggleReadStatus}
         />
       </div>
       
@@ -1809,102 +1921,128 @@ Would you like me to explain any specific aspect in more detail? I can provide e
               )}
             </div>            {/* Content area - beautifully formatted with KaTeX support */}
             <div className="flex-1 p-6 overflow-y-auto flex flex-col">
-              {/* Topic Content Section */}              <div className="text-neutral-300 leading-relaxed space-y-4">                
-                {(() => {
-                  // Get content for the selected node
-                  let nodeContent;
-                  
-                  // First check if we have a selected node
-                  if (!selectedNode) {
-                    // If no node is selected, return loading placeholder
-                    return (
-                      <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
-                          <div className="h-4 bg-neutral-600 rounded w-1/2 mb-3"></div>
-                          <div className="h-4 bg-neutral-600 rounded w-5/6"></div>
-                        </div>
-                        <p className="text-neutral-400 text-sm mt-4 italic">
-                          Select a node to see its content...
-                        </p>
-                      </div>
-                    );
-                  }
+{/* Topic Content Section */}
+<div className="text-neutral-300 leading-relaxed space-y-4">
+  {(() => {
+    // If no node is selected, return loading placeholder
+    if (!selectedNode) {
+      return (
+        <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+          <div className="animate-pulse">
+            <div className="h-4 bg-neutral-600 rounded w-3/4 mb-3"></div>
+            <div className="h-4 bg-neutral-600 rounded w-1/2 mb-3"></div>
+            <div className="h-4 bg-neutral-600 rounded w-5/6"></div>
+          </div>
+          <p className="text-neutral-400 text-sm mt-4 italic">
+            Select a node to see its content...
+          </p>
+        </div>
+      );
+    }
 
-                  // If we have a cached detailed description from the API
-                  if (nodeDescriptions[selectedNode]) {
-                    nodeContent = nodeDescriptions[selectedNode];
-                  } 
-                  // If we're loading, show loading message
-                  else if (loadingDescription === selectedNode) {
-                    nodeContent = "# Loading detailed content...\n\nGenerating a comprehensive description of this topic. Please wait a moment.";
-                  } 
-                  // Otherwise use basic content
-                  else {
-                    // Try to fetch if we don't have the description yet
-                    if (!nodeDescriptions[selectedNode] && loadingDescription !== selectedNode) {
-                      // Set loading state to prevent duplicate requests
-                      setLoadingDescription(selectedNode);
-                      
-                      // Get the node details
-                      const nodes = getNodes();
-                      const nodeData = nodes.find(node => node.id === selectedNode);
-                      
-                      if (nodeData) {
-                        console.log('Fetching detailed description for node:', nodeData.data.label);
-                        
-                        // Get parent and child nodes for context
-                        const parentNodeId = nodeData.data.parentNode;
-                        const parentNode = parentNodeId ? nodes.find(node => node.id === parentNodeId) : null;
-                        
-                        const childNodes = nodes
-                          .filter(node => node.data.parentNode === selectedNode)
-                          .map(node => ({ id: node.id, label: node.data.label }));
-                        
-                        // Call the API
-                        apiService.getMindMapNodeDescription(
-                          selectedNode,
-                          nodeData.data.label,
-                          "", // No syllabus available here
-                          parentNode ? [{ id: parentNode.id, label: parentNode.data.label }] : [],
-                          childNodes
-                        )
-                        .then(response => {
-                          if (response && response.success && response.description) {
-                            console.log('Description received:', response.description.substring(0, 50) + '...');
-                            
-                            // Store the description
-                            setNodeDescriptions(prev => ({
-                              ...prev,
-                              [selectedNode]: response.description
-                            }));
-                          } else {
-                            console.error('Failed to get node description:', response?.error || 'Unknown error');
-                          }
-                        })
-                        .catch(error => {
-                          console.error('Error fetching node description:', error);
-                        })
-                        .finally(() => {
-                          setLoadingDescription(null);
-                        });
-                      }
-                    }
-                    
-                    // Use the default content from the node
-                    const node = getNodes().find(node => node.id === selectedNode);
-                    nodeContent = node?.data?.content || "# Loading content...\n\nContent will appear here shortly.";
-                  }
-                  
-                  // Return the content and related topics
-                  return (
-                    <>
-                      {/* Main Content Card with formatted content */}
-                      <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-6">
-                        <ContentFormatter content={nodeContent} className="w-full" />
-                      </div>
-                        
-                      {/* Related Topics Card */}
+    // Get content for the selected node
+    let nodeContent: string;
+
+    // If we have a cached detailed description from the API
+    if (nodeDescriptions[selectedNode]) {
+      nodeContent = nodeDescriptions[selectedNode];
+    }
+    // If we're loading, show loading message
+    else if (loadingDescription === selectedNode) {
+      nodeContent = "# Loading detailed content...\n\nGenerating a comprehensive description of this topic. Please wait a moment.";
+    }
+    // Otherwise use basic content or fetch it
+    else {
+      // Get the node details
+      const nodes = getNodes();
+      const nodeData = nodes.find(node => node.id === selectedNode);
+
+      // Use node content if available, otherwise use fallback
+      nodeContent =
+        nodeData?.data?.content ||
+        "# Loading content...\n\nContent will appear here shortly.";
+
+      // Trigger API call only if we don't have the description and aren't loading
+      if (!nodeDescriptions[selectedNode] && loadingDescription !== selectedNode && nodeData) {
+        // Use a dedicated function to handle the API call
+        const fetchDescription = async () => {
+          try {
+            setLoadingDescription(selectedNode);
+            console.log('Fetching detailed description for node:', nodeData.data.label);
+
+            // Get parent and child nodes for context
+            const parentNodeId = nodeData.data.parentNode;
+            const parentNode = parentNodeId ? nodes.find(node => node.id === parentNodeId) : null;
+
+            const childNodes = nodes
+              .filter(node => node.data.parentNode === selectedNode)
+              .map(node => ({ id: node.id, label: node.data.label as string }));
+
+            // Call the API
+            const response = await apiService.getMindMapNodeDescription(
+              selectedNode,
+              (nodeData.data.label as string) || selectedNode, // Fallback to node ID if label is undefined
+              "", // No syllabus available here
+              parentNode ? [{ id: parentNode.id, label: (parentNode.data.label as string) || parentNode.id }] : [],
+              childNodes
+            );
+
+            if (response?.success && response.description) {
+              console.log('Description received:', response.description.substring(0, 50) + '...');
+              setNodeDescriptions(prev => ({
+                ...prev,
+                [selectedNode]: response.description,
+              }));
+            } else {
+              console.error('Failed to get node description:', response?.error || 'Unknown error');
+            }
+          } catch (error) {
+            console.error('Error fetching node description:', error);
+          } finally {
+            setLoadingDescription(null);
+          }
+        };
+
+        // Trigger the fetch
+        fetchDescription();
+      }
+    }
+
+    // Return the content and related topics
+    return (
+      <>
+        {/* Main Content Card with formatted content */}
+        <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-6">
+          <ContentFormatter content={String(nodeContent)} className="w-full" />
+        </div>
+
+        {/* Read Status Toggle for Right Sidebar */}
+        <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-lg font-medium text-white mb-1">Progress Status</h4>
+              <p className="text-sm text-neutral-400">
+                {topicsReadStatus[selectedNode] ? 'Completed' : 'Not completed yet'}
+              </p>
+            </div>
+            <button
+              onClick={() => handleToggleReadStatus(selectedNode)}
+              className={cn(
+                "w-8 h-8 rounded-full border-2 transition-all duration-200",
+                "flex items-center justify-center hover:scale-110 ml-4",
+                topicsReadStatus[selectedNode]
+                  ? "bg-green-500 border-green-500"
+                  : "bg-transparent border-neutral-400 hover:border-neutral-300"
+              )}
+              title={topicsReadStatus[selectedNode] ? "Mark as unread" : "Mark as read"}
+            >
+              {topicsReadStatus[selectedNode] && (
+                <IconCheck className="w-4 h-4 text-white" />
+              )}
+            </button>
+          </div>
+        </div>
+    {/* Related Topics Card */}
                       {(() => {
                         const relatedTopics = getRelatedTopics(selectedNode);
                         if (relatedTopics.length > 0) {

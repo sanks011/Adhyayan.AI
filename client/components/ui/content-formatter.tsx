@@ -114,16 +114,36 @@ const ContentFormatter: React.FC<ContentFormatterProps> = ({
       >
         {children}
       </h4>
-    ),
+    ),    // Paragraph
+    p: ({ children }: { children: React.ReactNode }) => {
+      // Check if children contains block elements like pre, div, etc.
+      const hasBlockElements = React.Children.toArray(children).some((child) => {
+        if (React.isValidElement(child)) {
+          const type = child.type as string;
+          return ['pre', 'div', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(type);
+        }
+        return false;
+      });
 
-    // Paragraph
-    p: ({ children }: { children: React.ReactNode }) => (
-      <p
-        className={`${currentTheme.text} my-2 leading-relaxed ${fontSizeClasses[fontSize]} ${customStyles.paragraph || ''}`}
-      >
-        {children}
-      </p>
-    ),
+      // If it contains block elements, render as div instead of p
+      if (hasBlockElements) {
+        return (
+          <div
+            className={`${currentTheme.text} my-2 leading-relaxed ${fontSizeClasses[fontSize]} ${customStyles.paragraph || ''}`}
+          >
+            {children}
+          </div>
+        );
+      }
+
+      return (
+        <p
+          className={`${currentTheme.text} my-2 leading-relaxed ${fontSizeClasses[fontSize]} ${customStyles.paragraph || ''}`}
+        >
+          {children}
+        </p>
+      );
+    },
 
     // Code (inline and block)
     code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children: React.ReactNode }) => {

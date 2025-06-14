@@ -1289,11 +1289,11 @@ mindMapCompletion = await groq.chat.completions.create({
    - Parse the JSON string using a JSON parser (or simulate parsing).
    - If parsing fails, rebalance brackets and retry.
 3. **Syntax Rules**:
-   - All keys/values MUST be double-quoted.
+   - All keys/values MUST be double-quoted (e.g., \`"title": "Value"\`).
    - Commas required between array items/properties, EXCEPT after the last item.
-   - Escape quotes in strings.
+   - Escape quotes in strings (e.g., \`"Text with \\"quotes\\""\`).
    - No trailing commas.
-   - No unquoted keys/values (except numbers, \`true\`, \`false\`, \`null\`).
+   - No unquoted keys or values (except numbers, \`true\`, \`false\`, \`null\`).
 
 ---
 
@@ -1793,6 +1793,126 @@ app.post("/api/mindmap/generate-podcast", verifyToken, async (req, res) => {
       success: false,
       error: "Failed to generate podcast",
       details: error.message,
+    });
+  }
+});
+
+// Mind Map Node Read Status Endpoints
+app.put("/api/mindmap/:mindMapId/node/:nodeId/read-status", verifyToken, async (req, res) => {
+  try {
+    const { mindMapId, nodeId } = req.params;
+    const { isRead } = req.body;
+    const userId = req.user.uid;
+
+    if (!mindMapId || !nodeId) {
+      return res.status(400).json({
+        success: false,
+        error: "Mind map ID and node ID are required"
+      });
+    }
+
+    if (typeof isRead !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: "isRead must be a boolean value"
+      });
+    }
+
+    // Connect to database
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    const db = client.db("adhyayan_ai");
+
+    // Find or create user progress document
+    const progressCollection = db.collection("user_progress");
+    const progressQuery = { userId, mindMapId };
+
+    let progressDoc = await progressCollection.findOne(progressQuery);
+
+    if (!progressDoc) {
+      // Create new progress document
+      progressDoc = {
+        userId,
+        mindMapId,
+        nodeReadStatus: {},
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    }
+
+    // Update the read status for the specific node
+    progressDoc.nodeReadStatus = progressDoc.nodeReadStatus || {};
+    progressDoc.nodeReadStatus[nodeId] = isRead;
+    progressDoc.updatedAt = new Date();
+
+    // Upsert the document
+    await progressCollection.replaceOne(
+      progressQuery,
+      progressDoc,
+      { upsert: true }
+    );
+
+    await client.close();
+
+    console.log(`Updated read status for node ${nodeId} in mind map ${mindMapId}: ${isRead}`);
+
+    res.json({
+      success: true,
+      message: "Node read status updated successfully",
+      nodeId,
+      isRead
+    });
+
+  } catch (error) {
+    console.error("Error updating node read status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update node read status",
+      details: error.message
+    });
+  }
+});
+
+// Get read status for all nodes in a mind map
+app.get("/api/mindmap/:mindMapId/read-status", verifyToken, async (req, res) => {
+  try {
+    const { mindMapId } = req.params;
+    const userId = req.user.uid;
+
+    if (!mindMapId) {
+      return res.status(400).json({
+        success: false,
+        error: "Mind map ID is required"
+      });
+    }
+
+    // Connect to database
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    const db = client.db("adhyayan_ai");
+
+    // Get user progress document
+    const progressCollection = db.collection("user_progress");
+    const progressDoc = await progressCollection.findOne({
+      userId,
+      mindMapId
+    });
+
+    await client.close();
+
+    const nodeReadStatus = progressDoc ? (progressDoc.nodeReadStatus || {}) : {};
+
+    res.json({
+      success: true,
+      nodeReadStatus
+    });
+
+  } catch (error) {
+    console.error("Error fetching node read status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch node read status",
+      details: error.message
     });
   }
 });

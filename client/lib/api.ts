@@ -241,7 +241,6 @@ class ApiService {
       childNodes
     });
   }
-
   // File upload method for syllabus
   async uploadSyllabusFile(file: File) {
     try {
@@ -272,6 +271,25 @@ class ApiService {
       console.error('File upload error:', error);
       throw error;
     }
+  }
+  // Node read status methods
+  async updateNodeReadStatus(mindMapId: string, nodeId: string, isRead: boolean) {
+    const response = await fetch(`${API_BASE_URL}/mindmap/${mindMapId}/node/${nodeId}/read-status`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ isRead }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update read status');
+    }
+
+    return response.json();
+  }
+
+  async getNodeReadStatus(mindMapId: string) {
+    return this.get(`/mindmap/${mindMapId}/read-status`);
   }
 }
 
