@@ -1,11 +1,14 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
+import { apiService } from '@/lib/api';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { WavyBackground } from "@/components/ui/wavy-background";
 import BlackHoleLoader from "@/components/ui/black-hole-loader";
 import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
+import { Card, CardBody, Button, Input, Skeleton } from "@heroui/react";
+import toast from 'react-hot-toast';
 import {
   IconHome,
   IconUsers,
@@ -13,8 +16,26 @@ import {
   IconSettings,
   IconLogout,
   IconPlus,
-  IconMap
+  IconMap,
+  IconCalendar,
+  IconEye,
+  IconChevronRight,
+  IconSearch,
+  IconFilter,
+  IconGridDots,
+  IconList,
+  IconSortAscending,
+  IconSortDescending
 } from "@tabler/icons-react";
+
+interface MindMap {
+  id: string;
+  title: string;
+  subject: string;
+  created_at: string;
+  updated_at: string;
+  nodes_count?: number;
+}
 
 export default function Dashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();

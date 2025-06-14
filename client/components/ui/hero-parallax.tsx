@@ -166,9 +166,8 @@ export const Header = () => {
          }}>
         AI-powered learning that adapts to your style for faster, more effective
         education.
-      </div>
-      {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row gap-4 mt-8 relative pointer-events-none">
+      </div>      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-4 mt-8 relative">
         <GoogleSignInButton />
         <LearnMoreButton />
       </div>

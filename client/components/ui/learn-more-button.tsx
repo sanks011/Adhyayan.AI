@@ -6,18 +6,9 @@ import { useRouter } from 'next/navigation';
 
 const LearnMoreButton = () => {
   const { isAuthenticated } = useAuth();
-  const router = useRouter();
-
-  const handleClick = () => {
-    if (isAuthenticated) {
-      router.push('/dashboard');
-    } else {
-      // Scroll to features section or show more info
-      const featuresSection = document.getElementById('features');
-      if (featuresSection) {
-        featuresSection.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
+  const router = useRouter();  const handleClick = () => {
+    // Always redirect to learn-more page regardless of authentication status
+    router.push('/learn-more');
   };
 
   return (
@@ -34,7 +25,7 @@ const LearnMoreButton = () => {
 
 const StyledWrapper = styled.div`
   position: relative;
-  pointer-events: none;
+  pointer-events: auto;
 
   .btn {
     width: 160px;

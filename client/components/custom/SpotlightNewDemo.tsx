@@ -18,9 +18,8 @@ export function SpotlightNewDemo() {
         <p className="mt-4 font-normal text-base text-neutral-300 max-w-lg text-center mx-auto">
           Start your personalized learning experience today.
         </p>
-        
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 mt-8 justify-center items-center relative pointer-events-none">
+          {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-4 mt-8 justify-center items-center relative">
           <GoogleSignInButton />
           <LearnMoreButton />
         </div>

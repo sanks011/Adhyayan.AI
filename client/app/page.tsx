@@ -3,7 +3,7 @@ import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
 
 export default function Home() {
   return (
-    <div className="relative flex w-full flex-col overflow-y-auto">
+    <div className="relative flex w-full flex-col overflow-y-auto home-page-container">
       <CustomStickyBanner />
       <HeroPage />
     </div>

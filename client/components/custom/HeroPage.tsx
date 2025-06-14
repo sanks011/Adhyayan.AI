@@ -12,8 +12,10 @@ import { ProfessionalFooter } from "@/components/custom/ProfessionalFooter";
 export const HeroPage = () => {
   return (
     <>
-      <CustomNavbar />
-      <div className="mt-[-3.5rem]">
+      <div className="home-page-navbar">
+        <CustomNavbar />
+      </div>
+      <div className="mt-[-3.5rem] home-page-hero">
         <HeroParallax products={products} />
       </div>
       <CustomFeatures />

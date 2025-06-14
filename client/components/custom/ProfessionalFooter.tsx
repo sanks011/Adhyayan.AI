@@ -73,8 +73,7 @@ export function ProfessionalFooter() {
 
           {/* Company Links */}
           <div>
-            <h4 className="text-lg font-semibold text-white mb-6">Company</h4>
-            <nav className="space-y-4">
+            <h4 className="text-lg font-semibold text-white mb-6">Company</h4>            <nav className="space-y-4">
               <FooterLink href="/about">About</FooterLink>
               <FooterLink href="/careers">Careers</FooterLink>
               <FooterLink href="/blog">Blog</FooterLink>

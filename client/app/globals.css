@@ -344,3 +344,86 @@ button:focus {
   outline: none !important;
   box-shadow: none !important;
 }
+
+/* Animation for mind map cards */
+@keyframes mindmap-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-mindmap-fade-in {
+  animation: mindmap-fade-in 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+/* Ensure home page elements don't get affected by other styles */
+.home-page-container button,
+.home-page-container .button-container {
+  pointer-events: auto !important;
+}
+
+/* Fix any potential z-index issues on home page */
+.home-page-navbar {
+  position: relative;
+  z-index: 100;
+}
+
+.home-page-hero {
+  position: relative;
+  z-index: 50;
+}
+
+/* Ensure theme toggle maintains proper positioning */
+.home-page-navbar .switch,
+.home-page-navbar .theme-toggle {
+  position: relative !important;
+  z-index: 101 !important;
+}
+
+/* Fix Learn More page navbar */
+.learn-more-page .switch,
+.learn-more-page .theme-toggle {
+  position: relative !important;
+  z-index: 101 !important;
+}
+
+.learn-more-page nav {
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+/* Ensure wavy background stays behind content */
+.learn-more-page .wavy-background {
+  z-index: 0 !important;
+}
+
+.learn-more-page section {
+  position: relative;
+  z-index: 10;
+}
+
+/* Fix button text contrast */
+.learn-more-page button.bg-white {
+  color: #000 !important;
+  background-color: #fff !important;
+}
+
+.learn-more-page button.bg-white:hover {
+  color: #000 !important;
+  background-color: #e5e5e5 !important;
+}
+
+.learn-more-page button.bg-white .lucide {
+  color: #000 !important;
+}
+
+.learn-more-page button.bg-white svg {
+  color: #000 !important;
+  fill: #000 !important;
+}

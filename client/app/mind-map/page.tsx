@@ -6,6 +6,7 @@ import { apiService } from '@/lib/api';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { WavyBackground } from "@/components/ui/wavy-background";
 import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
+import PreviousMindMaps from "@/components/custom/PreviousMindMaps";
 import { Textarea, Input, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
 import BlackHoleLoader from "@/components/ui/black-hole-loader";
@@ -58,10 +59,10 @@ export default function MindMap() {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [insufficientPoints, setInsufficientPoints] = useState(false);
-  const [requiredPoints, setRequiredPoints] = useState(15); // Default cost is 15 Gyan Points
+  const [insufficientPoints, setInsufficientPoints] = useState(false);  const [requiredPoints, setRequiredPoints] = useState(15); // Default cost is 15 Gyan Points
   const [userPoints, setUserPoints] = useState<number | null>(null);
   const [isLoadingPoints, setIsLoadingPoints] = useState(true);
+  const [refreshMindMaps, setRefreshMindMaps] = useState(0); // State to trigger refresh
   // Loading states for mind map creation
   const loadingStates = [
     { text: "Analyzing subject content..." },
@@ -279,12 +280,14 @@ export default function MindMap() {
         } catch (pointsError) {
           console.error('Failed to refresh user points:', pointsError);
         }
-        
-        // Reset form and loading state
+          // Reset form and loading state
         setSubjectName("");
         setSyllabus("");
         setUploadedFile(null);
         setIsCreating(false);
+        
+        // Trigger refresh of mind maps list
+        setRefreshMindMaps(prev => prev + 1);
         
         // Navigate to the generated mind map view with a delay to ensure data is saved
         setTimeout(() => {
@@ -527,7 +530,7 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
           <p className="text-gray-400 text-lg">
             Create and manage your knowledge maps
           </p>
-        </div>{/* Main Action */}
+        </div>        {/* Main Action */}
         <div className="text-center mb-16 z-10">
           <Button 
             size="lg"
@@ -537,7 +540,10 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
           >
             Create New Mind Map
           </Button>
-        </div>        {/* Floating Dock */}
+        </div>        {/* Previous Mind Maps Section */}
+        <div className="w-full max-w-7xl mx-auto px-4 mb-20 z-10">
+          <PreviousMindMaps key={refreshMindMaps} onCreateNew={onOpen} />
+        </div>{/* Floating Dock */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
           <FloatingDock
             mobileClassName="translate-y-20"
@@ -638,7 +644,8 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                     </div>
 
                     {/* Syllabus Input */}
-                    <div className="space-y-3">                      <div className="flex items-center justify-between">
+                    <div className="space-y-3">                      
+                      <div className="flex items-center justify-between">
                         <label className="block text-sm font-semibold text-gray-300">
                           Syllabus Content 
                           <span className="text-xs text-gray-500 ml-2 font-normal">
