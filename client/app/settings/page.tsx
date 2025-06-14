@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
+import { WavyBackground } from "@/components/ui/wavy-background";
+import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
 import BlackHoleLoader from "@/components/ui/black-hole-loader";
 import {
   IconHome,
@@ -15,13 +17,36 @@ import {
   IconBell,
   IconShield,
   IconPalette,
-  IconLanguage
+  IconLanguage,
+  IconCamera,
+  IconDeviceFloppy,
+  IconTrash,
+  IconDownload,
+  IconEye,
+  IconEyeOff
 } from "@tabler/icons-react";
 
 export default function Settings() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('profile');
+  const [isSaving, setIsSaving] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [selectedAccentColor, setSelectedAccentColor] = useState('orange');
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -97,254 +122,410 @@ export default function Settings() {
     { id: 'appearance', label: 'Appearance', icon: IconPalette },
     { id: 'language', label: 'Language', icon: IconLanguage },
   ];
-
   return (
-    <div className="min-h-screen bg-black text-white relative">
-      {/* Main Content */}
-      <main className="min-h-screen flex flex-col items-center justify-start p-8 pt-24 relative">
-        {/* Page Header */}
-        <div className="text-center mb-12 z-10">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-red-600 bg-clip-text text-transparent mb-4">
-            Settings ⚙️
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Customize your Adhyayan AI experience
-          </p>
+    <div className="min-h-screen relative">
+      <WavyBackground className="min-h-screen flex flex-col items-center justify-start p-8 pt-16 relative">
+        
+        {/* Gyan Points Display - Top Right Corner */}
+        <div className="absolute top-6 right-6 z-20">
+          <GyanPointsDisplay />
         </div>
+        
+        {/* Main Content */}
+        <main className="min-h-screen flex flex-col items-center justify-start relative z-10 max-w-6xl w-full">
+          
+          {/* Page Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-400 via-red-500 to-pink-600 bg-clip-text text-transparent mb-4">
+              Settings ⚙️
+            </h1>
+            <p className="text-neutral-300 text-xl">
+              Customize your Adhyayan AI experience
+            </p>
+          </div>
 
-        {/* Settings Container */}
-        <div className="max-w-4xl w-full z-10 mb-20">
-          <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl overflow-hidden">
-            {/* Settings Tabs */}
-            <div className="flex border-b border-gray-700/50">
-              {settingsTabs.map((tab) => {
-                const IconComponent = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center space-x-2 px-6 py-4 text-sm font-medium transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-orange-500/20 text-orange-300 border-b-2 border-orange-500'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/30'
-                    }`}
-                  >
-                    <IconComponent className="h-4 w-4" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+          {/* Settings Container */}
+          <div className="w-full mb-20">
+            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+              
+              {/* Settings Tabs */}
+              <div className="flex overflow-x-auto border-b border-white/10 bg-black/20">
+                {settingsTabs.map((tab) => {
+                  const IconComponent = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center space-x-3 px-6 py-4 text-sm font-medium transition-all duration-300 whitespace-nowrap min-w-fit ${
+                        activeTab === tab.id
+                          ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-300 border-b-2 border-orange-500 shadow-lg'
+                          : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/5'
+                      }`}
+                    >
+                      <IconComponent className="h-5 w-5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Settings Content */}
-            <div className="p-8">
-              {activeTab === 'profile' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-200 mb-6">Profile Settings</h2>
-                  
-                  <div className="flex items-center space-x-6 mb-8">
-                    <img 
-                      src={user.photoURL || '/default-avatar.png'} 
-                      alt={user.displayName || 'User'} 
-                      className="w-20 h-20 rounded-full border-4 border-orange-500/30"
-                    />
-                    <div>
-                      <h3 className="text-xl font-semibold text-white">{user.displayName}</h3>
-                      <p className="text-gray-400">{user.email}</p>
-                      <button className="mt-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition-colors">
-                        Change Avatar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Display Name
-                      </label>
-                      <input
-                        type="text"
-                        defaultValue={user.displayName || ''}
-                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
+              {/* Settings Content */}
+              <div className="p-8">
+                {activeTab === 'profile' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-white">Profile Settings</h2>
+                      <IconUser className="h-8 w-8 text-orange-400" />
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        defaultValue={user.email || ''}
-                        disabled
-                        className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed"
-                      />
+                    {/* Profile Picture Section */}
+                    <div className="flex items-center space-x-6 p-6 bg-white/5 rounded-xl border border-white/10">
+                      <div className="relative group">
+                        <img 
+                          src={user.photoURL || '/default-avatar.png'} 
+                          alt={user.displayName || 'User'} 
+                          className="w-24 h-24 rounded-full border-4 border-orange-500/30 group-hover:border-orange-400 transition-colors"
+                        />
+                        <button className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <IconCamera className="h-6 w-6 text-white" />
+                        </button>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold text-white">{user.displayName}</h3>
+                        <p className="text-neutral-400 mb-3">{user.email}</p>
+                        <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg text-sm transition-all duration-300 flex items-center gap-2">
+                          <IconCamera className="h-4 w-4" />
+                          Change Avatar
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-200 mb-6">Notification Preferences</h2>
-                  
-                  <div className="space-y-4">
-                    {[
-                      { label: 'Email notifications', desc: 'Receive updates via email' },
-                      { label: 'Push notifications', desc: 'Get notified on your device' },
-                      { label: 'Study reminders', desc: 'Daily learning reminders' },
-                      { label: 'Achievement alerts', desc: 'When you earn badges or complete courses' },
-                      { label: 'Social updates', desc: 'When friends join study rooms' },
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg">
-                        <div>
-                          <h3 className="text-white font-medium">{item.label}</h3>
-                          <p className="text-gray-400 text-sm">{item.desc}</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" defaultChecked />
-                          <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                    {/* Profile Information */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-neutral-300">
+                          Display Name
                         </label>
+                        <input
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300"
+                        />
                       </div>
-                    ))}
+                      
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-neutral-300">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={user.email || ''}
+                          disabled
+                          className="w-full px-4 py-4 bg-neutral-800/50 border border-white/10 rounded-xl text-neutral-400 cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Additional Profile Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-neutral-300">
+                          Learning Focus
+                        </label>
+                        <select className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300">
+                          <option value="" className="bg-gray-800">Select your main interest...</option>
+                          <option value="programming" className="bg-gray-800">Programming & Development</option>
+                          <option value="science" className="bg-gray-800">Science & Research</option>
+                          <option value="mathematics" className="bg-gray-800">Mathematics</option>
+                          <option value="languages" className="bg-gray-800">Languages</option>
+                          <option value="arts" className="bg-gray-800">Arts & Design</option>
+                          <option value="business" className="bg-gray-800">Business & Finance</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-neutral-300">
+                          Experience Level
+                        </label>
+                        <select className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300">
+                          <option value="" className="bg-gray-800">Select your level...</option>
+                          <option value="beginner" className="bg-gray-800">Beginner</option>
+                          <option value="intermediate" className="bg-gray-800">Intermediate</option>
+                          <option value="advanced" className="bg-gray-800">Advanced</option>
+                          <option value="expert" className="bg-gray-800">Expert</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 'privacy' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-200 mb-6">Privacy & Security</h2>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-2">Profile Visibility</h3>
-                      <p className="text-gray-400 text-sm mb-4">Control who can see your profile and learning progress</p>
-                      <select className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option>Public - Everyone can see</option>
-                        <option>Friends - Only friends can see</option>
-                        <option>Private - Only you can see</option>
-                      </select>
+                {activeTab === 'notifications' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-white">Notification Preferences</h2>
+                      <IconBell className="h-8 w-8 text-orange-400" />
                     </div>
-
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-2">Data Export</h3>
-                      <p className="text-gray-400 text-sm mb-4">Download your learning data and progress</p>
-                      <button className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors">
-                        Export Data
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-                      <h3 className="text-red-300 font-medium mb-2">Delete Account</h3>
-                      <p className="text-gray-400 text-sm mb-4">Permanently delete your account and all data</p>
-                      <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                        Delete Account
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'appearance' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-200 mb-6">Appearance</h2>
-                  
-                  <div className="space-y-4">                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-4">Theme</h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        {['Dark', 'Light', 'Auto'].map((theme) => (
-                          <label key={theme} className={`${theme !== 'Dark' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                            <input 
-                              type="radio" 
-                              name="theme" 
-                              className="sr-only peer" 
-                              defaultChecked={theme === 'Dark'} 
-                              disabled={theme !== 'Dark'}
-                            />
-                            <div className={`p-4 bg-gray-700 ${theme === 'Dark' ? 'bg-orange-500/20 border-orange-500' : 'border-gray-600'} border rounded-lg text-center transition-colors`}>
-                              <span className="text-white font-medium">{theme}</span>
-                            </div>
+                    
+                    <div className="space-y-4">
+                      {[
+                        { 
+                          label: 'Email Notifications', 
+                          desc: 'Receive study updates and achievements via email',
+                          defaultChecked: true
+                        },
+                        { 
+                          label: 'Push Notifications', 
+                          desc: 'Get instant notifications on your device',
+                          defaultChecked: true
+                        },
+                        { 
+                          label: 'Study Reminders', 
+                          desc: 'Daily reminders to maintain your learning streak',
+                          defaultChecked: false
+                        },
+                        { 
+                          label: 'Achievement Alerts', 
+                          desc: 'Notifications when you earn badges or complete milestones',
+                          defaultChecked: true
+                        },
+                        { 
+                          label: 'Social Updates', 
+                          desc: 'When friends join study rooms or share progress',
+                          defaultChecked: false
+                        },
+                        { 
+                          label: 'New Feature Announcements', 
+                          desc: 'Be the first to know about new Adhyayan AI features',
+                          defaultChecked: true
+                        },
+                      ].map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-6 bg-white/5 rounded-xl border border-white/10 hover:bg-white/8 transition-all duration-300">
+                          <div className="flex-1">
+                            <h3 className="text-white font-medium text-lg">{item.label}</h3>
+                            <p className="text-neutral-400 text-sm mt-1">{item.desc}</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer ml-4">
+                            <input type="checkbox" className="sr-only peer" defaultChecked={item.defaultChecked} />
+                            <div className="w-12 h-6 bg-neutral-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-500"></div>
                           </label>
-                        ))}
-                      </div>
-                      <p className="text-gray-400 text-sm mt-2">Currently locked to Dark mode for optimal experience</p>
+                        </div>
+                      ))}
                     </div>
+                  </div>
+                )}
 
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-4">Accent Color</h3>
-                      <div className="grid grid-cols-6 gap-4">
-                        {['orange', 'blue', 'green', 'purple', 'red', 'yellow'].map((color) => (
-                          <button
-                            key={color}
-                            className={`w-8 h-8 rounded-full bg-${color}-500 hover:scale-110 transition-transform ${
-                              color === 'orange' ? 'ring-2 ring-white' : ''
-                            }`}
-                          />
-                        ))}
+                {activeTab === 'privacy' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-white">Privacy & Security</h2>
+                      <IconShield className="h-8 w-8 text-orange-400" />
+                    </div>
+                    
+                    <div className="space-y-6">
+                      {/* Profile Visibility */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-3 mb-4">
+                          <IconEye className="h-5 w-5 text-orange-400" />
+                          <h3 className="text-white font-medium text-lg">Profile Visibility</h3>
+                        </div>
+                        <p className="text-neutral-400 text-sm mb-4">Control who can see your profile and learning progress</p>
+                        <select className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300">
+                          <option value="public" className="bg-gray-800">Public - Everyone can see</option>
+                          <option value="friends" className="bg-gray-800">Friends - Only friends can see</option>
+                          <option value="private" className="bg-gray-800">Private - Only you can see</option>
+                        </select>
+                      </div>
+
+                      {/* Data Management */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <div className="flex items-center gap-3 mb-4">
+                          <IconDownload className="h-5 w-5 text-blue-400" />
+                          <h3 className="text-white font-medium text-lg">Data Export</h3>
+                        </div>
+                        <p className="text-neutral-400 text-sm mb-4">Download your complete learning data and progress history</p>
+                        <button className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl transition-all duration-300 flex items-center gap-2">
+                          <IconDownload className="h-4 w-4" />
+                          Export My Data
+                        </button>
+                      </div>
+
+                      {/* Account Deletion */}
+                      <div className="p-6 bg-red-500/10 border-2 border-red-500/30 rounded-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <IconTrash className="h-5 w-5 text-red-400" />
+                          <h3 className="text-red-300 font-medium text-lg">Delete Account</h3>
+                        </div>
+                        <p className="text-neutral-400 text-sm mb-4">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                        <button className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl transition-all duration-300 flex items-center gap-2">
+                          <IconTrash className="h-4 w-4" />
+                          Delete Account
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 'language' && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-gray-200 mb-6">Language & Region</h2>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-2">Display Language</h3>
-                      <p className="text-gray-400 text-sm mb-4">Choose your preferred language for the interface</p>
-                      <select className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option>English</option>
-                        <option>Spanish</option>
-                        <option>French</option>
-                        <option>German</option>
-                        <option>Hindi</option>
-                        <option>Mandarin</option>
-                      </select>
+                {activeTab === 'appearance' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-white">Appearance Settings</h2>
+                      <IconPalette className="h-8 w-8 text-orange-400" />
                     </div>
+                    
+                    <div className="space-y-6">
+                      {/* Theme Selection */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <h3 className="text-white font-medium text-lg mb-4">Theme Preference</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {[
+                            { name: 'Dark', desc: 'Optimal for focus', available: true },
+                            { name: 'Light', desc: 'Coming soon', available: false },
+                            { name: 'Auto', desc: 'System preference', available: false }
+                          ].map((theme) => (
+                            <label key={theme.name} className={`relative ${theme.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                              <input 
+                                type="radio" 
+                                name="theme" 
+                                className="sr-only peer" 
+                                defaultChecked={theme.name === 'Dark'} 
+                                disabled={!theme.available}
+                              />
+                              <div className={`p-6 bg-white/5 border-2 rounded-xl text-center transition-all duration-300 ${
+                                theme.name === 'Dark' && theme.available 
+                                  ? 'border-orange-500 bg-orange-500/10' 
+                                  : 'border-white/10 hover:border-white/20'
+                              }`}>
+                                <div className="text-white font-medium text-lg">{theme.name}</div>
+                                <div className="text-neutral-400 text-sm mt-1">{theme.desc}</div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
 
-                    <div className="p-4 bg-gray-800/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-2">Time Zone</h3>
-                      <p className="text-gray-400 text-sm mb-4">Set your local time zone for accurate scheduling</p>
-                      <select className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option>UTC-5 (Eastern Time)</option>
-                        <option>UTC-6 (Central Time)</option>
-                        <option>UTC-7 (Mountain Time)</option>
-                        <option>UTC-8 (Pacific Time)</option>
-                        <option>UTC+0 (GMT)</option>
-                        <option>UTC+5:30 (IST)</option>
-                      </select>
+                      {/* Accent Color */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <h3 className="text-white font-medium text-lg mb-4">Accent Color</h3>
+                        <div className="grid grid-cols-6 gap-4">
+                          {[
+                            { name: 'orange', class: 'bg-orange-500' },
+                            { name: 'blue', class: 'bg-blue-500' },
+                            { name: 'green', class: 'bg-green-500' },
+                            { name: 'purple', class: 'bg-purple-500' },
+                            { name: 'red', class: 'bg-red-500' },
+                            { name: 'yellow', class: 'bg-yellow-500' }
+                          ].map((color) => (
+                            <button
+                              key={color.name}
+                              onClick={() => setSelectedAccentColor(color.name)}
+                              className={`w-12 h-12 rounded-full ${color.class} hover:scale-110 transition-transform border-4 ${
+                                selectedAccentColor === color.name ? 'border-white' : 'border-transparent'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Save Button */}
-              <div className="mt-8 pt-6 border-t border-gray-700/50">
-                <button className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105">
-                  Save Changes
-                </button>
+                {activeTab === 'language' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-white">Language & Region</h2>
+                      <IconLanguage className="h-8 w-8 text-orange-400" />
+                    </div>
+                    
+                    <div className="space-y-6">
+                      {/* Display Language */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <h3 className="text-white font-medium text-lg mb-2">Display Language</h3>
+                        <p className="text-neutral-400 text-sm mb-4">Choose your preferred language for the interface</p>
+                        <select className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300">
+                          <option value="en" className="bg-gray-800">English</option>
+                          <option value="es" className="bg-gray-800">Español (Spanish)</option>
+                          <option value="fr" className="bg-gray-800">Français (French)</option>
+                          <option value="de" className="bg-gray-800">Deutsch (German)</option>
+                          <option value="hi" className="bg-gray-800">हिन्दी (Hindi)</option>
+                          <option value="zh" className="bg-gray-800">中文 (Mandarin)</option>
+                          <option value="ja" className="bg-gray-800">日本語 (Japanese)</option>
+                          <option value="ko" className="bg-gray-800">한국어 (Korean)</option>
+                        </select>
+                      </div>
+
+                      {/* Time Zone */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <h3 className="text-white font-medium text-lg mb-2">Time Zone</h3>
+                        <p className="text-neutral-400 text-sm mb-4">Set your local time zone for accurate scheduling and reminders</p>
+                        <select className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-300">
+                          <option value="UTC-5" className="bg-gray-800">UTC-5 (Eastern Time)</option>
+                          <option value="UTC-6" className="bg-gray-800">UTC-6 (Central Time)</option>
+                          <option value="UTC-7" className="bg-gray-800">UTC-7 (Mountain Time)</option>
+                          <option value="UTC-8" className="bg-gray-800">UTC-8 (Pacific Time)</option>
+                          <option value="UTC+0" className="bg-gray-800">UTC+0 (GMT)</option>
+                          <option value="UTC+5:30" className="bg-gray-800">UTC+5:30 (IST)</option>
+                          <option value="UTC+9" className="bg-gray-800">UTC+9 (JST)</option>
+                        </select>
+                      </div>
+
+                      {/* Date Format */}
+                      <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                        <h3 className="text-white font-medium text-lg mb-2">Date Format</h3>
+                        <p className="text-neutral-400 text-sm mb-4">Choose how dates are displayed throughout the app</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {[
+                            { format: 'MM/DD/YYYY', example: '12/25/2024' },
+                            { format: 'DD/MM/YYYY', example: '25/12/2024' },
+                            { format: 'YYYY-MM-DD', example: '2024-12-25' }
+                          ].map((option, index) => (
+                            <label key={index} className="relative cursor-pointer">
+                              <input type="radio" name="dateFormat" className="sr-only peer" defaultChecked={index === 0} />
+                              <div className="p-4 bg-white/5 border-2 border-white/10 rounded-xl text-center transition-all duration-300 peer-checked:border-orange-500 peer-checked:bg-orange-500/10 hover:border-white/20">
+                                <div className="text-white font-medium">{option.format}</div>
+                                <div className="text-neutral-400 text-sm">{option.example}</div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="mt-12 pt-8 border-t border-white/10">
+                  <button 
+                    onClick={handleSaveSettings}
+                    disabled={isSaving}
+                    className="w-full bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 hover:from-orange-600 hover:via-red-600 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Saving Changes...
+                      </>
+                    ) : (
+                      <>
+                        <IconDeviceFloppy className="h-5 w-5" />
+                        Save All Changes
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Floating Dock */}
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
-          <FloatingDock
-            mobileClassName="translate-y-20"
-            items={dockLinks}
-          />
-        </div>
-
-        {/* Background decorative elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-red-500/10 rounded-full blur-3xl"></div>
-        </div>
-      </main>
+          {/* Floating Dock */}
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+            <FloatingDock
+              mobileClassName="translate-y-20"
+              items={dockLinks}
+            />
+          </div>
+        </main>
+      </WavyBackground>
     </div>
   );
 }
