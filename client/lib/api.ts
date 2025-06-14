@@ -193,10 +193,8 @@ class ApiService {
     }
     
     return response;
-  }
-
-  async getUserProfile() {
-    return this.get('/user/profile');
+  }  async getUserProfile() {
+    return this.get('/user');
   }
 
   async logout() {
@@ -221,6 +219,11 @@ class ApiService {
   async generateMindMap(subjectName: string, syllabus: string) {
     // Use the generic post method which already has duplicate prevention
     return this.post('/mindmap/generate', { subjectName, syllabus });
+  }
+
+  // Gyan Points API methods
+  async getUserGyanPoints() {
+    return this.get('/user/gyan-points');
   }
 
   async getMindMaps() {

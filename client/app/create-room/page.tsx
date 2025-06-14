@@ -3,6 +3,8 @@ import React from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
+import BlackHoleLoader from "@/components/ui/black-hole-loader";
+import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
 import {
   IconHome,
   IconUsers,
@@ -24,11 +26,10 @@ export default function CreateRoom() {
       console.error('Error signing out:', error);
     }
   };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <BlackHoleLoader />
       </div>
     );
   }
@@ -83,11 +84,17 @@ export default function CreateRoom() {
       onClick: handleSignOut,
     },
   ];
-
   return (
     <div className="min-h-screen bg-black text-white relative">
+      
+      {/* Gyan Points Display - Top Right Corner */}
+      <div className="absolute top-6 right-6 z-20">
+        <GyanPointsDisplay />
+      </div>
+      
       {/* Main Content */}
       <main className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+        
         {/* Page Header */}
         <div className="text-center mb-16 z-10">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-600 bg-clip-text text-transparent mb-4">

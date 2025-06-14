@@ -134,7 +134,13 @@ const verifyToken = (req, res, next) => {
 };
 
 // Initialize Firebase Admin
+let firebaseInitialized = false;
+
 try {
+  console.log("Checking Firebase environment variables...");
+  console.log("FIREBASE_SERVICE_ACCOUNT exists:", !!process.env.FIREBASE_SERVICE_ACCOUNT);
+  console.log("GOOGLE_APPLICATION_CREDENTIALS exists:", !!process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     console.log("Initializing Firebase Admin with service account");
 
@@ -146,6 +152,7 @@ try {
     });
 
     console.log("Firebase Admin initialized successfully");
+    firebaseInitialized = true;
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     console.log(
       "Initializing Firebase Admin with application default credentials"
@@ -154,13 +161,17 @@ try {
     console.log(
       "Firebase Admin initialized with application default credentials"
     );
+    firebaseInitialized = true;
   } else {
     console.warn(
-      "Firebase service account not provided. Some authentication features may not work properly."
+      "Firebase service account not provided. Authentication will be limited."
     );
+    // For development, we'll skip Firebase Admin initialization
+    // and use a mock authentication approach
   }
 } catch (error) {
   console.error("Error initializing Firebase Admin:", error);
+  console.error("Firebase initialization failed. Authentication endpoints will not work.");
 }
 
 // MongoDB connection
@@ -204,9 +215,96 @@ const checkDbConnection = (req, res, next) => {
 
 // AUTHENTICATION ENDPOINTS
 
-// Login with Firebase token and issue JWT
+// Google OAuth authentication endpoint (matches client expectation)
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    console.log("Processing Google authentication request");
+    
+    if (!firebaseInitialized) {
+      console.error("Firebase Admin not initialized");
+      return res.status(500).json({ 
+        error: "Firebase authentication not available" 
+      });
+    }
+
+    const { idToken, user } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: "ID token is required" });
+    }
+
+    console.log("Verifying Firebase token for user:", user?.uid || "unknown");
+
+    // Verify the Firebase token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log("Firebase token verified:", decodedToken.uid);
+
+    // Create a JWT token with user info
+    const jwtPayload = {
+      uid: decodedToken.uid,
+      email: decodedToken.email || "",
+      name: decodedToken.name || "",
+      picture: decodedToken.picture || "",
+    };
+
+    // If MongoDB is connected, make sure the user exists in our database
+    if (db) {
+      const existingUser = await db
+        .collection("users")
+        .findOne({ uid: decodedToken.uid });
+
+      if (!existingUser) {
+        // Create new user record with 50 Gyan Points (free credits)
+        const newUser = {
+          uid: decodedToken.uid,
+          email: decodedToken.email || "",
+          displayName: decodedToken.name || "",
+          photoURL: decodedToken.picture || "",
+          createdAt: new Date(),
+          lastLogin: new Date(),
+          gyanPoints: 50, // Initial free Gyan Points
+          settings: {
+            theme: "light", // default settings
+            notifications: true,
+          },
+        };
+
+        await db.collection("users").insertOne(newUser);
+        console.log("New user created in database with 50 Gyan Points:", decodedToken.uid);
+      } else {
+        // Update last login time
+        await db
+          .collection("users")
+          .updateOne(
+            { uid: decodedToken.uid },
+            { $set: { lastLogin: new Date() } }
+          );
+        console.log("User login time updated:", decodedToken.uid);
+      }
+    }
+
+    // Sign the JWT
+    const token = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
+      expiresIn: "7d", // Token expires in 7 days
+    });
+
+    res.json({ token, user: jwtPayload });
+  } catch (error) {
+    console.error("Google authentication error:", error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
+// Login with Firebase token and issue JWT (legacy endpoint)
 app.post("/api/login", async (req, res) => {
   try {
+    if (!firebaseInitialized) {
+      console.error("Firebase Admin not initialized");
+      return res.status(500).json({ 
+        error: "Firebase authentication not available" 
+      });
+    }
+
     const { firebaseToken } = req.body;
 
     if (!firebaseToken) {
@@ -229,10 +327,8 @@ app.post("/api/login", async (req, res) => {
     if (db) {
       const existingUser = await db
         .collection("users")
-        .findOne({ uid: decodedToken.uid });
-
-      if (!existingUser) {
-        // Create new user record
+        .findOne({ uid: decodedToken.uid });      if (!existingUser) {
+        // Create new user record with 50 Gyan Points (free credits)
         const newUser = {
           uid: decodedToken.uid,
           email: decodedToken.email || "",
@@ -240,6 +336,7 @@ app.post("/api/login", async (req, res) => {
           photoURL: decodedToken.picture || "",
           createdAt: new Date(),
           lastLogin: new Date(),
+          gyanPoints: 50, // Initial free Gyan Points
           settings: {
             theme: "light", // default settings
             notifications: true,
@@ -247,7 +344,7 @@ app.post("/api/login", async (req, res) => {
         };
 
         await db.collection("users").insertOne(newUser);
-        console.log("New user created in database:", decodedToken.uid);
+        console.log("New user created in database with 50 Gyan Points:", decodedToken.uid);
       } else {
         // Update last login time
         await db
@@ -278,9 +375,7 @@ app.get("/api/user", verifyToken, checkDbConnection, async (req, res) => {
     const userId = req.user.uid;
 
     // Get user from database
-    const user = await db.collection("users").findOne({ uid: userId });
-
-    if (!user) {
+    const user = await db.collection("users").findOne({ uid: userId });    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -293,6 +388,7 @@ app.get("/api/user", verifyToken, checkDbConnection, async (req, res) => {
       settings: user.settings || {},
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
+      gyanPoints: user.gyanPoints || 0, // Include Gyan Points in the response
     });
   } catch (error) {
     console.error("Error retrieving user profile:", error);
@@ -328,6 +424,28 @@ app.patch("/api/user/settings", verifyToken, checkDbConnection, async (req, res)
       error: "Failed to update user settings",
       details: error.message,
     });
+  }
+});
+
+// Endpoint to get user's Gyan Points
+app.get("/api/user/gyan-points", verifyToken, checkDbConnection, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    // Get user from database
+    const user = await db.collection("users").findOne({ uid: userId }, { projection: { gyanPoints: 1 } });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Return only the Gyan Points
+    res.json({
+      gyanPoints: user.gyanPoints || 0,
+    });
+  } catch (error) {
+    console.error("Error retrieving Gyan Points:", error);
+    res.status(500).json({ error: "Failed to retrieve Gyan Points" });
   }
 });
 
@@ -815,9 +933,13 @@ ${trimmedText}`,
 });
 
 // Mind Map Generation Endpoint
-app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
+app.post("/api/mindmap/generate", verifyToken, checkDbConnection, async (req, res) => {
   try {
     const { subjectName, syllabus } = req.body;
+    const userId = req.user.uid;
+    
+    // Constants for Gyan Points system
+    const POINTS_REQUIRED = 15; // Points required for mind map generation
 
     if (!subjectName) {
       return res.status(400).json({
@@ -833,8 +955,37 @@ app.post("/api/mindmap/generate", verifyToken, async (req, res) => {
       });
     }
 
+    // Check if user has enough Gyan Points
+    const user = await db.collection("users").findOne({ uid: userId });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+    
+    // Initialize gyanPoints if not present
+    const currentPoints = user.gyanPoints || 0;
+    
+    if (currentPoints < POINTS_REQUIRED) {
+      return res.status(403).json({
+        success: false,
+        error: "Insufficient Gyan Points",
+        currentPoints: currentPoints,
+        requiredPoints: POINTS_REQUIRED,
+      });
+    }
+    
+    // Deduct points before generating the mind map
+    await db.collection("users").updateOne(
+      { uid: userId },
+      { $inc: { gyanPoints: -POINTS_REQUIRED } }
+    );
+
     console.log(`Generating mind map for subject: ${subjectName}`);
     console.log(`Syllabus length: ${syllabus.length} characters`);
+    console.log(`Deducted ${POINTS_REQUIRED} Gyan Points from user: ${userId}`);
 
     let parsingCompletion;
     try {
@@ -1593,8 +1744,7 @@ RESPOND WITH VALID MIND MAP JSON ONLY:`,
 
     let transformedData;
     try {
-      transformedData = transformGroqResponse(mindMapData, subjectName);
-    } catch (transformError) {
+      transformedData = transformGroqResponse(mindMapData, subjectName);    } catch (transformError) {
       console.error("Error transforming mind map data:", transformError.message);
       return res.status(500).json({
         success: false,
@@ -1603,7 +1753,7 @@ RESPOND WITH VALID MIND MAP JSON ONLY:`,
       });
     }
 
-    const userId = req.user.uid;
+    // userId is already declared at the top of this function
     let result;
     try {
       if (db) {

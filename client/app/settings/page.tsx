@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
+import BlackHoleLoader from "@/components/ui/black-hole-loader";
 import {
   IconHome,
   IconUsers,
@@ -30,11 +31,10 @@ export default function Settings() {
       console.error('Error signing out:', error);
     }
   };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <BlackHoleLoader />
       </div>
     );
   }

@@ -4,6 +4,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { WavyBackground } from "@/components/ui/wavy-background";
+import BlackHoleLoader from "@/components/ui/black-hole-loader";
+import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
 import {
   IconHome,
   IconUsers,
@@ -26,11 +28,10 @@ export default function Dashboard() {
       console.error('Error signing out:', error);
     }
   };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <BlackHoleLoader />
       </div>
     );
   }
@@ -84,6 +85,12 @@ export default function Dashboard() {
     },  ];  return (
     <div className="min-h-screen relative">
       <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+        
+        {/* Gyan Points Display - Top Right Corner */}
+        <div className="absolute top-6 right-6 z-20">
+          <GyanPointsDisplay />
+        </div>
+
         {/* Welcome Message */}
         <div className="text-center mb-16 z-10">
           <div className="flex items-center justify-center mb-6">
@@ -92,7 +99,8 @@ export default function Dashboard() {
               alt={user.displayName || 'User'} 
               className="w-20 h-20 rounded-full border-4 border-neutral-700 mr-4"
             />
-            <div>              <h1 className="text-4xl font-bold text-white mb-2">
+            <div className="flex flex-col items-start">
+              <h1 className="text-4xl font-bold text-white mb-2">
                 Welcome back, {user.displayName?.split(' ')[0]}! 👋
               </h1>
               <p className="text-neutral-200 text-lg">

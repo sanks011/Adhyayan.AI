@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
 import { FloatingDock } from "@/components/ui/floating-dock";
 import { WavyBackground } from "@/components/ui/wavy-background";
+import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
 import { Textarea, Input, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
 import { MultiStepLoader } from "@/components/ui/multi-step-loader";
+import BlackHoleLoader from "@/components/ui/black-hole-loader";
+import toast, { Toaster } from 'react-hot-toast';
 import {
   IconHome,
   IconUsers,
@@ -20,9 +23,9 @@ import {
   IconUpload,
   IconX,
   IconFileText,
-  IconSquareRoundedX,
-  IconChevronUp,
-  IconChevronDown
+  IconSquareRoundedX,  IconChevronUp,
+  IconChevronDown,
+  IconCoin
 } from "@tabler/icons-react";
 
 // Extend Window interface for Speech Recognition
@@ -55,7 +58,10 @@ export default function MindMap() {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  
+  const [insufficientPoints, setInsufficientPoints] = useState(false);
+  const [requiredPoints, setRequiredPoints] = useState(15); // Default cost is 15 Gyan Points
+  const [userPoints, setUserPoints] = useState<number | null>(null);
+  const [isLoadingPoints, setIsLoadingPoints] = useState(true);
   // Loading states for mind map creation
   const loadingStates = [
     { text: "Analyzing subject content..." },
@@ -91,15 +97,35 @@ export default function MindMap() {
       speechRecognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
-      };
-      
+      };      
       speechRecognition.onend = () => {
         setIsListening(false);
       };
         setRecognition(speechRecognition);
     }
   }, []);
-    // Auto-expand textarea for large content
+
+  // Fetch user's Gyan Points
+  useEffect(() => {
+    const fetchUserPoints = async () => {
+      if (isAuthenticated && user) {
+        try {
+          setIsLoadingPoints(true);
+          const userData = await apiService.getUserProfile();
+          setUserPoints(userData.gyanPoints || 0);
+        } catch (error) {
+          console.error('Failed to fetch user points:', error);
+          setUserPoints(0);
+        } finally {
+          setIsLoadingPoints(false);
+        }
+      }
+    };
+
+    fetchUserPoints();
+  }, [isAuthenticated, user]);
+    
+  // Auto-expand textarea for large content
   useEffect(() => {
     if (syllabus.length > 1000 && !isTextareaExpanded) {
       setIsTextareaExpanded(true);
@@ -114,10 +140,19 @@ export default function MindMap() {
       
       try {
         // Use the backend API to process the file
-        const result = await apiService.uploadSyllabusFile(file);
-        if (result.success && result.extractedText) {
+        const result = await apiService.uploadSyllabusFile(file);        if (result.success && result.extractedText) {
           setSyllabus(result.extractedText);
-          console.log('File processed successfully:', result.filename);
+          console.log('File processed successfully:', result.filename);          toast.success('File processed successfully!', {
+            duration: 2000,
+            position: 'top-center',
+            style: {
+              background: '#1a1a1a',
+              color: '#ffffff',
+              border: '1px solid #10b981',
+              fontWeight: '500',
+              borderRadius: '8px',
+            },
+          });
         }
       } catch (error) {
         console.error('File processing error:', error);
@@ -129,8 +164,17 @@ export default function MindMap() {
             setSyllabus(content);
           };
           reader.readAsText(file);
-        } else {
-          alert('Failed to process file. Please try a different format or paste the content manually.');
+        } else {          toast.error('Failed to process file. Please try a different format or paste the content manually.', {
+            duration: 4000,
+            position: 'top-center',
+            style: {
+              background: '#1a1a1a',
+              color: '#ffffff',
+              border: '1px solid #f59e0b',
+              fontWeight: '500',
+              borderRadius: '8px',
+            },
+          });
         }
       }
     }
@@ -141,10 +185,18 @@ export default function MindMap() {
     setUploadedFile(null);
     setSyllabus("");
   };
-  
   const toggleVoiceInput = () => {
-    if (!recognition) {
-      alert('Speech recognition is not supported in your browser');
+    if (!recognition) {      toast.error('Speech recognition is not supported in your browser', {
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: '#1a1a1a',
+          color: '#ffffff',
+          border: '1px solid #f59e0b',
+          fontWeight: '500',
+          borderRadius: '8px',
+        },
+      });
       return;
     }
     
@@ -155,9 +207,34 @@ export default function MindMap() {
       recognition.start();
       setIsListening(true);
     }
-  };  const handleCreateMindMap = async () => {
-    if (!subjectName.trim()) {
-      alert('Please enter a subject name');
+  };  const handleCreateMindMap = async () => {    if (!subjectName.trim()) {
+      toast.error('Please enter a subject name', {
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: '#1f1f1f',
+          color: '#ef4444',
+          border: '1px solid #374151',
+          fontWeight: '500',
+        },
+      });
+      return;
+    }
+
+    // Check if user has sufficient Gyan Points
+    if (userPoints !== null && userPoints < requiredPoints) {
+      // Show insufficient points notification
+      const pointsNeeded = requiredPoints - userPoints;
+      toast.error(`Insufficient Gyan Points! You need ${pointsNeeded} more GP to generate a mind map.`, {
+        duration: 5000,
+        position: 'top-center',
+        style: {
+          background: '#1f1f1f',
+          color: '#f87171',
+          border: '1px solid #dc2626',
+          fontWeight: '500',
+        },
+      });
       return;
     }
     
@@ -192,10 +269,16 @@ export default function MindMap() {
           subject: response.mindMap.subject || subjectName,
           nodes: response.mindMap.nodes || [],
           edges: response.mindMap.edges || []
-        };
-        
-        localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(mindMapData));
+        };        localStorage.setItem(`mindmap_${mindMapId}`, JSON.stringify(mindMapData));
         console.log('Saved mind map to localStorage with ID:', mindMapId);
+        
+        // Refresh user points after successful generation
+        try {
+          const userData = await apiService.getUserProfile();
+          setUserPoints(userData.gyanPoints || 0);
+        } catch (pointsError) {
+          console.error('Failed to refresh user points:', pointsError);
+        }
         
         // Reset form and loading state
         setSubjectName("");
@@ -210,16 +293,45 @@ export default function MindMap() {
       } else {
         throw new Error('Failed to generate mind map: Invalid response');
       }
-      
-    } catch (error) {
+        } catch (error) {
       console.error('Error creating mind map:', error);
-      setIsCreating(false);
+      setIsCreating(false);      // Check if the error is due to insufficient points
+      const apiError = error as any;
+      if (apiError.status === 403 && apiError.data && apiError.data.error === "Insufficient Gyan Points") {
+        // Don't create fallback data for insufficient points        
+        toast.error(`Insufficient Gyan Points! You need ${apiError.data.requiredPoints || 15} GP to generate a mind map.`, {
+          duration: 5000,
+          position: 'top-center',
+          style: {
+            background: '#1f1f1f',
+            color: '#f87171',
+            border: '1px solid #dc2626',
+            fontWeight: '500',
+          },
+        });
+        setInsufficientPoints(true);
+        setRequiredPoints(apiError.data.requiredPoints || 15);
+        
+        // Reset form
+        setSubjectName("");
+        setSyllabus("");
+        setUploadedFile(null);
+        return;
+      }
+        // Show user-friendly error message for other errors
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';      toast.error(`Failed to create mind map: ${errorMessage}`, {
+        duration: 4000,
+        position: 'top-center',
+        style: {
+          background: '#1a1a1a',
+          color: '#ffffff',
+          border: '1px solid #ef4444',
+          fontWeight: '500',
+          borderRadius: '8px',
+        },
+      });
       
-      // Show user-friendly error message
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to create mind map: ${errorMessage}`);
-      
-      // Fallback to dummy data for demo purposes
+      // Only create fallback data for non-payment related errors
       console.log('Falling back to dummy data generation');
       const mindMapId = `mindmap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const dummyMindMapData = generateDummyMindMap(subjectName, syllabus);
@@ -342,11 +454,10 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
       console.error('Error signing out:', error);
     }
   };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <BlackHoleLoader />
       </div>
     );
   }
@@ -400,10 +511,16 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
       onClick: handleSignOut,
     },
   ];
-
   return (
     <div className="min-h-screen relative">
-      <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">        {/* Page Header */}
+      <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
+        
+        {/* Gyan Points Display - Top Right Corner */}
+        <div className="absolute top-6 right-6 z-20">
+          <GyanPointsDisplay />
+        </div>
+        
+        {/* Page Header */}
         <div className="text-center mb-16 z-10">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-red-600 bg-clip-text text-transparent mb-4">
             Mind Map Studio
@@ -474,8 +591,25 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                   <p className="text-gray-400 text-base font-normal">
                     Transform your ideas into an interactive knowledge map
                   </p>
-                </ModalHeader>
-                  <ModalBody className="max-h-[calc(90vh-200px)] overflow-y-auto">
+                </ModalHeader>                  <ModalBody className="max-h-[calc(90vh-200px)] overflow-y-auto">
+                  
+                  {/* Insufficient Points Warning */}
+                  {!isLoadingPoints && userPoints !== null && userPoints < requiredPoints && (
+                    <div className="mb-6 p-4 bg-gradient-to-r from-amber-900/20 to-red-900/20 border border-amber-600/30 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <IconCoin className="w-5 h-5 text-amber-400" />
+                        <h3 className="text-lg font-semibold text-amber-200">Insufficient Gyan Points</h3>
+                      </div>
+                      <p className="text-amber-100 text-sm mb-2">
+                        You need <span className="font-bold text-amber-300">{requiredPoints} Gyan Points</span> to generate a mind map. 
+                        You currently have <span className="font-bold text-red-300">{userPoints} GP</span>.
+                      </p>
+                      <p className="text-amber-200 text-xs">
+                        💡 Mind map generation requires {requiredPoints} GP to cover AI processing costs. Please recharge your account to continue.
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="space-y-8">
                     {/* Subject Name Input */}
                     <div className="space-y-3">
@@ -662,19 +796,119 @@ Use the quiz feature to test your understanding and the AI chat to ask specific 
                   >
                     Cancel
                   </Button>                  <Button 
-                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold px-8 py-2 transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:from-gray-600 disabled:to-gray-700"
+                    className={`font-semibold px-8 py-2 transform transition-all duration-300 ${
+                      !isLoadingPoints && userPoints !== null && userPoints < requiredPoints 
+                        ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-gray-300 cursor-not-allowed opacity-75' 
+                        : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white hover:scale-105'
+                    } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
                     onPress={handleCreateMindMap}
-                    isDisabled={!subjectName.trim() || isCreating}
+                    isDisabled={
+                      !subjectName.trim() || 
+                      isCreating || 
+                      isLoadingPoints || 
+                      (userPoints !== null && userPoints < requiredPoints)
+                    }
                     isLoading={isCreating}
+                    startContent={
+                      !isLoadingPoints && userPoints !== null && userPoints < requiredPoints ? (
+                        <IconCoin className="w-4 h-4 text-gray-400" />
+                      ) : null
+                    }
                   >
-                    {isCreating ? "Creating..." : "Create Mind Map"}
+                    {isCreating 
+                      ? "Creating..." 
+                      : !isLoadingPoints && userPoints !== null && userPoints < requiredPoints
+                        ? `Insufficient GP (Need ${requiredPoints})` 
+                        : "Create Mind Map"
+                    }
                   </Button>
                 </ModalFooter>
               </>
             )}
           </ModalContent>
-        </Modal>
-      </WavyBackground>
+        </Modal>        {/* Insufficient Points Modal */}
+        <Modal 
+          isOpen={insufficientPoints} 
+          onOpenChange={() => setInsufficientPoints(false)}
+          placement="center"
+          backdrop="blur"
+          size="2xl"
+          scrollBehavior="inside"
+          classNames={{
+            base: "bg-gradient-to-br from-amber-900/95 to-red-900/95 backdrop-blur-xl border border-amber-700/50",
+            header: "border-b border-amber-700/50 px-8 py-6",
+          }}
+        >
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-3">
+                  <h2 className="text-3xl font-bold text-amber-200">
+                    Insufficient Gyan Points
+                  </h2>
+                </ModalHeader>
+                <ModalBody className="px-8 py-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center">
+                      <IconCoin className="h-24 w-24 text-amber-300" />
+                    </div>
+                    <p className="text-amber-100 text-lg text-center">
+                      Mind map generation requires {requiredPoints} Gyan Points, but you don't have enough points.
+                    </p>
+                    <p className="text-amber-200 text-md text-center font-semibold">
+                      Each new user gets 50 Gyan Points for free, allowing you to create 3 mind maps.
+                    </p>
+                    <div className="bg-amber-800/30 border border-amber-700/50 rounded-lg p-4 mt-4">
+                      <p className="text-amber-100 text-center">
+                        Recharge functionality will be available soon. Check back later!
+                      </p>
+                    </div>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button 
+                    className="bg-amber-600 hover:bg-amber-500 text-white w-full"
+                    onPress={onClose}
+                  >
+                    Got it
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>        </Modal>
+      </WavyBackground>      {/* Toast Notifications */}
+      <Toaster 
+        position="top-center"
+        reverseOrder={false}
+        gutter={8}
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1a1a1a',
+            color: '#ffffff',
+            fontWeight: '500',
+            borderRadius: '8px',
+            border: '1px solid #374151',
+            padding: '16px',
+          },
+          success: {
+            duration: 3000,
+            style: {
+              background: '#1a1a1a',
+              color: '#ffffff',
+              border: '1px solid #10b981',
+            },
+          },
+          error: {
+            duration: 4000,
+            style: {
+              background: '#1a1a1a',
+              color: '#ffffff',
+              border: '1px solid #ef4444',
+            },
+          },
+        }}
+      />
     </div>
   );
 }
