@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { IconCoin, IconPlus, IconSparkles } from '@tabler/icons-react';
 import { apiService } from '@/lib/api';
+import { HoverBorderGradient } from '@/components/ui/hover-border-gradient';
 
 interface GyanPointsDisplayProps {
   className?: string;
@@ -35,67 +36,83 @@ export const GyanPointsDisplay: React.FC<GyanPointsDisplayProps> = ({
   const handleRechargeClick = () => {
     // For now, just show an alert
     alert('Recharge functionality will be available soon!');
-  };
-
-  if (isLoading) {
+  };  if (isLoading) {
     return (
       <div className={`group relative ${className}`}>
-        <div className="flex items-center gap-2 px-4 py-2 bg-black/20 backdrop-blur-md border border-white/10 rounded-full text-white/70 font-medium text-sm">
-          <div className="w-4 h-4 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 animate-pulse" />
-          <span>Loading...</span>
-        </div>
+        <HoverBorderGradient
+          containerClassName="rounded-full"
+          as="div"
+          className="dark:bg-black bg-white text-black dark:text-white flex items-center space-x-2 px-3 py-1.5 text-sm"
+        >
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 animate-pulse" />
+            <span className="text-black dark:text-white text-xs">
+              Loading...
+            </span>
+          </div>
+        </HoverBorderGradient>
       </div>
     );
-  }
-
-  if (variant === 'detailed') {
+  }  if (variant === 'detailed') {
     return (
       <div className={`group relative ${className}`}>
-        <div 
+        <HoverBorderGradient
+          containerClassName="rounded-2xl"
+          as="div"
+          className="dark:bg-black bg-white text-black dark:text-white flex flex-col items-center gap-2 px-4 py-3"
           onClick={handleRechargeClick}
-          className="flex flex-col items-center gap-2 p-4 bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl text-white hover:bg-black/30 transition-all duration-300 cursor-pointer hover:scale-105 hover:border-white/20"
         >
           <div className="flex items-center gap-2">
             <div className="relative">
-              <IconSparkles className="h-5 w-5 text-yellow-400 animate-pulse" />
-              <div className="absolute inset-0 bg-yellow-400/20 rounded-full blur-sm animate-pulse" />
+              <IconSparkles className="h-6 w-6 text-yellow-400 animate-pulse" />
+              <div className="absolute inset-0 bg-yellow-400/30 rounded-full blur-sm animate-pulse" />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
               {points !== null ? points : '--'}
             </span>
           </div>
-          <span className="text-xs text-white/60 font-medium">Gyan Points</span>
-          <div className="flex items-center gap-1 text-xs text-white/40 group-hover:text-white/60 transition-colors">
+          <span className="text-sm text-black dark:text-white font-medium">Gyan Points</span>
+          <div className="flex items-center gap-1 text-xs text-black/60 dark:text-white/60 group-hover:text-black/80 dark:group-hover:text-white/80 transition-colors">
             <IconPlus className="h-3 w-3" />
             <span>Add more</span>
           </div>
-        </div>
+        </HoverBorderGradient>
       </div>
     );
-  }
-
-  return (
+  }  return (
     <div className={`group relative ${className}`}>
-      <div 
+      <HoverBorderGradient
+        containerClassName="rounded-full"
+        as="div"
+        className="dark:bg-black bg-white text-black dark:text-white flex items-center space-x-2 px-3 py-1.5 text-sm cursor-pointer"
         onClick={handleRechargeClick}
-        className="flex items-center gap-2 px-4 py-2 bg-black/20 backdrop-blur-md border border-white/10 rounded-full text-white hover:bg-black/30 transition-all duration-300 cursor-pointer hover:scale-105 hover:border-white/20"
       >
-        <div className="relative">
-          <IconCoin className="h-4 w-4 text-yellow-400" />
-          <div className="absolute inset-0 bg-yellow-400/20 rounded-full blur-sm" />
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <IconCoin className="h-4 w-4 text-yellow-400" />
+            <div className="absolute inset-0 bg-yellow-400/30 rounded-full blur-sm" />
+          </div>
+          <span className="font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
+            {points !== null ? points : '--'}
+          </span>          <span className="text-black dark:text-white text-xs font-medium">
+            GP
+          </span>
         </div>
-        <span className="font-semibold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
-          {points !== null ? points : '--'}
-        </span>
-        <span className="text-sm text-white/70 font-medium">GP</span>
-        
-        {/* Hover effect */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-          <IconPlus className="h-3 w-3 text-white/60" />
-        </div>
-      </div>
-        {/* Glow effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/10 to-amber-500/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2.5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className="ml-1 text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <path d="M12 5v14M5 12l7 7 7-7"/>
+        </svg>
+      </HoverBorderGradient>
     </div>
   );
 };

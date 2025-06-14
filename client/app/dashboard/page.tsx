@@ -103,11 +103,10 @@ export default function Dashboard() {
     },  ];  return (
     <div className="min-h-screen relative">
       <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
-        
-        {/* Gyan Points Display - Top Right Corner */}
-        <div className="absolute top-6 right-6 z-20">
+          {/* Gyan Points Display - Top Right Corner */}
+        <div className="fixed top-4 right-4 z-50 md:top-6 md:right-8 lg:right-12">
           <GyanPointsDisplay />
-        </div>        {/* Welcome Message */}
+        </div>{/* Welcome Message */}
         <div className="text-center mb-16 z-10">
           <div className="flex items-center justify-center mb-6">
             <div className="relative mr-4">

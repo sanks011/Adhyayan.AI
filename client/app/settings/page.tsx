@@ -125,9 +125,8 @@ export default function Settings() {
   return (
     <div className="min-h-screen relative">
       <WavyBackground className="min-h-screen flex flex-col items-center justify-start p-8 pt-16 relative">
-        
-        {/* Gyan Points Display - Top Right Corner */}
-        <div className="absolute top-6 right-6 z-20">
+          {/* Gyan Points Display - Top Right Corner */}
+        <div className="fixed top-4 right-4 z-50 md:top-6 md:right-8 lg:right-12">
           <GyanPointsDisplay />
         </div>
         
