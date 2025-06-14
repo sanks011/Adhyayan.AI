@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aptos-labs/ts-sdk": "^2.0.1",
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@heroui/input": "^2.4.20",
@@ -32,8 +33,10 @@
     "katex": "^0.16.22",
     "lucide": "^0.513.0",
     "lucide-react": "^0.513.0",
+    "mongodb": "^6.17.0",
     "motion": "^12.18.1",
     "next": "15.3.3",
+    "razorpay": "^2.9.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",
