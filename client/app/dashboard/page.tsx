@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { FloatingDock } from "@/components/ui/floating-dock";
@@ -19,6 +19,8 @@ import {
 export default function Dashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -27,6 +29,22 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  // Generate a fallback avatar URL
+  const getFallbackAvatar = () => {
+    const name = user?.displayName || user?.email || 'User';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=374151&color=ffffff&size=80&font-size=0.33`;
+  };
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+    setImageError(false);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(false);
   };
   if (loading) {
     return (
@@ -89,19 +107,42 @@ export default function Dashboard() {
         {/* Gyan Points Display - Top Right Corner */}
         <div className="absolute top-6 right-6 z-20">
           <GyanPointsDisplay />
-        </div>
-
-        {/* Welcome Message */}
+        </div>        {/* Welcome Message */}
         <div className="text-center mb-16 z-10">
           <div className="flex items-center justify-center mb-6">
-            <img 
-              src={user.photoURL || '/default-avatar.png'} 
-              alt={user.displayName || 'User'} 
-              className="w-20 h-20 rounded-full border-4 border-neutral-700 mr-4"
-            />
+            <div className="relative mr-4">
+              {/* Fallback/Loading avatar */}
+              <div className="w-20 h-20 rounded-full border-4 border-neutral-700 bg-neutral-800 flex items-center justify-center">
+                <span className="text-white text-2xl font-bold">
+                  {(user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U').toUpperCase()}
+                </span>
+              </div>
+              
+              {/* Actual user image */}
+              {user?.photoURL && !imageError && (
+                <img 
+                  src={user.photoURL} 
+                  alt={user.displayName || user.email || 'User'} 
+                  className={`absolute inset-0 w-20 h-20 rounded-full border-4 border-neutral-700 object-cover transition-opacity duration-300 ${
+                    imageLoaded ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                />
+              )}
+              
+              {/* Fallback to generated avatar if no photoURL or image failed */}
+              {(!user?.photoURL || imageError) && (
+                <img 
+                  src={getFallbackAvatar()} 
+                  alt={user?.displayName || user?.email || 'User'} 
+                  className="absolute inset-0 w-20 h-20 rounded-full border-4 border-neutral-700 object-cover"
+                />
+              )}
+            </div>
             <div className="flex flex-col items-start">
               <h1 className="text-4xl font-bold text-white mb-2">
-                Welcome back, {user.displayName?.split(' ')[0]}! 👋
+                Welcome back, {user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}! 👋
               </h1>
               <p className="text-neutral-200 text-lg">
                 Ready to explore the future of AI-powered learning?

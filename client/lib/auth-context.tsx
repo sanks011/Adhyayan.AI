@@ -18,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (idToken: string, user: any) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUserData?: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: async () => {},
   logout: async () => {},
+  refreshUserData: async () => {},
 });
 
 export const useAuth = () => {
@@ -41,17 +43,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
-  
-  // Use a ref to track if we've already processed the initial auth state
+    // Use a ref to track if we've already processed the initial auth state
   const hasProcessedInitialAuth = useRef(false);
-  const login = async (idToken: string, userData: any) => {
+  
+  // Function to refresh user data from Firebase
+  const refreshUserData = async () => {
+    if (auth.currentUser) {
+      try {
+        // Force refresh the user token to get latest data
+        await auth.currentUser.reload();
+        const refreshedUser = auth.currentUser;
+        
+        const userData = {
+          uid: refreshedUser.uid,
+          email: refreshedUser.email,
+          displayName: refreshedUser.displayName,
+          photoURL: refreshedUser.photoURL,
+        };
+        
+        // Update stored user data with fresh data
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(userData));
+        }
+        
+        setUser(userData);
+        console.log('User data refreshed:', userData);
+      } catch (error) {
+        console.error('Error refreshing user data:', error);
+      }
+    }
+  };
+    const login = async (idToken: string, userData: any) => {
     try {
       const response = await apiService.authenticateWithGoogle(idToken, userData);
       setUser(userData);
       setIsAuthenticated(true);
       // Only redirect to dashboard if user is on the home page (fresh sign-in)
       if (typeof window !== 'undefined' && window.location.pathname === '/') {
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -91,8 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await auth.signOut();
       }
     }
-  };
-  useEffect(() => {
+  };  useEffect(() => {
     let isComponentMounted = true;
     
     // Check if user is already authenticated on page load
@@ -100,9 +128,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     
     if (storedUser && token) {
-      setUser(storedUser);
-      setIsAuthenticated(true);
-      hasProcessedInitialAuth.current = true;
+      // Validate that stored user has required fields
+      if (storedUser.uid && (storedUser.email || storedUser.displayName)) {
+        setUser(storedUser);
+        setIsAuthenticated(true);
+        hasProcessedInitialAuth.current = true;
+        
+        // Refresh user data in the background to ensure it's up to date
+        setTimeout(() => {
+          refreshUserData();
+        }, 1000);
+      } else {
+        // Clear invalid stored data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+        }
+      }
     }
 
     // Listen to Firebase auth state changes
@@ -119,8 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
           };
-          
-          // Call login function directly to avoid circular dependency
+            // Call login function directly to avoid circular dependency
           const response = await apiService.authenticateWithGoogle(idToken, userData);
           setUser(userData);
           setIsAuthenticated(true);
@@ -128,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Only redirect to dashboard if user is on the home page (fresh sign-in)
           if (typeof window !== 'undefined' && window.location.pathname === '/') {
-            router.push('/dashboard');
+            window.location.href = '/dashboard';
           }
         } catch (error) {
           console.error('Backend authentication failed:', error);
@@ -148,20 +189,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isComponentMounted) {
         setLoading(false);
       }
-    });
-
-    return () => {
+    });    return () => {
       isComponentMounted = false;
       unsubscribe();
     };
-  }, []);
-
+  }, []); // Remove router dependency
   const value = {
     user,
     loading,
     isAuthenticated,
     login,
     logout,
+    refreshUserData, // Expose this function for manual refresh if needed
   };
 
   return (

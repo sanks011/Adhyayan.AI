@@ -49,12 +49,10 @@ class ApiService {
     if (this._lastRequestTime[requestKey] && Date.now() - this._lastRequestTime[requestKey] < 2000) {
       console.log(`Preventing duplicate API call to ${endpoint} within 2 seconds`);
       return this._lastResponse[requestKey];
-    }
-    
-    // Check for pending requests to the same endpoint with same data
-    if (this._pendingRequests[requestKey]) {
+    }    // Check for pending requests to the same endpoint with same data
+    if (requestKey in this._pendingRequests) {
       console.log(`Using existing pending request for ${endpoint}`);
-      return this._pendingRequests[requestKey];
+      return await this._pendingRequests[requestKey];
     }
     
     // Create and store the promise for this request
@@ -212,7 +210,40 @@ class ApiService {
   getStoredUser() {
     if (typeof window !== 'undefined') {
       const userData = localStorage.getItem('user');
-      return userData ? JSON.parse(userData) : null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          // Validate that the user object has required fields
+          if (parsedUser && parsedUser.uid && (parsedUser.email || parsedUser.displayName)) {
+            return parsedUser;
+          } else {
+            console.warn('Invalid user data found in localStorage, clearing...');
+            localStorage.removeItem('user');
+            localStorage.removeItem('authToken');
+          }
+        } catch (error) {
+          console.error('Error parsing user data from localStorage:', error);
+          localStorage.removeItem('user');
+          localStorage.removeItem('authToken');
+        }
+      }
+    }
+    return null;
+  }
+
+  // Refresh user profile data from server
+  async refreshUserProfile() {
+    try {
+      const profile = await this.getUserProfile();
+      if (profile && profile.user) {
+        // Update stored user data with fresh data from server
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(profile.user));
+        }
+        return profile.user;
+      }
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
     }
     return null;
   }  // Mind Map API methods
