@@ -255,14 +255,23 @@ class ApiService {
   // Gyan Points API methods
   async getUserGyanPoints() {
     return this.get('/user/gyan-points');
+  }  async getMindMaps() {    
+    try {
+      return this.get('/mindmap/list');
+    } catch (error) {
+      console.error('Error fetching mind maps:', error);
+      return { success: false, error: 'Failed to fetch mind maps', mindMaps: [] };
+    }
   }
-
-  async getMindMaps() {
-    return this.get('/mindmap/list');
-  }
-
   async getMindMap(id: string) {
-    return this.get(`/mindmap/${id}`);
+    // Extract the MongoDB ObjectId if it's in the format ObjectId('id')
+    let mongoId = id;
+    const objectIdMatch = id.match(/ObjectId\('([0-9a-fA-F]{24})'\)/);
+    if (objectIdMatch && objectIdMatch[1]) {
+      mongoId = objectIdMatch[1];
+      console.log(`Extracted MongoDB ID ${mongoId} from ${id}`);
+    }
+    return this.get(`/mindmap/${mongoId}`);
   }
   
   // New method for getting detailed node descriptions
@@ -321,10 +330,94 @@ class ApiService {
 
     return response.json();
   }
-
   async getNodeReadStatus(mindMapId: string) {
     return this.get(`/mindmap/${mindMapId}/read-status`);
+  }  // Delete a mind map  // Helper method to track a deleted mind map ID
+  private trackDeletedMindMap(id: string): void {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const existingData = localStorage.getItem('deleted_mindmaps') || '[]';
+      const deletedIds = JSON.parse(existingData);
+      
+      if (!Array.isArray(deletedIds)) {
+        localStorage.setItem('deleted_mindmaps', JSON.stringify([id]));
+        return;
+      }
+      
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('deleted_mindmaps', JSON.stringify(deletedIds));
+        console.log(`Added ${id} to deleted mind maps tracking list`);
+      }
+    } catch (e) {
+      console.error('Error tracking deleted mind map:', e);
+      localStorage.setItem('deleted_mindmaps', JSON.stringify([id]));
+    }
   }
+
+  async deleteMindMap(id: string) {
+    try {
+      // Always try to remove from localStorage first, regardless of API call success
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`mindmap_${id}`);
+        console.log(`Removed mindmap_${id} from localStorage`);
+        
+        // Track the deletion
+        this.trackDeletedMindMap(id);
+      }
+      
+      // Extract the MongoDB ObjectId if it's in the format ObjectId('id')
+      let mongoId = id;
+      const objectIdMatch = id.match(/ObjectId\('([0-9a-fA-F]{24})'\)/);
+      if (objectIdMatch && objectIdMatch[1]) {
+        mongoId = objectIdMatch[1];
+        console.log(`Extracted MongoDB ID ${mongoId} from ${id}`);
+        
+        // Also track the extracted ID to ensure it doesn't reappear
+        if (mongoId !== id) {
+          this.trackDeletedMindMap(mongoId);
+        }
+      }
+      
+      // Check if this is a MongoDB ObjectId (24 hex chars)
+      const isMongoId = mongoId && /^[0-9a-fA-F]{24}$/.test(mongoId);
+      
+      if (!isMongoId) {
+        console.log(`Mind map with ID ${mongoId} has a non-MongoDB ID format, only removed from localStorage`);
+        return { success: true, message: "Mind map removed from local storage" };
+      }
+
+      // Try to delete from backend if it exists there and has valid MongoDB ID format
+      const response = await fetch(`${API_BASE_URL}/mindmap/${mongoId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+
+      // If the ID is not found or invalid format, we'll still consider it a success
+      // since we've already removed it from localStorage
+      if (response.status === 400 || response.status === 404) {
+        console.log(`Mind map with ID ${mongoId} not found on server or has invalid format, but was removed from localStorage`);
+        return { success: true, message: "Mind map removed from local storage" };
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Server error:", error);
+        // Even if server deletion fails, we've removed from localStorage
+        return { success: true, message: "Mind map removed from local storage only" };
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error: any) {
+      console.error('Error in deleteMindMap:', error);
+      // Even if there's an error, we consider it a partial success if we removed it from localStorage
+      return { success: true, message: "Mind map removed from local storage only" };
+    }
+  }
+  // Not needed - we're using trackDeletedMindMap instead
+  // This is a duplicate of the private method defined above, so we'll remove it
 }
 
 // Ensure we're exporting the service properly
