@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { useRouter } from 'next/navigation';
 import { Vortex } from '@/components/ui/vortex';
 import { CustomNavbar } from "@/components/custom/CustomNavbar";
 import { CustomStickyBanner } from "@/components/custom/CustomStickyBanner";
@@ -404,6 +405,7 @@ export default function PricingPage() {
   const [currency, setCurrency] = useState<'INR' | 'USD'>('INR');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [openFAQ, setOpenFAQ] = useState<Set<number>>(new Set());
+  const router = useRouter();
 
   const toggleFAQ = (index: number) => {
     const newOpen = new Set(openFAQ);
@@ -419,14 +421,52 @@ export default function PricingPage() {
     const price = currency === 'INR' ? priceINR[billingCycle] : priceUSD[billingCycle];
     return price === 0 ? 'Free' : `${currency === 'INR' ? '₹' : '$'}${price}`;
   };
-
   const handlePlanSelect = (planName: string) => {
     if (planName === "Free") return;
-    alert(`Selected ${planName} plan for ${billingCycle} billing! Payment integration coming soon.`);
+    
+    const selectedPlan = pricingPlans.find(plan => plan.name === planName);
+    if (!selectedPlan) return;
+    
+    // Create URL search params with plan data
+    const planData = {
+      name: selectedPlan.name,
+      priceINR: selectedPlan.priceINR,
+      priceUSD: selectedPlan.priceUSD,
+      period: selectedPlan.period,
+      description: selectedPlan.description,
+      gyanPoints: selectedPlan.gyanPoints,
+      features: selectedPlan.features,
+      currency: currency,
+      billingCycle: billingCycle,
+      type: 'subscription'
+    };
+    
+    const searchParams = new URLSearchParams({
+      data: JSON.stringify(planData)
+    });
+    
+    router.push(`/confirm?${searchParams.toString()}`);
   };
 
   const handleTopUpPurchase = (packName: string, price: number) => {
-    alert(`Purchasing ${packName} for ${formatPrice({ monthly: price, annual: price }, { monthly: price, annual: price })}! Payment integration coming soon.`);
+    const selectedPack = additionalPacks.find(pack => pack.name === packName);
+    if (!selectedPack) return;
+    
+    const packData = {
+      name: selectedPack.name,
+      points: selectedPack.points,
+      priceINR: selectedPack.priceINR,
+      priceUSD: selectedPack.priceUSD,
+      description: selectedPack.description,
+      currency: currency,
+      type: 'topup'
+    };
+    
+    const searchParams = new URLSearchParams({
+      data: JSON.stringify(packData)
+    });
+    
+    router.push(`/confirm?${searchParams.toString()}`);
   };
   return (
     <StyledWrapper>
