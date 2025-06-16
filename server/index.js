@@ -146,12 +146,16 @@ try {
   console.log("Checking Firebase environment variables...");
   console.log("FIREBASE_SERVICE_ACCOUNT exists:", !!process.env.FIREBASE_SERVICE_ACCOUNT);
   console.log("GOOGLE_APPLICATION_CREDENTIALS exists:", !!process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     console.log("Initializing Firebase Admin with service account");
 
     // Parse service account key string to JSON
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    
+    // Fix the private key formatting - convert \\n to actual newlines
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
