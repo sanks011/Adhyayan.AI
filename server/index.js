@@ -11,6 +11,7 @@ const sharp = require("sharp");
 const mammoth = require("mammoth");
 const path = require("path");
 const fs = require("fs").promises;
+const fetch = require("node-fetch"); // For keep-alive pings
 const { fixBrokenJSON } = require("./fix_json"); // Import the JSON fixing utility
 const { transformGroqResponse } = require("./transform"); // Import the transform utility
 const ElevenLabsService = require("./elevenlabs-service"); // Import the ElevenLabs service
@@ -146,16 +147,12 @@ try {
   console.log("Checking Firebase environment variables...");
   console.log("FIREBASE_SERVICE_ACCOUNT exists:", !!process.env.FIREBASE_SERVICE_ACCOUNT);
   console.log("GOOGLE_APPLICATION_CREDENTIALS exists:", !!process.env.GOOGLE_APPLICATION_CREDENTIALS);
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     console.log("Initializing Firebase Admin with service account");
 
     // Parse service account key string to JSON
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    
-    // Fix the private key formatting - convert \\n to actual newlines
-    if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -2315,8 +2312,32 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Keep-alive mechanism to prevent Render from sleeping
+const keepAlive = () => {
+  const url = process.env.BACKEND_URL || `http://localhost:${PORT}`;
+  
+  // Only ping if we have a production URL
+  if (process.env.BACKEND_URL) {
+    setInterval(async () => {
+      try {
+        const response = await fetch(`${url}/health`);
+        if (response.ok) {
+          console.log(`Keep-alive ping successful at ${new Date().toISOString()}`);
+        } else {
+          console.log(`Keep-alive ping failed with status: ${response.status}`);
+        }
+      } catch (error) {
+        console.log(`Keep-alive ping error: ${error.message}`);
+      }
+    }, 14 * 60 * 1000); // Ping every 14 minutes (Render sleeps after 15 minutes of inactivity)
+  }
+};
+
 // Start server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Start keep-alive pings after server is running
+  keepAlive();
 });
