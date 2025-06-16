@@ -143,16 +143,51 @@ const verifyToken = (req, res, next) => {
 // Initialize Firebase Admin
 let firebaseInitialized = false;
 
+// Helper function to parse and fix Firebase service account
+const parseFirebaseServiceAccount = (serviceAccountString) => {
+  try {
+    const serviceAccount = JSON.parse(serviceAccountString);
+    
+    // Fix common issues with private key formatting
+    if (serviceAccount.private_key) {
+      // Replace escaped newlines with actual newlines
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      
+      // Ensure the private key starts and ends correctly
+      if (!serviceAccount.private_key.startsWith('-----BEGIN PRIVATE KEY-----')) {
+        throw new Error('Private key does not start with proper PEM header');
+      }
+      if (!serviceAccount.private_key.endsWith('-----END PRIVATE KEY-----\n')) {
+        if (serviceAccount.private_key.endsWith('-----END PRIVATE KEY-----')) {
+          serviceAccount.private_key += '\n';
+        } else {
+          throw new Error('Private key does not end with proper PEM footer');
+        }
+      }
+    }
+    
+    return serviceAccount;
+  } catch (error) {
+    console.error('Error parsing Firebase service account:', error.message);
+    throw error;
+  }
+};
+
 try {
   console.log("Checking Firebase environment variables...");
   console.log("FIREBASE_SERVICE_ACCOUNT exists:", !!process.env.FIREBASE_SERVICE_ACCOUNT);
-  console.log("GOOGLE_APPLICATION_CREDENTIALS exists:", !!process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  
+  console.log("GOOGLE_APPLICATION_CREDENTIALS exists:", !!process.env.GOOGLE_APPLICATION_CREDENTIALS);    
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     console.log("Initializing Firebase Admin with service account");
 
-    // Parse service account key string to JSON
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    // Parse and fix service account
+    const serviceAccount = parseFirebaseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log("Service account parsed and formatted successfully");
+
+    // Validate critical fields
+    if (!serviceAccount.private_key || !serviceAccount.client_email || !serviceAccount.project_id) {
+      throw new Error("Missing critical fields in service account: private_key, client_email, or project_id");
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -178,6 +213,14 @@ try {
   }
 } catch (error) {
   console.error("Error initializing Firebase Admin:", error);
+  
+  // Log more details about the error
+  if (error.code === 'app/invalid-credential') {
+    console.error("Invalid credential error - likely a malformed private key");
+    console.error("Make sure your FIREBASE_SERVICE_ACCOUNT environment variable contains valid JSON");
+    console.error("And that the private_key field has proper newline formatting");
+  }
+  
   console.error("Firebase initialization failed. Authentication endpoints will not work.");
 }
 
