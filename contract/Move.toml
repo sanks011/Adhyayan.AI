@@ -1,0 +1,18 @@
+[package]
+name = "AdhyayanPayment"
+version = "1.0.0"
+authors = ["Adhyayan AI"]
+
+[addresses]
+std = "0x1"
+aptos_std = "0x1"
+aptos_framework = "0x1"
+adhyayan_payment = "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9"
+
+[dev-addresses]
+adhyayan_payment = "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "aptos-node-v1.8.0" }
+
+[dev-dependencies]

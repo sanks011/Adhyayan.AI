@@ -18,12 +18,12 @@ export const GyanPointsDisplay: React.FC<GyanPointsDisplayProps> = ({
   const [points, setPoints] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-
   useEffect(() => {
     const fetchPoints = async () => {
       try {
         setIsLoading(true);
         const userData = await apiService.getUserProfile();
+        console.log('🔄 Fetched user data:', userData); // Debug log
         setPoints(userData.gyanPoints);
       } catch (error) {
         console.error('Failed to fetch Gyan Points:', error);
@@ -33,7 +33,23 @@ export const GyanPointsDisplay: React.FC<GyanPointsDisplayProps> = ({
     };
 
     fetchPoints();
-  }, []);  const handleRechargeClick = () => {
+
+    // Set up an interval to refresh points every 10 seconds
+    const interval = setInterval(fetchPoints, 10000);
+    
+    // Also listen for payment success events
+    const handlePaymentSuccess = () => {
+      console.log('💰 Payment successful, refreshing Gyan points...');
+      fetchPoints();
+    };
+    
+    window.addEventListener('paymentSuccess', handlePaymentSuccess);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('paymentSuccess', handlePaymentSuccess);
+    };
+  }, []);const handleRechargeClick = () => {
     // Redirect to pricing page
     router.push('/pricing');
   };if (isLoading) {
