@@ -27,7 +27,13 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
-app.use(cors());
+// Production - restrict to your frontend domain
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'https://adhyayan-ai.vercel.app',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Serve static files from public directory (for podcasts)

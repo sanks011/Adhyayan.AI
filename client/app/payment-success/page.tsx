@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import styled from 'styled-components';
 import { CustomNavbar } from "@/components/custom/CustomNavbar";
@@ -104,7 +104,7 @@ const StyledWrapper = styled.div`
   }
 `;
 
-export default function PaymentSuccess() {
+function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [copied, setCopied] = useState(false);
@@ -300,8 +300,30 @@ export default function PaymentSuccess() {
               },
             },
           }}
-        />
+        />      </div>
+    </StyledWrapper>
+  );
+}
+
+// Loading component for Suspense
+function PaymentSuccessLoading() {
+  return (
+    <StyledWrapper>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white">Loading payment details...</p>
+        </div>
       </div>
     </StyledWrapper>
+  );
+}
+
+// Main export with Suspense boundary
+export default function PaymentSuccess() {
+  return (
+    <Suspense fallback={<PaymentSuccessLoading />}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserButton, useUser } from '@civic/auth-web3/react';
 import { userHasWallet } from '@civic/auth-web3';
 import { generateAptosAddressFromId } from '@/lib/aptos-civic-integration';
 
-export default function CivicLogin() {
+function CivicLoginContent() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -196,8 +196,28 @@ export default function CivicLogin() {
           <Link href="/confirm" className="text-blue-400 hover:text-blue-300 text-sm">
             ← Back to payment page
           </Link>
-        </div>
+        </div>      </div>
+    </div>
+  );
+}
+
+// Loading component for Suspense
+function CivicLoginLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-white">Loading login page...</p>
       </div>
     </div>
+  );
+}
+
+// Main export with Suspense boundary
+export default function CivicLogin() {
+  return (
+    <Suspense fallback={<CivicLoginLoading />}>
+      <CivicLoginContent />
+    </Suspense>
   );
 }
