@@ -297,12 +297,10 @@ export const processAptosPaymentWithCivic = async (params: PaymentParams): Promi
         realTxnHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;        console.log("⚠️  Falling back to simulation due to error");
       }
     }
-    
-    if (!isDevelopment) {
-      // Production mode: Need proper Civic wallet integration
-      console.log("⚠️  Production mode: Real signing needed");
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      realTxnHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      if (!isDevelopment) {
+      // Production mode: Use the real transaction hash from the sponsored payment
+      console.log("⚠️  Production mode: Using real transaction hash");
+      // Don't overwrite realTxnHash - keep the actual transaction hash from the sponsored payment
     }
     
     console.log(`✅ Transaction processed with hash: ${realTxnHash}`);
