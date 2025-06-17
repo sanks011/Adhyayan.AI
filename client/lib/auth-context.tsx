@@ -60,10 +60,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           displayName: refreshedUser.displayName,
           photoURL: refreshedUser.photoURL,
         };
-        
-        // Update stored user data with fresh data
+          // Update stored user data with fresh data
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('firebaseUserId', userData.uid); // Store Firebase UID separately for payment system
         }
         
         setUser(userData);
@@ -73,11 +73,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   };
-    const login = async (idToken: string, userData: any) => {
+  const login = async (idToken: string, userData: any) => {
     try {
       const response = await apiService.authenticateWithGoogle(idToken, userData);
       setUser(userData);
       setIsAuthenticated(true);
+      
+      // Store Firebase UID for payment system
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('firebaseUserId', userData.uid);
+      }
+      
       // Only redirect to dashboard if user is on the home page (fresh sign-in)
       if (typeof window !== 'undefined' && window.location.pathname === '/') {
         window.location.href = '/dashboard';
@@ -110,11 +116,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout failed:', error);
       // Even if backend logout fails, clear local state
-      setUser(null);
-      setIsAuthenticated(false);
+      setUser(null);      setIsAuthenticated(false);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('firebaseUserId'); // Clear Firebase UID
       }
       if (auth.currentUser) {
         await auth.signOut();
@@ -126,23 +132,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check if user is already authenticated on page load
     const storedUser = apiService.getStoredUser();
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-    
-    if (storedUser && token) {
+      if (storedUser && token) {
       // Validate that stored user has required fields
       if (storedUser.uid && (storedUser.email || storedUser.displayName)) {
         setUser(storedUser);
         setIsAuthenticated(true);
         hasProcessedInitialAuth.current = true;
         
+        // Ensure Firebase UID is stored for payment system
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('firebaseUserId', storedUser.uid);
+        }
+        
         // Refresh user data in the background to ensure it's up to date
         setTimeout(() => {
           refreshUserData();
         }, 1000);
-      } else {
-        // Clear invalid stored data
+      } else {        // Clear invalid stored data
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
           localStorage.removeItem('user');
+          localStorage.removeItem('firebaseUserId'); // Clear Firebase UID
         }
       }
     }
@@ -160,12 +170,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-          };
-            // Call login function directly to avoid circular dependency
+          };          // Call login function directly to avoid circular dependency
           const response = await apiService.authenticateWithGoogle(idToken, userData);
           setUser(userData);
           setIsAuthenticated(true);
           hasProcessedInitialAuth.current = true;
+          
+          // Store Firebase UID for payment system
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('firebaseUserId', userData.uid);
+          }
           
           // Only redirect to dashboard if user is on the home page (fresh sign-in)
           if (typeof window !== 'undefined' && window.location.pathname === '/') {
@@ -178,11 +192,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // User signed out of Firebase, clean up our auth state
         setUser(null);
         setIsAuthenticated(false);
-        hasProcessedInitialAuth.current = false;
-        // Clear local storage
+        hasProcessedInitialAuth.current = false;        // Clear local storage
         if (typeof window !== 'undefined') {
           localStorage.removeItem('authToken');
           localStorage.removeItem('user');
+          localStorage.removeItem('firebaseUserId'); // Clear Firebase UID
         }
       }
       

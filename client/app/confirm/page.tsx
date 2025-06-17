@@ -519,12 +519,25 @@ function ConfirmPageContent(): React.ReactElement {
         // Get user data from localStorage
         const savedWalletData = localStorage.getItem('civicUserWithWallet');
         const userData = savedWalletData ? JSON.parse(savedWalletData) : null;
-        
-        // Get current plan and price
+          // Get current plan and price
         const currentPrice = getCurrentPrice();
         const planName = planData?.name || 'Default Plan';
         const planId = planData?.name?.toLowerCase().replace(/\s+/g, '_') || 'default_plan';
-        const userId = userData?.id || connectedWallet.uid || 'anonymous';
+        
+        // Priority order for userId: Firebase UID > Civic UID > Anonymous
+        // This ensures we use the same user ID that the dashboard uses
+        const firebaseUserId = localStorage.getItem('firebaseUserId');
+        const userId = firebaseUserId || userData?.id || connectedWallet.uid || 'anonymous';
+          console.log('User ID resolution:', { 
+          firebaseUserId, 
+          civicUserId: userData?.id, 
+          walletUid: connectedWallet.uid, 
+          finalUserId: userId 
+        });
+        
+        if (!firebaseUserId) {
+          console.warn('⚠️ No Firebase user ID found in localStorage. User may not be properly authenticated.');
+        }
         
         // Calculate Gyan points based on plan
         const gyanPoints = getGyanPointsForPlan(planId);

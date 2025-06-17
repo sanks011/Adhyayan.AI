@@ -63,11 +63,18 @@ export async function POST(request: NextRequest) {  // Set up MongoDB connection
         throw error; // Re-throw in production
       }
     }
-    
-    // 2. Update user subscription in MongoDB
+      // 2. Update user subscription in MongoDB
     try {
+      console.log(`🔍 Looking for user with uid: ${userId}`);
+      
       // Get the current user record if it exists
       const userDoc = await db.collection('users').findOne({ uid: userId });
+      console.log(`📄 Found user document:`, userDoc ? 'Yes' : 'No');
+      
+      if (userDoc) {
+        console.log(`💰 Current Gyan Points: ${userDoc.gyanPoints || 0}`);
+        console.log(`➕ Adding Points: ${getGyanPointsForPlan(planId)}`);
+      }
       
       // Define subscription end date based on plan
       const now = new Date();
@@ -91,8 +98,7 @@ export async function POST(request: NextRequest) {  // Set up MongoDB connection
           // Use $inc to increment gyan points atomically
           $inc: {
             gyanPoints: getGyanPointsForPlan(planId)
-          },
-          // If the user doesn't exist, create it
+          },          // If the user doesn't exist, create it
           $setOnInsert: {
             uid: userId,
             createdAt: now.toISOString()
@@ -100,6 +106,13 @@ export async function POST(request: NextRequest) {  // Set up MongoDB connection
         },
         { upsert: true } // Create if doesn't exist
       );
+      
+      console.log(`✅ Update operation result:`, {
+        matchedCount: updateResult.matchedCount,
+        modifiedCount: updateResult.modifiedCount,
+        upsertedCount: updateResult.upsertedCount,
+        upsertedId: updateResult.upsertedId
+      });
       
       console.log('✅ User subscription updated successfully in', usingMockDb ? 'mock database' : 'real MongoDB');
       
