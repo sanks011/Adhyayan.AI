@@ -87,10 +87,11 @@ export default function Dashboard() {
         <IconHome className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "/",
-    },    {
-      title: "Create Room",
+    },
+    {
+      title: "Quiz",
       icon: (
-        <IconUsers className="h-full w-full text-neutral-500 dark:text-neutral-300" />
+        <IconBrain className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "/create-room",
     },
@@ -102,9 +103,9 @@ export default function Dashboard() {
       href: "/mind-map",
     },
     {
-      title: "AI Assistant",
+      title: "Flash Cards",
       icon: (
-        <IconBrain className="h-full w-full text-neutral-500 dark:text-neutral-300" />
+        <IconList className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "#ai-assistant",
     },
@@ -114,14 +115,16 @@ export default function Dashboard() {
         <IconSettings className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "/settings",
-    },{
+    },
+    {
       title: "Sign Out",
       icon: (
         <IconLogout className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "#",
       onClick: handleSignOut,
-    },  ];  return (
+    },
+  ];return (
     <div className="min-h-screen relative">
       <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
           {/* Gyan Points Display - Top Right Corner */}

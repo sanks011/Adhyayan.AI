@@ -13,44 +13,13 @@ import {
   IconSettings,
   IconLogout,
   IconMap,
-  IconPlus,
-  IconLock,
-  IconWorld,
-  IconCheck
+  IconDeviceGamepad2,
+  IconUsersGroup
 } from "@tabler/icons-react";
 
 export default function CreateRoom() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
-  
-  // Form states
-  const [roomName, setRoomName] = useState('');
-  const [subject, setSubject] = useState('');
-  const [privacy, setPrivacy] = useState('public');
-  const [description, setDescription] = useState('');
-  const [maxParticipants, setMaxParticipants] = useState('10');
-  const [isCreating, setIsCreating] = useState(false);
-  const handleCreateRoom = async () => {
-    if (!roomName.trim()) {
-      alert('Please enter a room name');
-      return;
-    }
-    
-    setIsCreating(true);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Success - redirect to dashboard or room
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Error creating room:', error);
-      alert('Failed to create room. Please try again.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   const handleSignOut = async () => {
     try {
@@ -118,10 +87,12 @@ export default function CreateRoom() {
       href: "#",
       onClick: handleSignOut,
     },
-  ];  return (
+  ];
+
+  return (
     <div className="min-h-screen relative">
       <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
-          {/* Gyan Points Display - Top Right Corner */}
+        {/* Gyan Points Display - Top Right Corner */}
         <div className="fixed top-4 right-4 z-50 md:top-6 md:right-8 lg:right-12">
           <GyanPointsDisplay />
         </div>
@@ -130,157 +101,108 @@ export default function CreateRoom() {
         <main className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-4xl w-full">
           
           {/* Page Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 bg-clip-text text-transparent mb-4">
-              Create Study Room 🏠
+          <div className="text-center mb-16">
+            <h1 className="text-6xl font-bold bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 bg-clip-text text-transparent mb-6">
+              Choose Your Learning Path 🎯
             </h1>
-            <p className="text-neutral-300 text-xl">
-              Set up a collaborative learning space with your peers
+            <p className="text-neutral-300 text-xl max-w-2xl mx-auto">
+              Challenge yourself with a solo quiz or create a collaborative room for group learning
             </p>
           </div>
 
-          {/* Room Creation Form */}
-          <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 w-full max-w-2xl shadow-2xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Room Name */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-neutral-300 mb-3">
-                  Room Name *
-                </label>
-                <input
-                  type="text"
-                  value={roomName}
-                  onChange={(e) => setRoomName(e.target.value)}
-                  placeholder="Enter an engaging room name..."
-                  className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                />
-              </div>
-              
-              {/* Subject */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-3">
-                  Subject
-                </label>
-                <select 
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                >
-                  <option value="" className="bg-gray-800">Select subject...</option>
-                  <option value="math" className="bg-gray-800">Mathematics</option>
-                  <option value="science" className="bg-gray-800">Science</option>
-                  <option value="programming" className="bg-gray-800">Programming</option>
-                  <option value="language" className="bg-gray-800">Language Arts</option>
-                  <option value="history" className="bg-gray-800">History</option>
-                  <option value="physics" className="bg-gray-800">Physics</option>
-                  <option value="chemistry" className="bg-gray-800">Chemistry</option>
-                  <option value="biology" className="bg-gray-800">Biology</option>
-                  <option value="other" className="bg-gray-800">Other</option>
-                </select>
-              </div>
-
-              {/* Max Participants */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-3">
-                  Max Participants
-                </label>
-                <select 
-                  value={maxParticipants}
-                  onChange={(e) => setMaxParticipants(e.target.value)}
-                  className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300"
-                >
-                  <option value="5" className="bg-gray-800">5 participants</option>
-                  <option value="10" className="bg-gray-800">10 participants</option>
-                  <option value="15" className="bg-gray-800">15 participants</option>
-                  <option value="20" className="bg-gray-800">20 participants</option>
-                  <option value="25" className="bg-gray-800">25 participants</option>
-                </select>
-              </div>
-
-              {/* Room Privacy */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-neutral-300 mb-4">
-                  Room Privacy
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className={`relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 ${
-                    privacy === 'public' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : 'border-white/10 bg-white/5 hover:border-white/20'
-                  }`}>
-                    <input 
-                      type="radio" 
-                      name="privacy" 
-                      value="public" 
-                      checked={privacy === 'public'}
-                      onChange={(e) => setPrivacy(e.target.value)}
-                      className="sr-only" 
-                    />
-                    <IconWorld className="h-6 w-6 text-green-400 mr-3" />
-                    <div>
-                      <div className="text-white font-medium">Public Room</div>
-                      <div className="text-neutral-400 text-sm">Anyone can discover and join</div>
-                    </div>
-                    {privacy === 'public' && <IconCheck className="h-5 w-5 text-green-400 ml-auto" />}
-                  </label>
-                  
-                  <label className={`relative flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-300 ${
-                    privacy === 'private' 
-                      ? 'border-blue-500/50 bg-blue-500/10' 
-                      : 'border-white/10 bg-white/5 hover:border-white/20'
-                  }`}>
-                    <input 
-                      type="radio" 
-                      name="privacy" 
-                      value="private" 
-                      checked={privacy === 'private'}
-                      onChange={(e) => setPrivacy(e.target.value)}
-                      className="sr-only" 
-                    />
-                    <IconLock className="h-6 w-6 text-blue-400 mr-3" />
-                    <div>
-                      <div className="text-white font-medium">Private Room</div>
-                      <div className="text-neutral-400 text-sm">Invite only access</div>
-                    </div>
-                    {privacy === 'private' && <IconCheck className="h-5 w-5 text-blue-400 ml-auto" />}
-                  </label>
+          {/* Options Container */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+            
+            {/* Solo Quiz Option */}
+            <div 
+              onClick={() => router.push('/solo-quiz')}
+              className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl cursor-pointer transition-all duration-500 hover:scale-[1.02] hover:border-green-500/50 hover:bg-green-500/5"
+            >
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-green-400 to-blue-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <IconDeviceGamepad2 className="h-10 w-10 text-white" />
                 </div>
-              </div>
-
-              {/* Description */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-neutral-300 mb-3">
-                  Room Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what you'll be studying and any guidelines for participants..."
-                  rows={4}
-                  className="w-full px-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500/50 transition-all duration-300 resize-none"
-                />
-              </div>
-
-              {/* Create Button */}
-              <div className="md:col-span-2 pt-4">
-                <button 
-                  onClick={handleCreateRoom}
-                  disabled={isCreating || !roomName.trim()}
-                  className="w-full bg-gradient-to-r from-green-500 via-blue-500 to-purple-600 hover:from-green-600 hover:via-blue-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-                >
-                  {isCreating ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Creating Room...
-                    </>
-                  ) : (
-                    <>
-                      <IconPlus className="h-5 w-5" />
-                      Create Study Room
-                    </>
-                  )}
+                
+                <h3 className="text-3xl font-bold text-white mb-4 group-hover:text-green-400 transition-colors duration-300">
+                  Solo Quiz
+                </h3>
+                
+                <p className="text-neutral-400 text-lg mb-8 leading-relaxed">
+                  Test your knowledge with personalized quizzes. Track your progress and improve at your own pace.
+                </p>
+                
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">
+                    Personal Progress
+                  </span>
+                  <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm">
+                    Instant Feedback
+                  </span>
+                  <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm">
+                    Adaptive Learning
+                  </span>
+                </div>
+                
+                <button className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl">
+                  Start Solo Quiz
                 </button>
               </div>
+            </div>
+
+            {/* Create Room Option */}
+            <div 
+              onClick={() => router.push('/room-setup')}
+              className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl cursor-pointer transition-all duration-500 hover:scale-[1.02] hover:border-purple-500/50 hover:bg-purple-500/5"
+            >
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <IconUsersGroup className="h-10 w-10 text-white" />
+                </div>
+                
+                <h3 className="text-3xl font-bold text-white mb-4 group-hover:text-purple-400 transition-colors duration-300">
+                  Create Room
+                </h3>
+                
+                <p className="text-neutral-400 text-lg mb-8 leading-relaxed">
+                  Set up a collaborative learning space. Invite friends and learn together in real-time.
+                </p>
+                
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm">
+                    Group Learning
+                  </span>
+                  <span className="px-3 py-1 bg-pink-500/20 text-pink-400 rounded-full text-sm">
+                    Real-time Collaboration
+                  </span>
+                  <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-sm">
+                    Share & Invite
+                  </span>
+                </div>
+                
+                <button className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl">
+                  Create Study Room
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Section */}
+          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-2xl">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-400">15K+</div>
+              <div className="text-neutral-400 text-sm">Solo Quizzes</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-400">8K+</div>
+              <div className="text-neutral-400 text-sm">Study Rooms</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-400">25K+</div>
+              <div className="text-neutral-400 text-sm">Active Users</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-pink-400">98%</div>
+              <div className="text-neutral-400 text-sm">Success Rate</div>
             </div>
           </div>
 
