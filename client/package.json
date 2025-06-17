@@ -27,6 +27,7 @@
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.8.1",
     "@types/katex": "^0.16.7",
+    "@vercel/analytics": "^1.5.0",
     "@xyflow/react": "^12.6.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -55,7 +56,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "simplex-noise": "^4.0.3",
-    "styled-components": "^6.1.19",    "tailwind-merge": "^3.3.1"
+    "styled-components": "^6.1.19",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

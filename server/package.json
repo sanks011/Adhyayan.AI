@@ -7,9 +7,11 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "build": "echo 'No build step required'"
-  },  "dependencies": {
+  },
+  "dependencies": {
     "@aptos-labs/ts-sdk": "^2.0.1",
     "@elevenlabs/elevenlabs-js": "^2.2.0",
+    "@vercel/analytics": "^1.5.0",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
