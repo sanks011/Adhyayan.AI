@@ -247,6 +247,7 @@ export const processAptosPaymentWithCivic = async (params: PaymentParams): Promi
       
       try {
         // Fallback: Use test account (sponsored payment)
+        
         const testPrivateKey = new Ed25519PrivateKey("0x37368b46ce665362562c6d1d4ec01a08c8644c488690df5a17e13ba163e20221");
         const testAccount = Account.fromPrivateKey({ privateKey: testPrivateKey });
         
@@ -510,18 +511,13 @@ async function autoFundNewUser(walletAddress: string, aptosClient: Aptos): Promi
     
     if (balance < minimumBalance) {
       console.log(`📢 Auto-funding wallet ${walletAddress} with starter APT...`);
-      
-      // Fund with devnet faucet (1 APT)
-      const fundingResponse = await fetch('https://faucet.devnet.aptoslabs.com/mint', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: walletAddress,
-          amount: 100000000, // 1 APT in octas
-        }),
-      });
+        // Fund with devnet faucet (1 APT) - Using correct query parameter format
+      const fundingResponse = await fetch(
+        `https://faucet.devnet.aptoslabs.com/mint?address=${walletAddress}&amount=100000000`,
+        {
+          method: 'POST',
+        }
+      );
       
       if (fundingResponse.ok) {
         const result = await fundingResponse.json();
