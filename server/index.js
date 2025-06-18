@@ -30,7 +30,7 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 // Production - restrict to your frontend domain
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'https://adhyayan-ai.vercel.app',
+   origin: process.env.FRONTEND_URL || 'https://adhyayan-ai.vercel.app',
   credentials: true,
   optionsSuccessStatus: 200
 };
