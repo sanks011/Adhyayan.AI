@@ -427,3 +427,10 @@ button:focus {
   color: #000 !important;
   fill: #000 !important;
 }
+
+.home-page-hero img.object-cover,
+.home-page-hero .object-cover {
+  pointer-events: none !important;
+}
+
+
