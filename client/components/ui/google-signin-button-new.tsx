@@ -73,7 +73,6 @@ const GoogleSignInButton = () => {
 
 const StyledWrapper = styled.div`
   position: relative;
-  pointer-events: none;
 
   .button-container {
     display: flex;
@@ -85,7 +84,6 @@ const StyledWrapper = styled.div`
     border-radius: 24px;
     width: calc(200px + 1px);
     height: calc(48px + 1px);
-    pointer-events: none;
     box-shadow:
       0 4px 8px rgba(0, 0, 0, 0.2),
       0 8px 16px rgba(0, 0, 0, 0.2),
