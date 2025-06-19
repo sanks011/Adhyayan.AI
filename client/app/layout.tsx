@@ -53,7 +53,8 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>      <body
+      </head>
+      <body
         className={`${outfitFont.variable} antialiased bg-neutral-950 text-white`}
       >
         <Providers>
