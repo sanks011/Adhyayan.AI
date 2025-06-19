@@ -8,23 +8,18 @@ import { GyanPointsDisplay } from "@/components/custom/GyanPointsDisplay";
 import {
   IconArrowLeft,
   IconClock,
-  IconTrophy,
   IconBrain,
   IconCheck,
   IconX,
   IconRefresh,
-  IconPray,
   IconBook,
   IconTarget,
-  IconFlame,
-  IconStar,
-  IconBolt,
-  IconAward,
   IconChevronRight,
-  IconTie,
-  IconMedal,
-  IconSparkles,
-  IconBulb
+  IconAward,
+  IconEdit,
+  IconPlus,
+  IconMinus,
+  IconHistory
 } from "@tabler/icons-react";
 
 interface Question {
@@ -41,11 +36,23 @@ interface QuizData {
   duration: string;
 }
 
-// Subject and topic options with enhanced icons
+interface QuizHistory {
+  _id?: string;
+  userId: string;
+  subject: string;
+  topic: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  difficulty: string;
+  duration: string;
+  completedAt: Date;
+  timeTaken: number;
+}
+
+// Subject options with categories
 const SUBJECTS = {
   "Science": {
-    icon: "🧪",
-    color: "from-blue-500 to-cyan-500",
     categories: {
       "Physics": ["Mechanics", "Thermodynamics", "Electricity", "Optics", "Modern Physics"],
       "Chemistry": ["Organic Chemistry", "Inorganic Chemistry", "Physical Chemistry", "Analytical Chemistry"],
@@ -54,8 +61,6 @@ const SUBJECTS = {
     }
   },
   "Technology": {
-    icon: "💻",
-    color: "from-purple-500 to-pink-500",
     categories: {
       "Programming": ["JavaScript", "Python", "Java", "C++", "React", "Node.js"],
       "Web Development": ["HTML/CSS", "Frontend", "Backend", "Full Stack", "UI/UX"],
@@ -64,8 +69,6 @@ const SUBJECTS = {
     }
   },
   "Humanities": {
-    icon: "📚",
-    color: "from-orange-500 to-red-500",
     categories: {
       "History": ["Ancient History", "Modern History", "World Wars", "Indian History"],
       "Literature": ["English Literature", "Poetry", "Drama", "Fiction", "Literary Analysis"],
@@ -74,8 +77,6 @@ const SUBJECTS = {
     }
   },
   "Business": {
-    icon: "💼",
-    color: "from-green-500 to-emerald-500",
     categories: {
       "Management": ["Strategic Management", "HR Management", "Operations", "Leadership"],
       "Marketing": ["Digital Marketing", "Brand Management", "Consumer Behavior", "Sales"],
@@ -85,11 +86,15 @@ const SUBJECTS = {
   }
 };
 
-const DIFFICULTY_CONFIG = {
-  easy: { color: "from-green-400 to-emerald-500", icon: "🌱", description: "Perfect for beginners" },
-  medium: { color: "from-yellow-400 to-orange-500", icon: "🔥", description: "Challenge yourself" },
-  hard: { color: "from-red-400 to-pink-500", icon: "⚡", description: "For the brave" }
-};
+const DIFFICULTY_LEVELS = ["Easy", "Medium", "Hard"];
+const DURATION_OPTIONS = [
+  { value: "10", label: "10 minutes" },
+  { value: "15", label: "15 minutes" },
+  { value: "20", label: "20 minutes" },
+  { value: "30", label: "30 minutes" }
+];
+
+const QUESTION_COUNTS = [5, 10, 15, 20, 25];
 
 function QuizGameContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -98,11 +103,16 @@ function QuizGameContent() {
   
   // Quiz selection state
   const [showSelection, setShowSelection] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+  const [useCustomSubject, setUseCustomSubject] = useState(false);
+  const [customSubject, setCustomSubject] = useState("");
+  const [customTopic, setCustomTopic] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTopic, setSelectedTopic] = useState<string>("");
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>("medium");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>("Medium");
   const [selectedDuration, setSelectedDuration] = useState<string>("15");
+  const [questionCount, setQuestionCount] = useState<number>(10);
   
   // Quiz game state
   const [quizData, setQuizData] = useState<QuizData | null>(null);
@@ -111,20 +121,19 @@ function QuizGameContent() {
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [startTime, setStartTime] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [gyanDeducted, setGyanDeducted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
-  const [answerStreak, setAnswerStreak] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
+  
+  // History state
+  const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Animation states
-  const [questionAnimation, setQuestionAnimation] = useState(false);
-  const [answerFeedback, setAnswerFeedback] = useState<'correct' | 'incorrect' | null>(null);
-
-  // Check if there are URL parameters for direct quiz start
+  // Check URL parameters for direct quiz start
   useEffect(() => {
     const subject = searchParams.get('subject');
     const difficulty = searchParams.get('difficulty');
@@ -141,7 +150,7 @@ function QuizGameContent() {
     }
   }, [searchParams, isAuthenticated, user]);
 
-  // Timer with warning states
+  // Timer
   useEffect(() => {
     if (timeLeft > 0 && !quizCompleted && !isLoading) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -155,9 +164,7 @@ function QuizGameContent() {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('Generating quiz with params:', { subject, difficulty, duration });
       
-      // Deduct Gyan Points first
       await deductGyanPoints();
       
       const response = await fetch('/api/generate-quiz', {
@@ -165,23 +172,20 @@ function QuizGameContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ subject, difficulty, duration }),
+        body: JSON.stringify({ 
+          subject, 
+          difficulty, 
+          duration,
+          questionCount 
+        }),
       });
-
-      console.log('Quiz API response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Quiz API error:', errorData);
         throw new Error(errorData.error || 'Failed to generate quiz');
       }
 
       const data = await response.json();
-      console.log('Quiz data received:', data);
-      
-      if (data.fallback) {
-        console.warn('Using fallback questions due to AI generation issues');
-      }
       
       if (!data.questions || data.questions.length === 0) {
         throw new Error('No questions received from API');
@@ -189,8 +193,8 @@ function QuizGameContent() {
       
       setQuizData(data);
       setTimeLeft(parseInt(duration) * 60);
+      setStartTime(Date.now());
       setShowSelection(false);
-      console.log(`Quiz loaded successfully with ${data.questions.length} questions`);
       
     } catch (error) {
       console.error('Error generating quiz:', error);
@@ -209,7 +213,6 @@ function QuizGameContent() {
     if (gyanDeducted || !user) return;
     
     try {
-      console.log('Attempting to deduct Gyan Points for user:', user.uid);
       const response = await fetch('/api/deduct-gyan', {
         method: 'POST',
         headers: {
@@ -220,10 +223,8 @@ function QuizGameContent() {
 
       if (response.ok) {
         setGyanDeducted(true);
-        console.log('5 Gyan Points deducted for quiz');
       } else {
         const errorData = await response.json();
-        console.error('Failed to deduct Gyan Points:', errorData.error);
         if (errorData.error === 'Insufficient Gyan Points') {
           alert('You need at least 5 Gyan Points to play a quiz!');
           router.back();
@@ -235,20 +236,78 @@ function QuizGameContent() {
     }
   };
 
-  const handleStartQuiz = () => {
-    if (!selectedSubject || !selectedCategory || !selectedTopic) {
-      // Enhanced alert with better feedback
-      const missingFields = [];
-      if (!selectedSubject) missingFields.push('subject');
-      if (!selectedCategory) missingFields.push('category');
-      if (!selectedTopic) missingFields.push('topic');
+  const saveQuizHistory = async () => {
+    if (!user || !quizData) return;
+
+    try {
+      const timeTaken = Math.round((Date.now() - startTime) / 1000);
+      const percentage = Math.round((score / quizData.questions.length) * 100);
       
-      alert(`Please select ${missingFields.join(', ')}!`);
-      return;
+      const historyData: Omit<QuizHistory, '_id'> = {
+        userId: user.uid,
+        subject: useCustomSubject ? customSubject : selectedSubject,
+        topic: useCustomSubject ? customTopic : `${selectedCategory} - ${selectedTopic}`,
+        score,
+        totalQuestions: quizData.questions.length,
+        percentage,
+        difficulty: selectedDifficulty,
+        duration: selectedDuration,
+        completedAt: new Date(),
+        timeTaken
+      };
+
+      const response = await fetch('/api/quiz-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(historyData),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save quiz history');
+      }
+    } catch (error) {
+      console.error('Error saving quiz history:', error);
+    }
+  };
+
+  const loadQuizHistory = async () => {
+    if (!user) return;
+
+    try {
+      setHistoryLoading(true);
+      const response = await fetch(`/api/quiz-history?userId=${user.uid}`);
+      
+      if (response.ok) {
+        const history = await response.json();
+        setQuizHistory(history);
+      }
+    } catch (error) {
+      console.error('Error loading quiz history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleStartQuiz = () => {
+    let subject = "";
+    
+    if (useCustomSubject) {
+      if (!customSubject.trim() || !customTopic.trim()) {
+        alert('Please enter both subject and topic!');
+        return;
+      }
+      subject = `${customSubject.trim()} - ${customTopic.trim()}`;
+    } else {
+      if (!selectedSubject || !selectedCategory || !selectedTopic) {
+        alert('Please select subject, category, and topic!');
+        return;
+      }
+      subject = `${selectedSubject} - ${selectedCategory} - ${selectedTopic}`;
     }
     
-    const fullSubject = `${selectedSubject} - ${selectedCategory} - ${selectedTopic}`;
-    startQuiz(fullSubject, selectedDifficulty, selectedDuration);
+    startQuiz(subject, selectedDifficulty, selectedDuration);
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
@@ -258,50 +317,33 @@ function QuizGameContent() {
     setIsAnswered(true);
     
     const isCorrect = answerIndex === quizData!.questions[currentQuestion].correctAnswer;
-    setAnswerFeedback(isCorrect ? 'correct' : 'incorrect');
     
     if (isCorrect) {
       setScore(score + 1);
-      setAnswerStreak(answerStreak + 1);
-      if (answerStreak >= 2) {
-        setStreak(streak + 1);
-        if (streak > 0 && streak % 3 === 0) {
-          setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 3000);
-        }
-      }
+      setStreak(streak + 1);
     } else {
-      setAnswerStreak(0);
+      setStreak(0);
     }
     
-    // Show explanation after a brief delay
     setTimeout(() => {
       setShowExplanation(true);
-    }, 1000);
+    }, 500);
   };
 
   const nextQuestion = () => {
-    setQuestionAnimation(true);
-    
-    setTimeout(() => {
-      if (currentQuestion < quizData!.questions.length - 1) {
-        setCurrentQuestion(currentQuestion + 1);
-        setSelectedAnswer(null);
-        setIsAnswered(false);
-        setShowExplanation(false);
-        setAnswerFeedback(null);
-        setQuestionAnimation(false);
-      } else {
-        completeQuiz();
-      }
-    }, 300);
+    if (currentQuestion < quizData!.questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setShowExplanation(false);
+    } else {
+      completeQuiz();
+    }
   };
 
-  const completeQuiz = () => {
+  const completeQuiz = async () => {
     setQuizCompleted(true);
-    if (score >= quizData!.questions.length * 0.8) {
-      setShowConfetti(true);
-    }
+    await saveQuizHistory();
   };
 
   const formatTime = (seconds: number) => {
@@ -321,9 +363,18 @@ function QuizGameContent() {
     setGyanDeducted(false);
     setError(null);
     setStreak(0);
-    setAnswerStreak(0);
-    setShowConfetti(false);
-    setAnswerFeedback(null);
+    setShowSelection(true);
+    setShowHistory(false);
+  };
+
+  const showHistoryView = () => {
+    setShowSelection(false);
+    setShowHistory(true);
+    loadQuizHistory();
+  };
+
+  const backToSelection = () => {
+    setShowHistory(false);
     setShowSelection(true);
   };
 
@@ -340,315 +391,442 @@ function QuizGameContent() {
     return null;
   }
 
-  // Enhanced Subject and Topic Selection Screen
-  if (showSelection) {
+  // Quiz History Screen
+  if (showHistory) {
     return (
       <div className="min-h-screen relative overflow-y-auto">
         <WavyBackground className="min-h-full relative">
-          {/* Floating particles effect */}
-          {showConfetti && (
-            <div className="fixed inset-0 pointer-events-none z-30">
-              {[...Array(50)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute animate-bounce"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    fontSize: `${Math.random() * 20 + 10}px`
-                  }}
-                >
-                  ✨⭐🎉
-                </div>
-              ))}
+          {/* Fixed Header */}
+          <div className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-sm border-b border-white/20">
+            <div className="flex items-center justify-between p-3 sm:p-4">
+              <button 
+                onClick={backToSelection}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all duration-200 text-sm sm:text-base"
+              >
+                <IconArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Back</span>
+              </button>
+              <GyanPointsDisplay />
             </div>
-          )}
-          
-          <div className="fixed top-4 right-4 z-50">
-            <GyanPointsDisplay />
-          </div>
-          
-          <div className="fixed top-4 left-4 z-50">
-            <button 
-              onClick={() => router.push('/dashboard')}
-              className="group flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all duration-300 backdrop-blur-sm hover:scale-105"
-            >
-              <IconArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-              Back to Dashboard
-            </button>
           </div>
 
-          {/* Scrollable Content Container with visible scrollbar */}
-          <div className="w-full px-4 md:px-8 pt-20 pb-8 min-h-screen overflow-y-auto">
+          {/* Main Content */}
+          <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 pt-16 sm:pt-20 pb-6 sm:pb-8 min-h-screen">
             <div className="max-w-6xl mx-auto">
-              <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-8 w-full shadow-2xl hover:shadow-3xl transition-all duration-500">
+              <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
                 
-                {/* Enhanced Header */}
-                <div className="text-center mb-8">
-                  <div className="relative">
-                    <IconBrain className="h-20 w-20 text-blue-400 mx-auto mb-4 animate-pulse" />
-                    <div className="absolute -inset-4 bg-blue-400/20 rounded-full blur-xl"></div>
-                  </div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                    Start Your Quiz Journey
+                {/* Header */}
+                <div className="text-center mb-6 sm:mb-8">
+                  <IconHistory className="h-12 w-12 sm:h-16 sm:w-16 text-white mx-auto mb-4" />
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">
+                    Quiz History
                   </h1>
-                  <p className="text-neutral-400 text-lg">Choose your adventure and test your knowledge</p>
+                  <p className="text-neutral-400 text-sm sm:text-base">Your past quiz performances</p>
                 </div>
 
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 animate-shake">
-                    <div className="flex items-center gap-2">
-                      <IconX className="h-5 w-5 text-red-400" />
-                      <p className="text-red-400">{error}</p>
-                    </div>
+                {/* History Content */}
+                {historyLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+                    <p className="text-neutral-400">Loading history...</p>
                   </div>
-                )}
-
-                <div className="space-y-8">
-                  
-                  {/* Enhanced Subject Selection */}
-                  <div className="space-y-4">
-                    <label className="block text-white font-semibold text-lg mb-4">
-                      <IconBook className="h-5 w-5 inline mr-2" />
-                      Choose Your Subject
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {Object.entries(SUBJECTS).map(([subject, config]) => (
-                        <button
-                          key={subject}
-                          onClick={() => {
-                            setSelectedSubject(subject);
-                            setSelectedCategory("");
-                            setSelectedTopic("");
-                          }}
-                          className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                            selectedSubject === subject
-                              ? `border-blue-500 bg-gradient-to-br ${config.color} text-white shadow-lg shadow-blue-500/25`
-                              : 'border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className="text-4xl mb-3">{config.icon}</div>
-                          <div className="font-semibold text-lg">{subject}</div>
-                          <div className="text-sm opacity-75 mt-1">
-                            {Object.keys(config.categories).length} categories
-                          </div>
-                          {selectedSubject === subject && (
-                            <div className="absolute -top-2 -right-2">
-                              <IconCheck className="h-6 w-6 text-green-400 bg-black rounded-full p-1" />
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Enhanced Category Selection */}
-                  {selectedSubject && (
-                    <div className="space-y-4 animate-fadeIn">
-                      <label className="block text-white font-semibold text-lg mb-4">
-                        <IconTarget className="h-5 w-5 inline mr-2" />
-                        Select Category
-                      </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {Object.keys(SUBJECTS[selectedSubject as keyof typeof SUBJECTS].categories).map((category) => (
-                          <button
-                            key={category}
-                            onClick={() => {
-                              setSelectedCategory(category);
-                              setSelectedTopic("");
-                            }}
-                            className={`group relative p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                              selectedCategory === category
-                                ? 'border-green-500 bg-green-500/20 text-green-400 shadow-lg shadow-green-500/25'
-                                : 'border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10'
-                            }`}
-                          >
-                            <div className="font-medium">{category}</div>
-                            <IconChevronRight className={`h-4 w-4 mt-2 transition-transform ${selectedCategory === category ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
-                            {selectedCategory === category && (
-                              <div className="absolute -top-1 -right-1">
-                                <div className="h-3 w-3 bg-green-400 rounded-full animate-ping"></div>
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Enhanced Topic Selection */}
-                  {selectedSubject && selectedCategory && (
-                    <div className="space-y-4 animate-fadeIn">
-                      <label className="block text-white font-semibold text-lg mb-4">
-                        <IconBulb className="h-5 w-5 inline mr-2" />
-                        Choose Your Topic
-                      </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {selectedSubject && selectedCategory &&
-                          (
-                            (SUBJECTS[selectedSubject as keyof typeof SUBJECTS].categories as Record<string, string[]>)[selectedCategory]
-                          )?.map((topic: string) => (
-                          <button
-                            key={topic}
-                            onClick={() => setSelectedTopic(topic)}
-                            className={`group relative p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                              selectedTopic === topic
-                                ? 'border-purple-500 bg-purple-500/20 text-purple-400 shadow-lg shadow-purple-500/25'
-                                : 'border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10'
-                            }`}
-                          >
-                            <div className="font-medium">{topic}</div>
-                            {selectedTopic === topic && (
-                              <IconSparkles className="h-4 w-4 absolute top-2 right-2 text-purple-400 animate-spin" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Enhanced Quiz Settings */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Enhanced Difficulty */}
-                    <div className="space-y-3">
-                      <label className="block text-white font-semibold text-lg mb-4">
-                        <IconFlame className="h-5 w-5 inline mr-2" />
-                        Difficulty Level
-                      </label>
-                      <div className="space-y-3">
-                        {Object.entries(DIFFICULTY_CONFIG).map(([level, config]) => (
-                          <button
-                            key={level}
-                            onClick={() => setSelectedDifficulty(level)}
-                            className={`w-full p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                              selectedDifficulty === level
-                                ? `border-transparent bg-gradient-to-r ${config.color} text-white shadow-lg`
-                                : 'border-white/10 bg-white/5 text-white hover:border-white/20'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl">{config.icon}</span>
-                                <div className="text-left">
-                                  <div className="font-semibold capitalize">{level}</div>
-                                  <div className="text-sm opacity-75">{config.description}</div>
-                                </div>
-                              </div>
-                              {selectedDifficulty === level && (
-                                <IconCheck className="h-5 w-5" />
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Enhanced Duration */}
-                    <div className="space-y-3">
-                      <label className="block text-white font-semibold text-lg mb-4">
-                        <IconClock className="h-5 w-5 inline mr-2" />
-                        Quiz Duration
-                      </label>
-                      <div className="space-y-3">
-                        {[
-                          { value: "10", label: "Quick Sprint", desc: "10 minutes", icon: "⚡" },
-                          { value: "15", label: "Standard", desc: "15 minutes", icon: "🎯" },
-                          { value: "20", label: "Challenge", desc: "20 minutes", icon: "🔥" },
-                          { value: "30", label: "Marathon", desc: "30 minutes", icon: "🏆" }
-                        ].map((duration) => (
-                          <button
-                            key={duration.value}
-                            onClick={() => setSelectedDuration(duration.value)}
-                            className={`w-full p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                              selectedDuration === duration.value
-                                ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/25'
-                                : 'border-white/10 bg-white/5 text-white hover:border-white/20'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xl">{duration.icon}</span>
-                                <div className="text-left">
-                                  <div className="font-semibold">{duration.label}</div>
-                                  <div className="text-sm opacity-75">{duration.desc}</div>
-                                </div>
-                              </div>
-                              {selectedDuration === duration.value && (
-                                <IconCheck className="h-5 w-5" />
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Enhanced Start Quiz Button */}
-                  <div className="text-center pt-6">
+                ) : quizHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <IconBook className="h-16 w-16 text-neutral-600 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">No Quiz History</h3>
+                    <p className="text-neutral-400 mb-6">You haven't completed any quizzes yet.</p>
                     <button
-                      onClick={handleStartQuiz}
-                      disabled={!selectedSubject || !selectedCategory || !selectedTopic || isLoading}
-                      className={`group relative w-full md:w-auto px-12 py-6 rounded-2xl font-bold text-lg transition-all duration-300 transform ${
-                        selectedSubject && selectedCategory && selectedTopic && !isLoading
-                          ? 'bg-gradient-to-r from-green-500 via-blue-500 to-purple-500 hover:from-green-600 hover:via-blue-600 hover:to-purple-600 text-white hover:scale-105 shadow-lg hover:shadow-2xl'
-                          : 'bg-gray-500/50 text-gray-400 cursor-not-allowed'
-                      }`}
+                      onClick={backToSelection}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
                     >
-                      <div className="flex items-center justify-center gap-3">
-                        {isLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                            <span>Generating Quiz...</span>
-                          </>
-                        ) : (
-                          <>
-                            <IconBolt className="h-6 w-6 group-hover:animate-bounce" />
-                            <span>Start Quiz Journey</span>
-                            <div className="bg-yellow-400 text-black px-2 py-1 rounded-full text-sm font-bold">
-                              5 Gyan
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      
-                      {/* Animated background effect */}
-                      {selectedSubject && selectedCategory && selectedTopic && !isLoading && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-green-400/20 via-blue-400/20 to-purple-400/20 rounded-2xl animate-pulse -z-10"></div>
-                      )}
+                      Take Your First Quiz
                     </button>
                   </div>
+                ) : (
+                  <div className="space-y-4">
+                    {quizHistory.map((quiz, index) => (
+                      <div
+                        key={quiz._id || index}
+                        className="bg-white/5 border border-white/10 rounded-lg p-4 sm:p-6 hover:bg-white/10 transition-all duration-200"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="flex-1">
+                            <h3 className="text-white font-semibold text-lg mb-1">
+                              {quiz.subject}
+                            </h3>
+                            <p className="text-neutral-300 text-sm mb-2">
+                              {quiz.topic}
+                            </p>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                                {quiz.difficulty}
+                              </span>
+                              <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                                {quiz.duration} min
+                              </span>
+                              <span className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
+                                {quiz.totalQuestions} questions
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col sm:items-end gap-2">
+                            <div className="flex items-center gap-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-white">
+                                  {quiz.percentage}%
+                                </div>
+                                <div className="text-xs text-neutral-400">
+                                  {quiz.score}/{quiz.totalQuestions}
+                                </div>
+                              </div>
+                              <div className={`w-16 h-16 rounded-full border-4 flex items-center justify-center ${
+                                quiz.percentage >= 80 ? 'border-green-500 bg-green-500/10' :
+                                quiz.percentage >= 60 ? 'border-yellow-500 bg-yellow-500/10' :
+                                'border-red-500 bg-red-500/10'
+                              }`}>
+                                <span className="text-lg font-bold text-white">
+                                  {quiz.percentage >= 80 ? 'A' : quiz.percentage >= 60 ? 'B' : 'C'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="text-xs text-neutral-400 text-right">
+                              {new Date(quiz.completedAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </WavyBackground>
+      </div>
+    );
+  }
 
-                  {/* Enhanced Preview */}
-                  {selectedSubject && selectedCategory && selectedTopic && (
-                    <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-500/20 rounded-2xl p-6 text-center animate-fadeIn">
-                      <div className="flex items-center justify-center gap-2 mb-4">
-                        <IconStar className="h-5 w-5 text-yellow-400 animate-pulse" />
-                        <h4 className="text-blue-400 font-bold text-lg">Quiz Preview</h4>
-                        <IconStar className="h-5 w-5 text-yellow-400 animate-pulse" />
-                      </div>
-                      <div className="text-white text-lg font-semibold mb-2">
-                        {selectedSubject} → {selectedCategory} → {selectedTopic}
-                      </div>
-                      <div className="flex items-center justify-center gap-4 text-sm text-neutral-300">
-                        <span className="flex items-center gap-1">
-                          <span className="text-2xl">{DIFFICULTY_CONFIG[selectedDifficulty as keyof typeof DIFFICULTY_CONFIG].icon}</span>
-                          <span className="capitalize">{selectedDifficulty}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <IconClock className="h-4 w-4" />
-                          {selectedDuration} minutes
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <IconBrain className="h-4 w-4" />
-                          10 questions
-                        </span>
+  // Subject Selection Screen
+  if (showSelection) {
+    return (
+      <div className="min-h-screen relative">
+        <WavyBackground className="min-h-full relative">
+          {/* Fixed Header */}
+          <div className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-sm border-b border-white/20">
+            <div className="flex items-center justify-between p-3 sm:p-4">
+              <button 
+                onClick={() => router.push('/dashboard')}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all duration-200 text-sm sm:text-base"
+              >
+                <IconArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Back</span>
+              </button>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={showHistoryView}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all duration-200 text-sm sm:text-base"
+                >
+                  <IconHistory className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">History</span>
+                </button>
+                <GyanPointsDisplay />
+              </div>
+            </div>
+          </div>
+
+          {/* Scrollable Main Content */}
+          <div className="fixed inset-0 pt-16 sm:pt-20 pb-4">
+            <div className="h-full overflow-y-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
+              <div className="max-w-7xl mx-auto">
+                <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
+                  
+                  {/* Header */}
+                  <div className="text-center mb-6 sm:mb-8">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">
+                      Quiz Setup
+                    </h1>
+                    <p className="text-neutral-400 text-sm sm:text-base">Configure your quiz preferences</p>
+                  </div>
+
+                  {error && (
+                    <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                      <div className="flex items-center gap-2">
+                        <IconX className="h-4 w-4 sm:h-5 sm:w-5 text-red-400 flex-shrink-0" />
+                        <p className="text-red-400 text-sm sm:text-base">{error}</p>
                       </div>
                     </div>
                   )}
+
+                  <div className="space-y-6 sm:space-y-8">
+                    
+                    {/* Subject Type Toggle */}
+                    <div>
+                      <label className="block text-white font-semibold text-base sm:text-lg mb-3 sm:mb-4">
+                        Subject Selection Method
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <button
+                          onClick={() => setUseCustomSubject(false)}
+                          className={`p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                            !useCustomSubject
+                              ? 'border-blue-500 bg-blue-500/10 text-white'
+                              : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                          }`}
+                        >
+                          <div className="font-medium text-sm sm:text-base">Choose from Categories</div>
+                          <div className="text-xs sm:text-sm opacity-75 mt-1">Select from predefined subjects</div>
+                        </button>
+                        <button
+                          onClick={() => setUseCustomSubject(true)}
+                          className={`p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                            useCustomSubject
+                              ? 'border-blue-500 bg-blue-500/10 text-white'
+                              : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                          }`}
+                        >
+                          <div className="font-medium text-sm sm:text-base">Custom Subject</div>
+                          <div className="text-xs sm:text-sm opacity-75 mt-1">Enter your own subject</div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Custom Subject Input */}
+                    {useCustomSubject ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                            Subject Name
+                          </label>
+                          <input
+                            type="text"
+                            value={customSubject}
+                            onChange={(e) => setCustomSubject(e.target.value)}
+                            placeholder="e.g., Biology, History, Programming..."
+                            className="w-full p-3 sm:p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder-neutral-400 focus:border-blue-500 focus:outline-none transition-all duration-200 text-sm sm:text-base"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                            Topic
+                          </label>
+                          <input
+                            type="text"
+                            value={customTopic}
+                            onChange={(e) => setCustomTopic(e.target.value)}
+                            placeholder="e.g., Cell Biology, World War II, React Hooks..."
+                            className="w-full p-3 sm:p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder-neutral-400 focus:border-blue-500 focus:outline-none transition-all duration-200 text-sm sm:text-base"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Predefined Subject Selection */}
+                        <div>
+                          <label className="block text-white font-semibold text-base sm:text-lg mb-3 sm:mb-4">
+                            Subject
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+                            {Object.keys(SUBJECTS).map((subject) => (
+                              <button
+                                key={subject}
+                                onClick={() => {
+                                  setSelectedSubject(subject);
+                                  setSelectedCategory("");
+                                  setSelectedTopic("");
+                                }}
+                                className={`p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                                  selectedSubject === subject
+                                    ? 'border-blue-500 bg-blue-500/10 text-white'
+                                    : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                                }`}
+                              >
+                                <div className="font-medium text-xs sm:text-sm lg:text-base">{subject}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Category Selection */}
+                        {selectedSubject && (
+                          <div>
+                            <label className="block text-white font-semibold text-base sm:text-lg mb-3 sm:mb-4">
+                              Category
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
+                              {Object.keys(SUBJECTS[selectedSubject as keyof typeof SUBJECTS].categories).map((category) => (
+                                <button
+                                  key={category}
+                                  onClick={() => {
+                                    setSelectedCategory(category);
+                                    setSelectedTopic("");
+                                  }}
+                                  className={`p-3 sm:p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                                    selectedCategory === category
+                                      ? 'border-green-500 bg-green-500/10 text-white'
+                                      : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                                  }`}
+                                >
+                                  <div className="font-medium text-xs sm:text-sm lg:text-base">{category}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Topic Selection */}
+                        {selectedSubject && selectedCategory && (
+                          <div>
+                            <label className="block text-white font-semibold text-base sm:text-lg mb-3 sm:mb-4">
+                              Topic
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                              {selectedSubject && selectedCategory &&
+                                (
+                                  (SUBJECTS[selectedSubject as keyof typeof SUBJECTS].categories as Record<string, string[]>)[selectedCategory]
+                                )?.map((topic: string) => (
+                                <button
+                                  key={topic}
+                                  onClick={() => setSelectedTopic(topic)}
+                                  className={`p-2 sm:p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                                    selectedTopic === topic
+                                      ? 'border-purple-500 bg-purple-500/10 text-white'
+                                      : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                                  }`}
+                                >
+                                  <div className="font-medium text-xs sm:text-sm">{topic}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Quiz Settings Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                      
+                      {/* Question Count */}
+                      <div>
+                        <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                          Questions
+                        </label>
+                        <div className="space-y-2">
+                          {QUESTION_COUNTS.map((count) => (
+                            <button
+                              key={count}
+                              onClick={() => setQuestionCount(count)}
+                              className={`w-full p-2 sm:p-3 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm ${
+                                questionCount === count
+                                  ? 'border-orange-500 bg-orange-500/10 text-white'
+                                  : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                              }`}
+                            >
+                              {count} questions
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Difficulty */}
+                      <div>
+                        <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                          Difficulty
+                        </label>
+                        <div className="space-y-2">
+                          {DIFFICULTY_LEVELS.map((level) => (
+                            <button
+                              key={level}
+                              onClick={() => setSelectedDifficulty(level)}
+                              className={`w-full p-2 sm:p-3 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm ${
+                                selectedDifficulty === level
+                                  ? 'border-yellow-500 bg-yellow-500/10 text-white'
+                                  : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                              }`}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Duration */}
+                      <div>
+                        <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                          Duration
+                        </label>
+                        <div className="space-y-2">
+                          {DURATION_OPTIONS.map((duration) => (
+                            <button
+                              key={duration.value}
+                              onClick={() => setSelectedDuration(duration.value)}
+                              className={`w-full p-2 sm:p-3 rounded-lg border-2 transition-all duration-200 text-xs sm:text-sm ${
+                                selectedDuration === duration.value
+                                  ? 'border-blue-500 bg-blue-500/10 text-white'
+                                  : 'border-white/20 bg-white/5 text-neutral-300 hover:border-white/40'
+                              }`}
+                            >
+                              {duration.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Cost Display */}
+                      <div>
+                        <label className="block text-white font-semibold text-base sm:text-lg mb-2 sm:mb-3">
+                          Cost
+                        </label>
+                        <div className="bg-neutral-800/50 border border-white/20 rounded-lg p-3 sm:p-4 text-center">
+                          <div className="text-xl sm:text-2xl font-bold text-white mb-1">5</div>
+                          <div className="text-xs sm:text-sm text-neutral-400">Gyan Points</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Start Quiz Button */}
+                    <div className="text-center pt-4 sm:pt-6">
+                      <button
+                        onClick={handleStartQuiz}
+                        disabled={
+                          (!useCustomSubject && (!selectedSubject || !selectedCategory || !selectedTopic)) ||
+                          (useCustomSubject && (!customSubject.trim() || !customTopic.trim())) ||
+                          isLoading
+                        }
+                        className={`w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-semibold text-sm sm:text-lg transition-all duration-200 ${
+                          ((!useCustomSubject && selectedSubject && selectedCategory && selectedTopic) ||
+                           (useCustomSubject && customSubject.trim() && customTopic.trim())) && !isLoading
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                            : 'bg-neutral-600 text-neutral-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {isLoading ? 'Generating Quiz...' : 'Start Quiz'}
+                      </button>
+                    </div>
+
+                    {/* Preview */}
+                    {((useCustomSubject && customSubject.trim() && customTopic.trim()) ||
+                      (!useCustomSubject && selectedSubject && selectedCategory && selectedTopic)) && (
+                      <div className="bg-neutral-800/30 border border-white/20 rounded-lg p-3 sm:p-4 text-center">
+                        <h4 className="text-white font-semibold mb-2 text-sm sm:text-base">Quiz Preview</h4>
+                        <div className="text-neutral-300 mb-2 text-xs sm:text-sm">
+                          {useCustomSubject 
+                            ? `${customSubject} - ${customTopic}`
+                            : `${selectedSubject} → ${selectedCategory} → ${selectedTopic}`
+                          }
+                        </div>
+                        <div className="text-xs sm:text-sm text-neutral-400 flex flex-wrap justify-center gap-2 sm:gap-4">
+                          <span>{questionCount} questions</span>
+                          <span>•</span>
+                          <span>{selectedDifficulty}</span>
+                          <span>•</span>
+                          <span>{selectedDuration} minutes</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -658,88 +836,89 @@ function QuizGameContent() {
     );
   }
 
-  // Enhanced Error State
-  if (error && !showSelection) {
-    return (
-      <div className="min-h-screen relative">
-        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
-          <div className="fixed top-4 right-4 z-50">
-            <GyanPointsDisplay />
-          </div>
-          
-          <main className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-2xl w-full">
-            <div className="bg-black/40 backdrop-blur-xl border border-red-500/20 rounded-2xl p-8 w-full shadow-2xl text-center animate-shake">
-              <div className="text-red-400 text-8xl mb-6 animate-bounce">💥</div>
-              <h2 className="text-3xl font-bold text-white mb-4">Oops! Something went wrong</h2>
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-                <p className="text-red-400">{error}</p>
-              </div>
-              <div className="space-y-4">
-                <button 
-                  onClick={restartQuiz}
-                  className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <IconRefresh className="h-4 w-4 inline mr-2" />
-                  Try Again
-                </button>
-                <button 
-                  onClick={() => setShowSelection(true)}
-                  className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 border border-white/10"
-                >
-                  Choose Different Topic
-                </button>
-              </div>
-            </div>
-          </main>
-        </WavyBackground>
-      </div>
-    );
-  }
-
-  // Enhanced Loading State
+  // Rest of the component remains the same...
+  // (Loading, Error, Quiz Game, Completion screens)
+  
+  // Loading State
   if (isLoading) {
     return (
       <div className="min-h-screen relative">
-        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
-          <div className="fixed top-4 right-4 z-50">
+        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-8 relative">
+          <div className="fixed top-3 sm:top-4 right-3 sm:right-4 z-50">
             <GyanPointsDisplay />
           </div>
           
-          <main className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-2xl w-full">
-            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 w-full shadow-2xl text-center">
-              <BlackHoleLoader />
-              <h2 className="text-3xl font-bold text-white mt-8 mb-6">Crafting Your Quiz ✨</h2>
-              
-              <div className="space-y-3 mb-6">
-                <div className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-neutral-300">Subject:</span>
-                  <span className="text-white font-semibold">{selectedSubject}</span>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-neutral-300">Category:</span>
-                  <span className="text-white font-semibold">{selectedCategory}</span>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-neutral-300">Topic:</span>
-                  <span className="text-white font-semibold">{selectedTopic}</span>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-neutral-300">Difficulty:</span>
-                  <span className="text-white font-semibold capitalize">{selectedDifficulty}</span>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-neutral-300">Duration:</span>
-                  <span className="text-white font-semibold">{selectedDuration} minutes</span>
-                </div>
+          <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-8 max-w-2xl w-full text-center mx-3">
+            <BlackHoleLoader />
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mt-6 sm:mt-8 mb-4 sm:mb-6">Generating Your Quiz</h2>
+            
+            <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-left">
+              <div className="bg-white/10 rounded-lg p-2 sm:p-3 flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
+                <span className="text-neutral-300 text-sm sm:text-base">Subject:</span>
+                <span className="text-white font-medium text-sm sm:text-base break-words">
+                  {useCustomSubject ? customSubject : selectedSubject}
+                </span>
               </div>
-              
-              <div className="space-y-2">
-                <div className="animate-pulse text-green-400 text-lg">🧠 Analyzing your preferences...</div>
-                <div className="animate-pulse text-blue-400 text-lg">📚 Generating questions...</div>
-                <div className="animate-pulse text-purple-400 text-lg">⚡ Preparing your challenge...</div>
+              <div className="bg-white/10 rounded-lg p-2 sm:p-3 flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
+                <span className="text-neutral-300 text-sm sm:text-base">Topic:</span>
+                <span className="text-white font-medium text-sm sm:text-base break-words">
+                  {useCustomSubject ? customTopic : selectedTopic}
+                </span>
+              </div>
+              <div className="bg-white/10 rounded-lg p-2 sm:p-3 flex justify-between">
+                <span className="text-neutral-300 text-sm sm:text-base">Questions:</span>
+                <span className="text-white font-medium text-sm sm:text-base">{questionCount}</span>
+              </div>
+              <div className="bg-white/10 rounded-lg p-2 sm:p-3 flex justify-between">
+                <span className="text-neutral-300 text-sm sm:text-base">Difficulty:</span>
+                <span className="text-white font-medium text-sm sm:text-base">{selectedDifficulty}</span>
+              </div>
+              <div className="bg-white/10 rounded-lg p-2 sm:p-3 flex justify-between">
+                <span className="text-neutral-300 text-sm sm:text-base">Duration:</span>
+                <span className="text-white font-medium text-sm sm:text-base">{selectedDuration} minutes</span>
               </div>
             </div>
-          </main>
+            
+            <div className="text-neutral-400 text-sm sm:text-base">
+              Please wait while we prepare your personalized quiz...
+            </div>
+          </div>
+        </WavyBackground>
+      </div>
+    );
+  }
+
+  // Error State
+  if (error && !showSelection) {
+    return (
+      <div className="min-h-screen relative">
+        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-8 relative">
+          <div className="fixed top-3 sm:top-4 right-3 sm:right-4 z-50">
+            <GyanPointsDisplay />
+          </div>
+          
+          <div className="bg-black/50 backdrop-blur-sm border border-red-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-8 max-w-2xl w-full text-center mx-3">
+            <IconX className="h-12 w-12 sm:h-16 sm:w-16 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">Quiz Generation Failed</h2>
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+              <p className="text-red-400 text-sm sm:text-base break-words">{error}</p>
+            </div>
+            <div className="space-y-3 sm:space-y-4">
+              <button 
+                onClick={restartQuiz}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 sm:py-3 px-4 sm:px-6 rounded-lg transition-all duration-200 text-sm sm:text-base"
+              >
+                <IconRefresh className="h-3 w-3 sm:h-4 sm:w-4 inline mr-2" />
+                Try Again
+              </button>
+              <button 
+                onClick={() => setShowSelection(true)}
+                className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-2 sm:py-3 px-4 sm:px-6 rounded-lg transition-all duration-200 border border-white/20 text-sm sm:text-base"
+              >
+                Choose Different Topic
+              </button>
+            </div>
+          </div>
         </WavyBackground>
       </div>
     );
@@ -747,12 +926,12 @@ function QuizGameContent() {
 
   if (!quizData) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-white text-center">
-          <h2 className="text-2xl mb-4">No quiz data available</h2>
+          <h2 className="text-xl sm:text-2xl mb-4">No quiz data available</h2>
           <button 
             onClick={() => setShowSelection(true)}
-            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg"
+            className="px-4 sm:px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm sm:text-base"
           >
             Start New Quiz
           </button>
@@ -761,158 +940,77 @@ function QuizGameContent() {
     );
   }
 
-  // Enhanced Quiz Completion Screen
+  // Quiz Completion Screen
   if (quizCompleted) {
     const percentage = Math.round((score / quizData.questions.length) * 100);
-    const isExcellent = percentage >= 80;
-    const isGood = percentage >= 60;
     
     return (
       <div className="min-h-screen relative">
-        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-8 relative">
-          {/* Confetti Effect */}
-          {showConfetti && (
-            <div className="fixed inset-0 pointer-events-none z-30">
-              {[...Array(100)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute animate-bounce text-2xl"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                    animationDelay: `${Math.random() * 2}s`,
-                    animationDuration: `${Math.random() * 3 + 2}s`
-                  }}
-                >
-                  {['🎉', '✨', '🎊', '⭐', '🏆', '🎯'][Math.floor(Math.random() * 6)]}
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <div className="fixed top-4 right-4 z-50">
+        <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-4 md:p-8 relative">
+          <div className="fixed top-3 sm:top-4 right-3 sm:right-4 z-50">
             <GyanPointsDisplay />
           </div>
           
-          <main className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-3xl w-full">
-            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 w-full shadow-2xl text-center">
-              
-              {/* Trophy Animation */}
-              <div className="relative mb-8">
-                <IconTrophy className={`h-24 w-24 mx-auto mb-4 ${
-                  isExcellent ? 'text-yellow-400 animate-bounce' : 
-                  isGood ? 'text-silver-400 animate-pulse' : 
-                  'text-bronze-400'
-                }`} />
-                {isExcellent && (
-                  <div className="absolute -inset-8 bg-yellow-400/20 rounded-full blur-xl animate-pulse"></div>
-                )}
-              </div>
-              
-              <h1 className="text-5xl font-bold text-white mb-6">
-                {isExcellent ? '🎉 Outstanding!' : 
-                 isGood ? '👏 Well Done!' : 
-                 '💪 Keep Trying!'}
+          <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 max-w-4xl w-full text-center mx-3">
+            
+            <div className="mb-6 sm:mb-8">
+              <IconAward className="h-12 w-12 sm:h-16 sm:w-16 text-white mx-auto mb-4" />
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
+                Quiz Completed
               </h1>
               
-              {/* Score Display */}
-              <div className="relative mb-8">
-                <div className={`text-8xl font-bold mb-4 bg-gradient-to-r ${
-                  isExcellent ? 'from-yellow-400 to-orange-500' :
-                  isGood ? 'from-green-400 to-blue-500' :
-                  'from-red-400 to-pink-500'
-                } bg-clip-text text-transparent`}>
-                  {percentage}%
-                </div>
-                
-                {/* Circular Progress */}
-                <div className="relative w-32 h-32 mx-auto">
-                  <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="transparent"
-                      className="text-white/10"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      fill="transparent"
-                      strokeDasharray={`${2 * Math.PI * 40}`}
-                      strokeDashoffset={`${2 * Math.PI * 40 * (1 - percentage / 100)}`}
-                      className={`${
-                        isExcellent ? 'text-yellow-400' :
-                        isGood ? 'text-green-400' :
-                        'text-red-400'
-                      } transition-all duration-1000 ease-out`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
+              <div className="text-4xl sm:text-6xl md:text-8xl font-bold text-white mb-4">
+                {percentage}%
               </div>
               
-              {/* Quiz Info */}
-              <div className="mb-8 space-y-2">
-                <p className="text-xl text-neutral-300">{selectedSubject} • {selectedCategory} • {selectedTopic}</p>
-                <p className="text-neutral-400 capitalize">{selectedDifficulty} • {selectedDuration} minutes</p>
-                {streak > 0 && (
-                  <div className="flex items-center justify-center gap-2 mt-4">
-                    <IconFlame className="h-5 w-5 text-orange-400" />
-                    <span className="text-orange-400 font-bold">Streak: {streak}</span>
-                  </div>
-                )}
-              </div>
-              
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
-                  <IconCheck className="h-8 w-8 text-green-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-green-400">{score}</div>
-                  <div className="text-neutral-400 text-sm">Correct</div>
-                </div>
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                  <IconX className="h-8 w-8 text-red-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-red-400">{quizData.questions.length - score}</div>
-                  <div className="text-neutral-400 text-sm">Incorrect</div>
-                </div>
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                  <IconTie className="h-8 w-8 text-blue-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-blue-400">{selectedDuration}</div>
-                  <div className="text-neutral-400 text-sm">Minutes</div>
-                </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
-                  <IconMedal className="h-8 w-8 text-purple-400 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-purple-400">
-                    {isExcellent ? 'A+' : isGood ? 'B+' : 'C'}
-                  </div>
-                  <div className="text-neutral-400 text-sm">Grade</div>
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="space-y-4">
-                <button
-                  onClick={restartQuiz}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3"
-                >
-                  <IconBolt className="h-5 w-5" />
-                  Take Another Quiz
-                </button>
-                <button
-                  onClick={() => router.push('/dashboard')}
-                  className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-300 border border-white/10 hover:border-white/20"
-                >
-                  Back to Dashboard
-                </button>
+              <div className="w-full bg-white/20 rounded-full h-2 sm:h-3 mb-4 sm:mb-6">
+                <div 
+                  className="bg-blue-500 h-2 sm:h-3 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${percentage}%` }}
+                />
               </div>
             </div>
-          </main>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-8">
+              <div className="bg-white/10 rounded-lg p-3 sm:p-4">
+                <IconCheck className="h-4 w-4 sm:h-6 sm:w-6 text-green-400 mx-auto mb-2" />
+                <div className="text-lg sm:text-xl font-bold text-white">{score}</div>
+                <div className="text-neutral-400 text-xs sm:text-sm">Correct</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3 sm:p-4">
+                <IconX className="h-4 w-4 sm:h-6 sm:w-6 text-red-400 mx-auto mb-2" />
+                <div className="text-lg sm:text-xl font-bold text-white">{quizData.questions.length - score}</div>
+                <div className="text-neutral-400 text-xs sm:text-sm">Incorrect</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3 sm:p-4">
+                <IconClock className="h-4 w-4 sm:h-6 sm:w-6 text-blue-400 mx-auto mb-2" />
+                <div className="text-lg sm:text-xl font-bold text-white">{selectedDuration}</div>
+                <div className="text-neutral-400 text-xs sm:text-sm">Minutes</div>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3 sm:p-4">
+                <IconTarget className="h-4 w-4 sm:h-6 sm:w-6 text-purple-400 mx-auto mb-2" />
+                <div className="text-lg sm:text-xl font-bold text-white">
+                  {percentage >= 80 ? 'A' : percentage >= 60 ? 'B' : 'C'}
+                </div>
+                <div className="text-neutral-400 text-xs sm:text-sm">Grade</div>
+              </div>
+            </div>
+            
+            <div className="space-y-3 sm:space-y-4">
+              <button
+                onClick={restartQuiz}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-lg transition-all duration-200 text-sm sm:text-base"
+              >
+                Take Another Quiz
+              </button>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-lg transition-all duration-200 border border-white/20 text-sm sm:text-base"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
         </WavyBackground>
       </div>
     );
@@ -923,108 +1021,96 @@ function QuizGameContent() {
 
   return (
     <div className="min-h-screen relative">
-      <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 relative">
-        {/* Enhanced Header */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-black/20 backdrop-blur-xl border-b border-white/10 p-4">
-          <div className="flex items-center justify-between max-w-6xl mx-auto">
+      <WavyBackground className="min-h-screen flex flex-col items-center justify-center p-3 sm:p-4 md:p-8 relative">
+        {/* Header */}
+        <div className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-sm border-b border-white/20">
+          <div className="flex items-center justify-between max-w-7xl mx-auto p-3 sm:p-4">
             <button 
               onClick={() => {
                 if (confirm('Are you sure you want to exit the quiz? Your progress will be lost.')) {
                   setShowSelection(true);
                 }
               }}
-              className="group flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all duration-300"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all duration-200 text-sm sm:text-base"
             >
-              <IconArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-              Exit Quiz
+              <IconArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Exit</span>
             </button>
             
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 text-white bg-blue-500/10 px-3 py-1 rounded-lg">
-                <IconBrain className="h-4 w-4 text-blue-400" />
-                <span className="text-sm font-medium">{selectedTopic}</span>
-              </div>
-              
-              {/* Enhanced Timer */}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-lg transition-all duration-300 ${
-                timeLeft < 60 ? 'bg-red-500/20 text-red-400 animate-pulse' : 
-                timeLeft < 300 ? 'bg-yellow-500/20 text-yellow-400' : 
-                'bg-green-500/10 text-white'
-              }`}>
-                <IconClock className="h-4 w-4" />
-                <span className="font-mono font-bold">
-                  {formatTime(timeLeft)}
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="hidden sm:flex items-center gap-2 text-white bg-white/10 px-2 sm:px-3 py-1 rounded-lg">
+                <IconBrain className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm max-w-32 sm:max-w-none truncate">
+                  {useCustomSubject ? customTopic : selectedTopic}
                 </span>
               </div>
               
-              {/* Streak Display */}
-              {answerStreak > 1 && (
-                <div className="flex items-center gap-1 bg-orange-500/20 text-orange-400 px-3 py-1 rounded-lg">
-                  <IconFlame className="h-4 w-4" />
-                  <span className="font-bold">{answerStreak}</span>
-                </div>
-              )}
+              <div className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm ${
+                timeLeft < 60 ? 'bg-red-900/30 text-red-400' : 
+                timeLeft < 300 ? 'bg-yellow-900/30 text-yellow-400' : 
+                'bg-white/10 text-white'
+              }`}>
+                <IconClock className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="font-mono font-semibold">
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
               
               <GyanPointsDisplay />
             </div>
           </div>
         </div>
 
-        <main className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-5xl w-full pt-20">
+        <div className="min-h-screen flex flex-col items-center justify-center relative z-10 max-w-5xl w-full pt-16 sm:pt-20">
           
-          {/* Enhanced Progress Bar */}
-          <div className="w-full mb-8">
+          {/* Progress Bar */}
+          <div className="w-full mb-6 sm:mb-8">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-neutral-400 text-sm">Progress</span>
-              <span className="text-white text-sm font-semibold">
+              <span className="text-neutral-400 text-xs sm:text-sm">Progress</span>
+              <span className="text-white text-xs sm:text-sm font-semibold">
                 {currentQuestion + 1} / {quizData.questions.length}
               </span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-white/20 rounded-full h-1.5 sm:h-2">
               <div 
-                className="bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out relative"
+                className="bg-blue-500 h-1.5 sm:h-2 rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full"></div>
-              </div>
+              />
             </div>
           </div>
 
-          <div className={`bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-8 w-full shadow-2xl transition-all duration-300 ${
-            questionAnimation ? 'scale-95 opacity-50' : 'scale-100 opacity-100'
-          }`}>
+          <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 w-full">
             
-            {/* Question Counter with Animation */}
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full border border-white/10">
-                <IconBrain className="h-4 w-4 text-blue-400" />
-                <span className="text-neutral-400">
-                  Question {currentQuestion + 1} of {quizData.questions.length}
+            {/* Question Counter */}
+            <div className="text-center mb-6 sm:mb-8">
+              <div className="inline-flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-white/20">
+                <span className="text-neutral-400 text-xs sm:text-sm">
+                  Question {currentQuestion + 1}
                 </span>
               </div>
             </div>
 
-            {/* Enhanced Question */}
-            <div className="text-center mb-10">
-              <h2 className="text-2xl md:text-3xl font-bold text-white leading-relaxed">
+            {/* Question */}
+            <div className="text-center mb-6 sm:mb-8">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-white leading-relaxed px-2">
                 {currentQ.question}
               </h2>
             </div>
 
-            {/* Enhanced Options */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            {/* Options */}
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-6 sm:mb-8">
               {currentQ.options.map((option, index) => {
-                let buttonClass = "group relative w-full p-6 text-left rounded-2xl border-2 transition-all duration-300 transform ";
+                let buttonClass = "w-full p-3 sm:p-4 text-left rounded-lg border-2 transition-all duration-200 ";
                 
                 if (!isAnswered) {
-                  buttonClass += "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 text-white cursor-pointer hover:scale-105 hover:shadow-lg";
+                  buttonClass += "border-white/20 bg-white/5 hover:border-white/40 hover:bg-white/10 text-white cursor-pointer";
                 } else {
                   if (index === currentQ.correctAnswer) {
-                    buttonClass += "border-green-500 bg-green-500/20 text-green-400 scale-105 shadow-lg shadow-green-500/25";
+                    buttonClass += "border-green-500 bg-green-500/10 text-green-400";
                   } else if (index === selectedAnswer) {
-                    buttonClass += "border-red-500 bg-red-500/20 text-red-400 scale-105 shadow-lg shadow-red-500/25";
+                    buttonClass += "border-red-500 bg-red-500/10 text-red-400";
                   } else {
-                    buttonClass += "border-white/10 bg-white/5 text-neutral-400 opacity-60";
+                    buttonClass += "border-white/20 bg-white/5 text-neutral-400 opacity-60";
                   }
                 }
 
@@ -1035,102 +1121,76 @@ function QuizGameContent() {
                     disabled={isAnswered}
                     className={buttonClass}
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-lg transition-all duration-300 ${
-                        !isAnswered ? 'border-current group-hover:scale-110' : 'border-current'
-                      }`}>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-current flex items-center justify-center font-semibold text-xs sm:text-sm flex-shrink-0">
                         {String.fromCharCode(65 + index)}
                       </div>
-                      <span className="flex-1 font-medium">{option}</span>
-                      <div className="ml-auto">
+                      <span className="flex-1 font-medium text-sm sm:text-base">{option}</span>
+                      <div className="ml-auto flex-shrink-0">
                         {isAnswered && index === currentQ.correctAnswer && (
-                          <div className="flex items-center gap-2">
-                            <IconCheck className="h-6 w-6 text-green-400 animate-bounce" />
-                            <span className="text-green-400 font-bold text-sm">Correct!</span>
-                          </div>
+                          <IconCheck className="h-4 w-4 sm:h-5 sm:w-5 text-green-400" />
                         )}
                         {isAnswered && index === selectedAnswer && index !== currentQ.correctAnswer && (
-                          <div className="flex items-center gap-2">
-                            <IconX className="h-6 w-6 text-red-400 animate-pulse" />
-                            <span className="text-red-400 font-bold text-sm">Wrong</span>
-                          </div>
+                          <IconX className="h-4 w-4 sm:h-5 sm:w-5 text-red-400" />
                         )}
                       </div>
                     </div>
-
-                    {/* Hover effect overlay */}
-                    {!isAnswered && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/10 group-hover:to-purple-500/10 rounded-2xl transition-all duration-300"></div>
-                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Enhanced Answer Feedback */}
-            {answerFeedback && (
-              <div className={`text-center mb-6 animate-fadeIn ${
-                answerFeedback === 'correct' ? 'text-green-400' : 'text-red-400'
-              }`}>
-                <div className="text-4xl mb-2">
-                  {answerFeedback === 'correct' ? '🎉' : '😔'}
-                </div>
-                <div className="text-xl font-bold">
-                  {answerFeedback === 'correct' ? 'Excellent!' : 'Not quite right'}
-                </div>
-              </div>
-            )}
-
-            {/* Enhanced Explanation */}
+            {/* Explanation */}
             {showExplanation && (
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-2xl p-6 mb-8 animate-slideUp">
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
                 <div className="flex items-center gap-2 mb-3">
-                  <IconBulb className="h-5 w-5 text-blue-400" />
-                  <h4 className="text-blue-400 font-bold text-lg">Explanation</h4>
+                  <IconBook className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400 flex-shrink-0" />
+                  <h4 className="text-blue-400 font-semibold text-sm sm:text-base">Explanation</h4>
                 </div>
-                <p className="text-neutral-300 leading-relaxed">{currentQ.explanation}</p>
+                <p className="text-neutral-300 leading-relaxed text-sm sm:text-base">{currentQ.explanation}</p>
               </div>
             )}
 
-            {/* Enhanced Next Button */}
+            {/* Next Button */}
             {isAnswered && (
-              <div className="text-center space-y-4">
+              <div className="text-center space-y-3 sm:space-y-4">
                 <button
                   onClick={nextQuestion}
-                  className="group bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center justify-center gap-3 mx-auto"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 px-6 sm:px-8 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3 mx-auto text-sm sm:text-base"
                 >
                   <span>
                     {currentQuestion < quizData.questions.length - 1 ? 'Next Question' : 'Complete Quiz'}
                   </span>
-                  <IconChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  <IconChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
                 
-                {/* Progress indicator */}
-                <div className="text-sm text-neutral-400">
+                <div className="text-xs sm:text-sm text-neutral-400">
                   {currentQuestion < quizData.questions.length - 1 
                     ? `${quizData.questions.length - currentQuestion - 1} questions remaining`
-                    : 'Last question!'
+                    : 'Final question!'
                   }
                 </div>
               </div>
             )}
 
-            {/* Enhanced Score Display */}
-            <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-white/10">
-              <div className="flex items-center gap-2 bg-green-500/10 px-4 py-2 rounded-lg">
-                <IconAward className="h-4 w-4 text-green-400" />
-                <span className="text-white font-bold">Score: {score}/{quizData.questions.length}</span>
+            {/* Score Display */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/20">
+              <div className="flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
+                <IconAward className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                <span className="text-white font-semibold text-xs sm:text-sm">
+                  Score: {score}/{quizData.questions.length}
+                </span>
               </div>
               
-              <div className="flex items-center gap-2 bg-blue-500/10 px-4 py-2 rounded-lg">
-                <IconTarget className="h-4 w-4 text-blue-400" />
-                <span className="text-white font-bold">
-                  {Math.round((score / (currentQuestion + (isAnswered ? 1 : 0))) * 100) || 0}% Accuracy
+              <div className="flex items-center gap-2 bg-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
+                <IconTarget className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                <span className="text-white font-semibold text-xs sm:text-sm">
+                  {Math.round((score / (currentQuestion + (isAnswered ? 1 : 0))) * 100) || 0}%
                 </span>
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </WavyBackground>
     </div>
   );
