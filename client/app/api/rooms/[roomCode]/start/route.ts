@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRoom, updateRoom } from '@/lib/room-storage';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
 
-    const room = await getRoom(roomCode);
+    // Get room from Firebase
+    const roomRef = doc(db, 'quiz-rooms', roomCode);
+    const roomSnap = await getDoc(roomRef);
     
-    if (!room) {
+    if (!roomSnap.exists()) {
       return NextResponse.json(
         { error: 'Room not found' },
         { status: 404 }
       );
     }
+
+    const room = roomSnap.data();
 
     if (room.status !== 'waiting') {
       return NextResponse.json(
@@ -31,23 +36,24 @@ export async function POST(
       );
     }
 
-    const allReady = room.participants.every(p => p.isReady || p.userId === room.hostId);
-    if (!allReady) {
+    if (!room.questions || room.questions.length === 0) {
       return NextResponse.json(
-        { error: 'All participants must be ready to start' },
+        { error: 'No questions available' },
         { status: 400 }
       );
     }
 
     // Start the quiz
-    const updatedRoom = await updateRoom(roomCode, {
+    await updateDoc(roomRef, {
       status: 'active',
-      questionStartTime: new Date()
+      questionStartTime: new Date(),
+      currentQuestionIndex: 0,
+      participantAnswers: {} // Initialize answer tracking
     });
 
     return NextResponse.json({
       message: 'Quiz started successfully',
-      room: updatedRoom
+      success: true
     });
     
   } catch (error) {

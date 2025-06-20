@@ -4,10 +4,10 @@ import { db } from '@/lib/firebase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
     const { userId, userName } = await request.json();
 
     if (!userId || !userName) {
@@ -63,7 +63,9 @@ export async function POST(
       score: 0,
       correctAnswers: 0,
       averageResponseTime: 0,
-      isReady: false
+      isReady: false,
+      currentQuestionIndex: 0,
+      isFinished: false
     };
 
     // Add participant to room and update prize pool
