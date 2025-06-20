@@ -66,11 +66,17 @@ class ApiService {
         
         // Wrap the fetch in a try-catch to handle any connection issues
         let response;
-        
-        while (retryCount <= MAX_RETRIES) {          try {
-            // Use a longer timeout for podcast generation (120 seconds) and shorter for other requests
-            const isPodcastRequest = endpoint.includes('podcast');
-            const baseTimeout = isPodcastRequest ? 120000 : 30000; // 120 seconds for podcast, 30 seconds for others
+          while (retryCount <= MAX_RETRIES) {
+          try {            // Use appropriate timeouts for different endpoints
+            let baseTimeout = 30000; // Default 30 seconds timeout
+            
+            // Longer timeouts for specific operations
+            if (endpoint.includes('podcast')) {
+              baseTimeout = 120000; // 120 seconds for podcast operations
+            } 
+            else if (endpoint.includes('mindmap/generate') || endpoint.includes('mindmap/parse')) {
+              baseTimeout = 90000; // 90 seconds for mind map generation and parsing
+            }
             
             response = await fetch(`${API_BASE_URL}${endpoint}`, {
               method: 'POST',

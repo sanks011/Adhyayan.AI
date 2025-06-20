@@ -4,6 +4,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 const admin = require("firebase-admin");
 const jwt = require("jsonwebtoken");
 const Groq = require("groq-sdk");
+const { OpenAI } = require("openai"); // Add OpenAI import
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const tesseract = require("tesseract.js");
@@ -49,12 +50,30 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize Groq
+// Initialize Groq (keeping for backward compatibility)
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Initialize Parsing AI Agent with dedicated API key from environment
+// Initialize OpenAI for mind map generation with proper timeouts
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 2,
+  httpAgent: {
+    keepAlive: true,
+  },
+});
+
+// Initialize OpenAI for document parsing with dedicated API key and proper timeouts
+const parsingOpenAI = new OpenAI({
+  apiKey: process.env.PARSING_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+  maxRetries: 2,
+  httpAgent: {
+    keepAlive: true,
+  },
+});
+
+// Initialize Parsing AI Agent with dedicated API key from environment (keeping for backward compatibility)
 const parsingGroq = new Groq({
   apiKey: process.env.PARSING_GROQ_API_KEY,
 });
@@ -511,10 +530,8 @@ app.post("/api/mindmap/create", verifyToken, checkDbConnection, async (req, res)
         success: false,
         error: "Subject name is required",
       });
-    }
-
-    console.log("Generating mind map for subject:", subjectName);
-    const completion = await groq.chat.completions.create({
+    }    console.log("Generating mind map for subject:", subjectName);
+    const completion = await openai.chat.completions.create({
       messages: [
         {
           role: "system",
@@ -526,6 +543,7 @@ ADVANCED MIND MAP INTELLIGENCE:
 3. ACADEMIC RIGOR: Ensure university-level depth with proper theoretical foundations, methodologies, and applications
 4. COMPLETE COVERAGE: Include ALL major areas of the subject - theoretical, practical, historical, and contemporary aspects
 5. INTELLIGENT ORGANIZATION: Structure topics in logical learning progression with clear conceptual relationships
+6. CROSS-DISCIPLINARY CONNECTIONS: Identify relationships with other fields and interdisciplinary applications
 
 MIND MAP STRUCTURE REQUIREMENTS:
 - Central node: Subject name with comprehensive academic overview
@@ -533,6 +551,7 @@ MIND MAP STRUCTURE REQUIREMENTS:
 - Subtopics: 4-8 subtopics per major topic with detailed content
 - Deeper nesting: Add sub_subtopics, sub_sub_subtopics as needed for complex subjects
 - Rich descriptions: Educational content for each node explaining key concepts
+- Progressive complexity: Arrange topics to build knowledge systematically
 
 PERFECT JSON OUTPUT FORMAT:
 {
@@ -572,7 +591,10 @@ CRITICAL SUCCESS CRITERIA:
 - Use proper academic terminology
 - Structure for university-level learning
 - Generate unlimited depth as needed for complex topics
-- Output only valid JSON (no markdown or explanations)
+- Ensure JSON is perfectly valid with no syntax errors
+- Output only pure JSON with no markdown formatting or explanations
+- Always include proper nesting for all hierarchical relationships
+- Ensure no trailing commas or invalid characters in the JSON
 
 Create the most comprehensive academic mind map possible for the subject.`,
         },
@@ -582,35 +604,43 @@ Create the most comprehensive academic mind map possible for the subject.`,
 ${prompt ? ` Additional requirements: ${prompt}` : ""}
 
 Generate a complete academic mind map covering all major areas, theories, methods, and applications of this subject.`,
-        },
-      ],
-      model: "llama3-70b-8192",
-      temperature: 0.3,
-      max_tokens: 8000,
+        },      ],      model: "gpt-3.5-turbo",
+      temperature: 0.2,
+      max_tokens: 3000,
       top_p: 0.9,
-      stop: null,
-    });
-
-    console.log("LLM response received");
+      response_format: { type: "json_object" },
+    });    console.log("OpenAI response received");
     let jsonResponseContent;
     try {
       const content = completion.choices[0]?.message?.content || "";
       console.log("Raw response length:", content.length);
-
-      let jsonText = content;
-      const jsonBlockMatch = content.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonText = jsonBlockMatch[1];
-      }
-
+      
       try {
-        jsonResponseContent = JSON.parse(jsonText);
+        // Direct parsing since OpenAI with response_format: { type: "json_object" } returns valid JSON
+        jsonResponseContent = JSON.parse(content);
         console.log("JSON parsed successfully on first attempt");
       } catch (parseError) {
-        console.log("First parse attempt failed, trying to fix JSON");
-        const fixedJson = fixBrokenJSON(jsonText);
-        jsonResponseContent = JSON.parse(fixedJson);
-        console.log("Fixed JSON parsed successfully");
+        console.log("First parse attempt failed, checking for JSON code blocks");
+        
+        // Try to extract JSON from code blocks if present (fallback)
+        const jsonBlockMatch = content.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonBlockMatch && jsonBlockMatch[1]) {
+          const jsonText = jsonBlockMatch[1];
+          try {
+            jsonResponseContent = JSON.parse(jsonText);
+            console.log("JSON parsed from code block");
+          } catch (innerError) {
+            console.log("JSON parsing from code block failed, trying to fix JSON");
+            const fixedJson = fixBrokenJSON(jsonText);
+            jsonResponseContent = JSON.parse(fixedJson);
+            console.log("Fixed JSON parsed successfully");
+          }
+        } else {
+          console.log("No JSON code blocks found, trying to fix entire content");
+          const fixedJson = fixBrokenJSON(content);
+          jsonResponseContent = JSON.parse(fixedJson);
+          console.log("Fixed JSON parsed successfully");
+        }
       }
     } catch (error) {
       console.error("JSON parsing failed:", error.message);
@@ -831,36 +861,36 @@ app.post("/api/mindmap/parse-document", verifyToken, upload.single("document"), 
         success: false,
         error: "Could not extract sufficient text from the document",
       });
-    }
-
-    console.log(`Extracted ${documentText.length} characters of text`);
+    }    console.log(`Extracted ${documentText.length} characters of text`);
     const maxLength = 15000;
     const trimmedText =
       documentText.length > maxLength
         ? documentText.slice(0, maxLength) + "... [Text truncated due to length]"
         : documentText;
 
-    const completion = await parsingGroq.chat.completions.create({
+    const completion = await parsingOpenAI.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: `You are an elite educational document analysis specialist with expertise in extracting comprehensive learning structures from any academic content. Your mission is to analyze documents and create detailed mind maps that capture every educational concept and relationship.
+          content: `You are an elite educational document analysis specialist with unprecedented expertise in extracting comprehensive learning structures from any academic content. Your mission is to analyze documents and create detailed mind maps that capture every educational concept and relationship with perfect hierarchical organization.
 
-ADVANCED DOCUMENT ANALYSIS INTELLIGENCE:
-1. COMPLETE CONTENT EXTRACTION: Identify and extract every educational concept, theory, method, and detail from the document
-2. INTELLIGENT STRUCTURE RECOGNITION: Understand document organization through headings, sections, paragraphs, and content flow
-3. HIERARCHICAL RELATIONSHIP MAPPING: Create proper hierarchical relationships between main topics, subtopics, and detailed concepts
-4. INFINITE DEPTH PROCESSING: Extract content to unlimited depth levels as present in the document
-5. CONTEXTUAL UNDERSTANDING: Understand implicit relationships and group related concepts intelligently
+ENHANCED DOCUMENT ANALYSIS CAPABILITIES:
+1. INTELLIGENT STRUCTURE DETECTION: Automatically recognize document structure regardless of format (headers, sections, paragraphs, bullet points)
+2. COMPLETE CONTENT EXTRACTION: Identify ALL educational concepts, theories, methods, details, and relationships from the document
+3. PERFECT HIERARCHICAL MAPPING: Create proper nested relationships from main topics down to the most granular concepts
+4. UNLIMITED NESTING DEPTH: Extract content to unlimited depth levels (subtopics → sub_subtopics → sub_sub_subtopics →...)
+5. SEMANTIC CLUSTERING: Group related concepts even when not explicitly connected in the document
+6. CONTEXTUAL UNDERSTANDING: Preserve the original meaning and educational intent of all content
 
 DOCUMENT PROCESSING REQUIREMENTS:
-- Extract main topics from document sections/chapters
-- Identify all subtopics within each main topic
-- Create sub_subtopics for detailed concepts
-- Continue nesting deeper as document content requires
-- Use actual content from document for descriptions
-- Preserve educational value and learning objectives
-- Clean and organize content for optimal learning
+- Extract ALL main topics from document sections/chapters
+- Identify EVERY subtopic within each main topic
+- Create sub_subtopics for ALL detailed concepts
+- Continue nesting deeper as content complexity requires
+- Use precise content from document for descriptions (not general knowledge)
+- Preserve educational progression and learning path
+- Handle ANY document layout or formatting style
+- Output PERFECTLY valid JSON with proper nesting structure
 
 PERFECT JSON OUTPUT FORMAT:
 {
@@ -894,50 +924,59 @@ PERFECT JSON OUTPUT FORMAT:
 
 CRITICAL SUCCESS CRITERIA:
 - Extract 100% of educational content from document
-- Create proper hierarchical learning structure
-- Use actual document content in descriptions
-- Organize for optimal educational value
-- Handle any document structure or format
-- Generate unlimited depth as needed
-- Output only valid JSON (no markdown or explanations)
-- Preserve all educational relationships and context
+- Create perfect hierarchical learning structure with correct nesting
+- Use actual document content in descriptions, not general knowledge
+- Ensure ALL content is organized into proper parent-child relationships
+- Handle ANY document layout or formatting consistently
+- Ensure EVERY concept is properly placed in the hierarchy
+- Output PERFECTLY valid JSON with no syntax errors
+- Output ONLY pure JSON with no markdown formatting or explanations
+- NEVER use trailing commas or invalid characters in JSON
 
-Transform the complete document into a comprehensive learning mind map.`,
+Transform the complete document into a comprehensive learning mind map with perfect hierarchical organization.`,
         },
         {
           role: "user",
           content: `Analyze this complete document and create a comprehensive mind map for "${subjectName}" extracting ALL educational content:
 
 ${trimmedText}`,
-        },
-      ],
-      model: "llama3-70b-8192",
-      temperature: 0.2,
-      max_tokens: 8000,
+        },      ],      model: "gpt-3.5-turbo",
+      temperature: 0.1, // Lower temperature for more deterministic parsing
+      max_tokens: 3000,
       top_p: 0.9,
-      stop: null,
-    });
-
-    console.log("Document parsing response received");
+      response_format: { type: "json_object" },
+    });    console.log("OpenAI parsing response received");
     let jsonResponseContent;
     try {
       const content = completion.choices[0]?.message?.content || "";
       console.log("Raw response length:", content.length);
-
-      let jsonText = content;
-      const jsonBlockMatch = content.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonText = jsonBlockMatch[1];
-      }
-
+      
       try {
-        jsonResponseContent = JSON.parse(jsonText);
+        // Direct parsing since OpenAI with response_format: { type: "json_object" } returns valid JSON
+        jsonResponseContent = JSON.parse(content);
         console.log("JSON parsed successfully on first attempt");
       } catch (parseError) {
-        console.log("First parse attempt failed, trying to fix JSON");
-        const fixedJson = fixBrokenJSON(jsonText);
-        jsonResponseContent = JSON.parse(fixedJson);
-        console.log("Fixed JSON parsed successfully");
+        console.log("First parse attempt failed, checking for JSON code blocks");
+        
+        // Try to extract JSON from code blocks if present (fallback)
+        const jsonBlockMatch = content.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonBlockMatch && jsonBlockMatch[1]) {
+          const jsonText = jsonBlockMatch[1];
+          try {
+            jsonResponseContent = JSON.parse(jsonText);
+            console.log("JSON parsed from code block");
+          } catch (innerError) {
+            console.log("JSON parsing from code block failed, trying to fix JSON");
+            const fixedJson = fixBrokenJSON(jsonText);
+            jsonResponseContent = JSON.parse(fixedJson);
+            console.log("Fixed JSON parsed successfully");
+          }
+        } else {
+          console.log("No JSON code blocks found, trying to fix entire content");
+          const fixedJson = fixBrokenJSON(content);
+          jsonResponseContent = JSON.parse(fixedJson);
+          console.log("Fixed JSON parsed successfully");
+        }
       }
     } catch (error) {
       console.error("JSON parsing failed:", error.message);
@@ -1035,29 +1074,19 @@ app.post("/api/mindmap/generate", verifyToken, checkDbConnection, async (req, re
 
     console.log(`Generating mind map for subject: ${subjectName}`);
     console.log(`Syllabus length: ${syllabus.length} characters`);
-    console.log(`Deducted ${POINTS_REQUIRED} Gyan Points from user: ${userId}`);
-
-    let parsingCompletion;
+    console.log(`Deducted ${POINTS_REQUIRED} Gyan Points from user: ${userId}`);    let parsingCompletion;
     try {
-parsingCompletion = await parsingGroq.chat.completions.create({
+parsingCompletion = await parsingOpenAI.chat.completions.create({
   messages: [
     {
       role: "system",
-      content: `You are the ULTIMATE syllabus parsing AI, engineered to extract EVERY detail from ANY academic syllabus with INFINITE hierarchical depth and produce PERFECT, VALID JSON output. Your mission is to analyze the syllabus, identify all structural components (units, modules, chapters, topics, subtopics, etc.), and create a comprehensive, learner-focused JSON structure that captures 100% of the educational content with precise nesting and rich descriptions. You MUST iteratively validate JSON syntax during generation to ensure no bracket mismatches or syntax errors.
+      content: `You are a syllabus parsing AI that extracts educational content and creates structured JSON. Your task is to analyze the syllabus, identify topics and subtopics, and output valid JSON with the following objectives:
 
----
-
-### CORE OBJECTIVES
-1. **Complete Extraction**: Capture every main topic, subtopic, sub-subtopic, and deeper levels (infinite depth) from the syllabus.
-2. **Intelligent Structure Recognition**: Identify units, modules, chapters, or topic lists, and group related content logically, even in mixed or unstructured formats.
-3. **Clean Titles**: Remove administrative clutter (e.g., "Unit-I", "Module 1", hours, codes) to create learner-friendly topic names.
-4. **Rich Descriptions**: Generate concise, educational descriptions for each node based on syllabus content and context.
-5. **Perfect JSON**: Output valid JSON with:
-   - Double-quoted keys/values.
-   - Correct commas (no trailing commas).
-   - Escaped quotes in strings.
-   - Balanced brackets (\`{\` matches \`}\`, \`[\` matches \`]\`).
-   - No syntax errors.
+1. Extract main topics and subtopics from the syllabus
+2. Organize content into a clear hierarchy
+3. Clean up titles (remove clutter like "Unit-1", hours, codes)
+4. Create brief educational descriptions
+5. Output ONLY valid JSON
 
 ---
 
@@ -1342,13 +1371,12 @@ SYLLABUS:
 ${syllabus}
 
 RESPOND WITH VALID JSON ONLY:`,
-    },
-  ],
-  model: "llama3-70b-8192",
-  temperature: 0.0, // Lowered to minimize creative deviations
-  max_tokens: 8192, // Increased to handle large syllabi
-  top_p: 0.9,
-  stop: null,
+    },  ],  model: "gpt-3.5-turbo",
+  temperature: 0.0, // Deterministic parsing
+  max_tokens: 1500, // Reduced token limit for faster response
+  top_p: 0.2, // More focused on likely tokens
+  presence_penalty: -0.5, // Favor repetition/consistency
+  response_format: { type: "json_object" }
 });
     } catch (parsingError) {
       console.error("Error from parsing API:", parsingError.message);
@@ -1359,25 +1387,36 @@ RESPOND WITH VALID JSON ONLY:`,
       });
     }
 
-    let parsedStructure;
-    try {
+    let parsedStructure;    try {
       const content = parsingCompletion.choices[0]?.message?.content || "";
       console.log("Raw parser response length:", content.length);
 
-      let jsonText = content;
-      const jsonBlockMatch = content.match(/```(?:json)?\n([\s\S]*?)\n```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonText = jsonBlockMatch[1];
-      }
-
       try {
-        parsedStructure = JSON.parse(jsonText);
+        // Direct parsing should work with OpenAI's response_format: { type: "json_object" }
+        parsedStructure = JSON.parse(content);
         console.log("Parsed structure JSON parsed successfully on first attempt");
       } catch (parseError) {
-        console.log("First parse attempt failed, trying to fix JSON");
-        const fixedJson = fixBrokenJSON(jsonText);
-        parsedStructure = JSON.parse(fixedJson);
-        console.log("Fixed parsed structure JSON successfully");
+        console.log("First parse attempt failed, checking for JSON code blocks");
+        
+        // Fallback to code block extraction if needed
+        const jsonBlockMatch = content.match(/```(?:json)?\n([\s\S]*?)\n```/);
+        if (jsonBlockMatch && jsonBlockMatch[1]) {
+          const jsonText = jsonBlockMatch[1];
+          try {
+            parsedStructure = JSON.parse(jsonText);
+            console.log("Parsed structure JSON parsed from code block");
+          } catch (innerError) {
+            console.log("JSON parsing from code block failed, trying to fix JSON");
+            const fixedJson = fixBrokenJSON(jsonText);
+            parsedStructure = JSON.parse(fixedJson);
+            console.log("Fixed parsed structure JSON successfully");
+          }
+        } else {
+          console.log("No JSON code blocks found, trying to fix entire content");
+          const fixedJson = fixBrokenJSON(content);
+          parsedStructure = JSON.parse(fixedJson);
+          console.log("Fixed parsed structure JSON successfully");
+        }
       }
 
       if (!parsedStructure.parsed_structure) {
@@ -1399,20 +1438,17 @@ RESPOND WITH VALID JSON ONLY:`,
     console.log("Generating mind map from parsed structure...");
     let mindMapCompletion;
     try {
-mindMapCompletion = await groq.chat.completions.create({
+mindMapCompletion = await openai.chat.completions.create({
   messages: [
     {
       role: "system",
-      content: `You are the ULTIMATE mind map creation AI, designed to transform ANY parsed syllabus structure into a FLAWLESS, COMPREHENSIVE mind map JSON with INFINITE hierarchical depth. Your mission is to convert the parsed structure into a learner-focused mind map that preserves 100% of the content, enhances educational value with rich descriptions, and maintains perfect JSON syntax. You MUST iteratively validate JSON syntax during generation to ensure no bracket mismatches or syntax errors.
+      content: `You are a mind map creation AI that transforms parsed syllabus structures into organized mind maps in JSON format. Convert the parsed structure into a mind map while keeping these objectives in mind:
 
----
-
-### CORE OBJECTIVES
-1. **Complete Transformation**: Map every element from the parsed structure (main subject, units, subtopics, etc.) to the mind map format.
-2. **Hierarchical Preservation**: Maintain exact nesting (units → subtopics → sub_subtopics → infinite depth).
-3. **Educational Enhancement**: Generate detailed, learner-friendly descriptions combining original content with context, applications, and learning objectives.
-4. **Clean Titles**: Ensure titles are concise and optimized for learning.
-5. **Perfect JSON**: Output valid JSON with:
+1. Transform the parsed structure into mind map JSON format
+2. Preserve the hierarchical structure
+3. Create brief educational descriptions
+4. Use the original titles
+5. Ensure output is valid JSON with:
    - Double-quoted keys/values.
    - Correct commas (no trailing commas).
    - Escaped quotes in strings.
@@ -1736,13 +1772,12 @@ mindMapCompletion = await groq.chat.completions.create({
 ${JSON.stringify(parsedStructure)}
 
 RESPOND WITH VALID MIND MAP JSON ONLY:`,
-    },
-  ],
-  model: "llama3-70b-8192",
-  temperature: 0.0, // Lowered to minimize creative deviations
-  max_tokens: 8192, // Increased to handle large syllabi
-  top_p: 0.9,
-  stop: null,
+    },  ],  model: "gpt-3.5-turbo",
+  temperature: 0.0, // Deterministic results
+  max_tokens: 1500, // Further reduced for faster response
+  top_p: 0.2, // More focused on likely tokens
+  presence_penalty: -0.5, // Favor repetition/consistency
+  response_format: { type: "json_object" }
 });
     } catch (mindMapError) {
       console.error("Error from mind map creation API:", mindMapError.message);
@@ -1753,25 +1788,36 @@ RESPOND WITH VALID MIND MAP JSON ONLY:`,
       });
     }
 
-    let mindMapData;
-    try {
+    let mindMapData;    try {
       const content = mindMapCompletion.choices[0]?.message?.content || "";
       console.log("Raw mind map response length:", content.length);
 
-      let jsonText = content;
-      const jsonBlockMatch = content.match(/```(?:json)?\n([\s\S]*?)\n```/);
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonText = jsonBlockMatch[1];
-      }
-
       try {
-        mindMapData = JSON.parse(jsonText);
+        // Direct parsing should work with OpenAI's response_format: { type: "json_object" }
+        mindMapData = JSON.parse(content);
         console.log("Mind map JSON parsed successfully on first attempt");
       } catch (parseError) {
-        console.log("First parse attempt failed, trying to fix JSON");
-        const fixedJson = fixBrokenJSON(jsonText);
-        mindMapData = JSON.parse(fixedJson);
-        console.log("Fixed mind map JSON successfully");
+        console.log("First parse attempt failed, checking for JSON code blocks");
+        
+        // Fallback to code block extraction if needed
+        const jsonBlockMatch = content.match(/```(?:json)?\n([\s\S]*?)\n```/);
+        if (jsonBlockMatch && jsonBlockMatch[1]) {
+          const jsonText = jsonBlockMatch[1];
+          try {
+            mindMapData = JSON.parse(jsonText);
+            console.log("Mind map JSON parsed from code block");
+          } catch (innerError) {
+            console.log("JSON parsing from code block failed, trying to fix JSON");
+            const fixedJson = fixBrokenJSON(jsonText);
+            mindMapData = JSON.parse(fixedJson);
+            console.log("Fixed mind map JSON successfully");
+          }
+        } else {
+          console.log("No JSON code blocks found, trying to fix entire content");
+          const fixedJson = fixBrokenJSON(content);
+          mindMapData = JSON.parse(fixedJson);
+          console.log("Fixed mind map JSON successfully");
+        }
       }
 
       if (!mindMapData.mind_map) {
@@ -1875,9 +1921,7 @@ app.post("/api/mindmap/node-description", verifyToken, async (req, res) => {
         "";
       const childContext = childNodes && childNodes.length > 0 ? 
         `This topic includes subtopics: ${childNodes.map(n => n.label).join(", ")}` : 
-        "";
-
-      // Create the prompt for the AI
+        "";      // Create the prompt for the AI
       nodeDescription = await groq.chat.completions.create({
         messages: [
           {
@@ -1918,13 +1962,12 @@ ${parentContext}
 ${childContext}
 
 Please provide a 300-400 word detailed description with proper formatting, including any necessary equations (using KaTeX/LaTeX syntax), code examples, or visual descriptions as appropriate for this specific topic.`,
-          },
+          }
         ],
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         temperature: 0.2,
         max_tokens: 1024,
-        top_p: 0.9,
-        stop: null,
+        top_p: 0.9
       });
     } catch (descriptionError) {
       console.error("Error from Groq API:", descriptionError.message);
