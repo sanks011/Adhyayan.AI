@@ -4,10 +4,12 @@ import { db } from '@/lib/firebase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
+    const url = new URL(request.url);
+    const userId = url.searchParams.get('userId');
 
     // Get room from Firebase
     const roomRef = doc(db, 'quiz-rooms', roomCode);
@@ -22,26 +24,34 @@ export async function GET(
 
     const room = roomSnap.data();
     
-    // Return room state with current question if quiz is active
+    // Find the current user's participant data
+    const currentParticipant = userId ? room.participants.find((p: any) => p.userId === userId) : null;
+    
+    // Return room state
     const response: any = {
       room,
-      participants: room.participants
+      participants: room.participants,
+      currentParticipant
     };
 
-    if (room.status === 'active' && room.questions && room.questions.length > 0) {
-      const currentQuestion = room.questions[room.currentQuestionIndex];
+    // If quiz is active and user hasn't finished, send their current question
+    if (room.status === 'active' && currentParticipant && !currentParticipant.isFinished) {
+      const questionIndex = currentParticipant.currentQuestionIndex;
+      const currentQuestion = room.questions[questionIndex];
+      
       if (currentQuestion) {
-        // Don't send the correct answer to clients
         response.currentQuestion = {
           id: currentQuestion.id,
           question: currentQuestion.question,
           options: currentQuestion.options,
-          questionNumber: room.currentQuestionIndex + 1
+          questionNumber: questionIndex + 1,
+          totalQuestions: room.questions.length,
+          // Include explanation only after the question is answered
+          ...(room.participantAnswers && room.participantAnswers[`${userId}_${questionIndex}`] && {
+            correctAnswer: currentQuestion.correctAnswer,
+            explanation: currentQuestion.explanation
+          })
         };
-        
-        // Calculate time left (assuming 30 seconds per question)
-        const timePerQuestion = room.settings?.timePerQuestion || 30;
-        response.timeLeft = timePerQuestion; // You can implement proper timing logic here
       }
     }
 
