@@ -146,7 +146,7 @@ export default function Dashboard() {
       icon: (
         <IconList className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
-      href: "#ai-assistant",
+      href: "flashCard",
     },
     {
       title: "Settings",
