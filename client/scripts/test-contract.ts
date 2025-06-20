@@ -8,7 +8,7 @@
 import { Aptos, AptosConfig, Network, Ed25519PrivateKey, Account } from '@aptos-labs/ts-sdk';
 import { checkUserSubscription, getContractAddress } from '../lib/aptos-civic-integration';
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_APTOS_CONTRACT_ADDRESS || "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9";
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_APTOS_CONTRACT_ADDRESS || "0x67c7cc6061c73c15c7c6f27821710ee7a2e63d817e9def4160235cc2a183b2ae";
 
 async function testContractIntegration() {
   console.log('🧪 Testing Aptos Contract Integration');
@@ -120,9 +120,8 @@ async function testContractIntegration() {
         ],
       },
     });
-    
-    console.log('✅ Transaction building successful!');
-    console.log(`   Transaction type: ${transaction.rawTransaction.payload.function}`);
+      console.log('✅ Transaction building successful!');
+    console.log(`   Transaction type: Function call to subscription::purchase_subscription`);
     console.log(`   Gas limit: ${transaction.rawTransaction.max_gas_amount}`);
   } catch (error) {
     console.error('❌ Transaction building failed:', error);

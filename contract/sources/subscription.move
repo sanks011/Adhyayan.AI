@@ -137,14 +137,14 @@ module adhyayan_payment::subscription {
             plan_id,
             amount: plan.price_in_octas,
             timestamp: current_time,
-            transaction_id,
-        };
+            transaction_id,        };
         
         // Add payment record
         vector::push_back(&mut user_subscription.payment_history, payment_record);
     }
 
     /// Check if user has an active subscription for a plan
+    #[view]
     public fun is_subscription_active(user_addr: address, plan_id: vector<u8>): bool acquires UserSubscription {
         // Check if user has a subscription record
         if (!exists<UserSubscription>(user_addr)) {
@@ -161,14 +161,14 @@ module adhyayan_payment::subscription {
         
         // Get subscription
         let subscription = table::borrow(&user_subscription.active_subscriptions, plan_id);
-        
-        // Check if subscription is active and not expired
+          // Check if subscription is active and not expired
         let current_time = timestamp::now_seconds();
         
         subscription.active && subscription.end_time > current_time
     }
 
     /// Get subscription details for a user
+    #[view]
     public fun get_subscription_details(
         user_addr: address,
         plan_id: vector<u8>

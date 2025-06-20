@@ -153,9 +153,8 @@ export const processAptosPaymentWithCivic = async (params: PaymentParams): Promi
       network: process.env.NEXT_PUBLIC_APTOS_NETWORK as Network || Network.DEVNET 
     });
     const client = new Aptos(config);
-    
-    // Contract address from Move.toml
-    const CONTRACT_ADDRESS = "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9";
+      // Contract address from Move.toml
+    const CONTRACT_ADDRESS = "0x67c7cc6061c73c15c7c6f27821710ee7a2e63d817e9def4160235cc2a183b2ae";
     
     // Convert amount to octas (smallest unit)
     const amountInOctas = aptToOctas(aptAmount);
@@ -354,10 +353,9 @@ export const initializeSubscriptionPlan = async (
     });
     const client = new Aptos(config);
       // Create admin account from private key
-    const privateKey = new Ed25519PrivateKey(adminPrivateKey);
-    const admin = Account.fromPrivateKey({ privateKey });
+    const privateKey = new Ed25519PrivateKey(adminPrivateKey);    const admin = Account.fromPrivateKey({ privateKey });
     
-    const CONTRACT_ADDRESS = "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9";
+    const CONTRACT_ADDRESS = "0x67c7cc6061c73c15c7c6f27821710ee7a2e63d817e9def4160235cc2a183b2ae";
     const priceInOctas = aptToOctas(priceInApt);
     
     // Build transaction to add plan
@@ -411,10 +409,9 @@ export const checkUserSubscription = async (
   try {
     const config = new AptosConfig({ 
       network: process.env.NEXT_PUBLIC_APTOS_NETWORK as Network || Network.DEVNET 
-    });
-    const client = new Aptos(config);
+    });    const client = new Aptos(config);
     
-    const CONTRACT_ADDRESS = "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9";
+    const CONTRACT_ADDRESS = "0x67c7cc6061c73c15c7c6f27821710ee7a2e63d817e9def4160235cc2a183b2ae";
     
     // Normalize the user address
     const normalizedAddress = normalizeAptosAddress(userAddress);
@@ -473,7 +470,7 @@ export const checkUserSubscription = async (
  * Get the contract address being used
  */
 export const getContractAddress = (): string => {
-  return "0xb0f6a166613cf91c639fb89f77f6764bae08242775a1d5a16ad14cb2a85993f9";
+  return "0x67c7cc6061c73c15c7c6f27821710ee7a2e63d817e9def4160235cc2a183b2ae";
 };
 
 // Show welcome message for newly funded users
