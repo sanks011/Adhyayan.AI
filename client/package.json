@@ -1,14 +1,15 @@
 {
   "name": "client",
-  "version": "0.1.0",
-  "private": true,  "scripts": {
+  "version": "0.1.0",  "private": true,  "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "node fix-deps.js && next build",
     "start": "next start",
     "lint": "next lint",
     "pre-vercel-deploy": "node pre-vercel-deploy.js",
-    "post-vercel-deploy": "node post-vercel-deploy.js"
-  },"dependencies": {
+    "post-vercel-deploy": "node post-vercel-deploy.js",
+    "fix-deps": "node fix-deps.js"
+  },
+  "dependencies": {
     "@aptos-labs/ts-sdk": "^2.0.1",    
     "@aptos-labs/wallet-adapter-react": "^6.1.2",
     "@aptos-labs/wallet-standard": "^0.6.0",

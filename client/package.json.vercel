@@ -1,12 +1,12 @@
 {
   "name": "client",
   "version": "0.1.0",
-  "private": true,
-  "scripts": {
+  "private": true,  "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "node fix-deps.js && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "fix-deps": "node fix-deps.js"
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^2.0.1",
@@ -62,7 +62,8 @@
     "simplex-noise": "^4.0.3",
     "styled-components": "^6.1.19",
     "tailwind-merge": "^3.3.1"
-  },  "devDependencies": {
+  },
+  "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
