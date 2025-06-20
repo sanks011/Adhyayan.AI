@@ -1,58 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateRoomCode, createRoom } from '@/lib/room-storage';
-import { Room, Participant, QuizQuestion } from '@/lib/types';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { generateQuizQuestions } from '@/lib/gemini';
 
-function generateMockQuestions(count: number, difficulty: string, subject: string, topic: string): QuizQuestion[] {
-  const timeLimit = difficulty === 'easy' ? 30 : difficulty === 'medium' ? 25 : 20;
-  
-  const mockQuestions: QuizQuestion[] = [];
-  for (let i = 0; i < count; i++) {
-    mockQuestions.push({
-      id: `q_${Date.now()}_${i}`,
-      question: `${subject} Question ${i + 1}: What is a fundamental concept in ${topic}?`,
-      options: [
-        `Option A for ${topic}`,
-        `Option B for ${topic}`,
-        `Option C for ${topic}`,
-        `Option D for ${topic}`
-      ],
-      correctAnswer: Math.floor(Math.random() * 4),
-      explanation: `This is the explanation for question ${i + 1} about ${topic} in ${subject}.`,
-      timeLimit
-    });
-  }
-  
-  return mockQuestions;
+interface Participant {
+  userId: string;
+  userName: string;
+  joinedAt: Date;
+  score: number;
+  correctAnswers: number;
+  averageResponseTime: number;
+  isReady: boolean;
+}
+
+interface Room {
+  roomCode: string;
+  roomName: string;
+  subject: string;
+  topic: string;
+  difficulty: string;
+  hostId: string;
+  hostName: string;
+  maxParticipants: number;
+  entryFee: number;
+  prizePool: number;
+  status: 'waiting' | 'active' | 'completed';
+  questions: any[];
+  participants: Participant[];
+  currentQuestionIndex: number;
+  createdAt: any;
+  settings: {
+    questionCount: number;
+    timePerQuestion: number;
+    showExplanations: boolean;
+  };
+}
+
+function generateRoomCode(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== CREATE ROOM API CALLED ===');
+    
     const body = await request.json();
+    console.log('Request body:', body);
     
     const {
       roomName,
       subject,
       topic,
-      difficulty,
-      questionCount,
-      maxParticipants,
+      difficulty = 'medium',
+      questionCount = 10,
+      maxParticipants = 8,
       hostId,
       hostName
     } = body;
 
     // Validate required fields
     if (!roomName || !subject || !topic || !hostId || !hostName) {
+      console.log('Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: roomName, subject, topic, hostId, hostName' },
+        { status: 400 }
+      );
+    }
+
+    // Validate question count
+    if (questionCount < 5 || questionCount > 20) {
+      return NextResponse.json(
+        { error: 'Question count must be between 5 and 20' },
         { status: 400 }
       );
     }
 
     // Generate room code
     const roomCode = generateRoomCode();
+    console.log('Generated room code:', roomCode);
 
-    // Generate mock questions (replace with Gemini AI later)
-    const questions = generateMockQuestions(questionCount, difficulty, subject, topic);
+    // Generate quiz questions using Gemini AI
+    console.log('Generating questions with Gemini AI...');
+    let questions;
+    try {
+      questions = await generateQuizQuestions({
+        subject,
+        topic,
+        difficulty,
+        questionCount
+      });
+      console.log('Generated questions:', questions.length);
+    } catch (error) {
+      console.error('Error generating questions:', error);
+      return NextResponse.json(
+        { error: 'Failed to generate quiz questions. Please try again.' },
+        { status: 500 }
+      );
+    }
 
     // Create host participant
     const hostParticipant: Participant = {
@@ -62,10 +106,10 @@ export async function POST(request: NextRequest) {
       score: 0,
       correctAnswers: 0,
       averageResponseTime: 0,
-      isReady: true // Host is always ready
+      isReady: true
     };
 
-    // Create room
+    // Create room object
     const room: Room = {
       roomCode,
       roomName,
@@ -81,7 +125,7 @@ export async function POST(request: NextRequest) {
       questions,
       participants: [hostParticipant],
       currentQuestionIndex: 0,
-      createdAt: new Date(),
+      createdAt: serverTimestamp(),
       settings: {
         questionCount,
         timePerQuestion: difficulty === 'easy' ? 30 : difficulty === 'medium' ? 25 : 20,
@@ -89,19 +133,30 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Store room in Firebase
-    await createRoom(room);
+    // Store room in Firebase Firestore
+    const roomRef = doc(db, 'quiz-rooms', roomCode);
+    await setDoc(roomRef, room);
+    
+    console.log('Room created successfully in Firebase');
 
     return NextResponse.json({
+      success: true,
       roomCode,
-      message: 'Room created successfully'
+      message: 'Room created successfully with AI-generated questions'
     }, { status: 201 });
 
   } catch (error) {
-    console.error('Error creating room:', error);
+    console.error('=== API ERROR ===', error);
     return NextResponse.json(
-      { error: 'Failed to create room. Please try again.' },
+      { error: 'Server error: ' + (error instanceof Error ? error.message : 'Unknown') },
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    message: 'Create room API is working',
+    timestamp: new Date().toISOString()
+  });
 }
