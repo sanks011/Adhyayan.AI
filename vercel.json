@@ -1,5 +1,5 @@
-{  "buildCommand": "npm run fix-deps && npm run build",
-  "installCommand": "npm install --legacy-peer-deps",
+{  "buildCommand": "npm run build",
+  "installCommand": "npm install --force",
   "outputDirectory": ".next",
   "rewrites": [
     {
