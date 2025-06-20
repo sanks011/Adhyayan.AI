@@ -8,10 +8,9 @@
     "lint": "next lint",
     "fix-deps": "node fix-deps.js"
   },
-  "dependencies": {
-    "@aptos-labs/ts-sdk": "^2.0.1",
+  "dependencies": {    "@aptos-labs/ts-sdk": "^2.0.1",
     "@aptos-labs/wallet-adapter-react": "^6.1.2",
-    "@aptos-labs/wallet-standard": "^0.6.0",
+    "@aptos-labs/wallet-standard": "^0.5.0",
     "@civic/auth": "^0.7.0",
     "@civic/auth-web3": "^0.5.15",
     "@google/generative-ai": "^0.24.1",

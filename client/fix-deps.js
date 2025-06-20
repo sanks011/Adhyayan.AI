@@ -26,9 +26,8 @@ packageJson.resolutions = {
 };
 
 // Update the specific versions to ones that work together
-if (packageJson.dependencies) {
-  packageJson.dependencies["@aptos-labs/wallet-adapter-react"] = "^6.1.2";
-  packageJson.dependencies["@aptos-labs/wallet-standard"] = "^0.6.0";
+if (packageJson.dependencies) {  packageJson.dependencies["@aptos-labs/wallet-adapter-react"] = "^6.1.2";
+  packageJson.dependencies["@aptos-labs/wallet-standard"] = "^0.5.0";
   packageJson.dependencies["@aptos-labs/ts-sdk"] = "^2.0.1";
 }
 

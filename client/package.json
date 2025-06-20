@@ -1,6 +1,8 @@
 {
   "name": "client",
-  "version": "0.1.0",  "private": true,  "scripts": {
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
     "dev": "next dev --turbopack",
     "build": "node fix-deps.js && next build",
     "start": "next start",
@@ -10,9 +12,9 @@
     "fix-deps": "node fix-deps.js"
   },
   "dependencies": {
-    "@aptos-labs/ts-sdk": "^2.0.1",    
+    "@aptos-labs/ts-sdk": "^2.0.1",
     "@aptos-labs/wallet-adapter-react": "^6.1.2",
-    "@aptos-labs/wallet-standard": "^0.6.0",
+    "@aptos-labs/wallet-standard": "^0.5.0",
     "@civic/auth": "^0.7.0",
     "@civic/auth-web3": "^0.5.15",
     "@google/generative-ai": "^0.24.1",
@@ -63,7 +65,8 @@
     "simplex-noise": "^4.0.3",
     "styled-components": "^6.1.19",
     "tailwind-merge": "^3.3.1"
-  },  "devDependencies": {
+  },
+  "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
