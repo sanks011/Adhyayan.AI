@@ -1,4 +1,7 @@
 {
+  "buildCommand": "cd client && npm run pre-vercel-deploy && npm run build",
+  "installCommand": "cd client && npm install",
+  "outputDirectory": "client/.next",
   "rewrites": [
     {
       "source": "/(.*)",
