@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (idToken: string, user: any) => Promise<void>;
   logout: () => Promise<void>;
   refreshUserData?: () => Promise<void>;
+  updateUserProfile?: (profileData: { displayName?: string; bio?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: async () => {},
   refreshUserData: async () => {},
+  updateUserProfile: async () => {},
 });
 
 export const useAuth = () => {
@@ -46,6 +48,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Use a ref to track if we've already processed the initial auth state
   const hasProcessedInitialAuth = useRef(false);
   
+  // Function to update user profile
+  const updateUserProfile = async (profileData: { displayName?: string; bio?: string }) => {
+    if (!auth.currentUser) {
+      throw new Error('No authenticated user');
+    }
+
+    try {
+      // Update Firebase profile if displayName changed
+      if (profileData.displayName && profileData.displayName !== auth.currentUser.displayName) {
+        await import('firebase/auth').then(({ updateProfile }) => 
+          updateProfile(auth.currentUser!, { displayName: profileData.displayName })
+        );
+      }
+
+      // Update local user state
+      setUser(prev => prev ? {
+        ...prev,
+        displayName: profileData.displayName || prev.displayName
+      } : null);
+
+      // Update localStorage
+      if (typeof window !== 'undefined') {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const updatedUser = {
+          ...currentUser,
+          displayName: profileData.displayName || currentUser.displayName
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        // Store profile data separately for other components to use
+        const profileSettings = JSON.parse(localStorage.getItem('adhyayan-profile') || '{}');
+        const updatedProfile = {
+          ...profileSettings,
+          ...profileData
+        };
+        localStorage.setItem('adhyayan-profile', JSON.stringify(updatedProfile));
+        
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('userProfileUpdated', {
+          detail: updatedProfile
+        }));
+      }
+
+      console.log('User profile updated successfully');
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
+  };
+
   // Function to refresh user data from Firebase
   const refreshUserData = async () => {
     if (auth.currentUser) {
@@ -215,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     refreshUserData, // Expose this function for manual refresh if needed
+    updateUserProfile, // Add the new update function
   };
 
   return (
