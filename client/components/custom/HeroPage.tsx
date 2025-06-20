@@ -1,9 +1,7 @@
 'use client'; 
 
-import { HeroParallax } from "@/components/ui/hero-parallax";
-import { CustomNavbar } from "@/components/custom/CustomNavbar";
+import { HeroSection } from "@/components/hero-section-1";
 import { CustomFeatures } from "@/components/custom/CustomFeatures";
-import { FeaturesSectionDemo } from "@/components/custom/FeaturesSectionDemo";
 import { InfiniteMovingCardsDemo } from "@/components/custom/InfiniteMovingCardsDemo";
 import { FAQSection } from "@/components/custom/FAQSection";
 import { SpotlightNewDemo } from "@/components/custom/SpotlightNewDemo";
@@ -12,14 +10,10 @@ import { ProfessionalFooter } from "@/components/custom/ProfessionalFooter";
 export const HeroPage = () => {
   return (
     <>
-      <div className="home-page-navbar">
-        <CustomNavbar />
-      </div>
       <div className="mt-[-3.5rem] home-page-hero">
-        <HeroParallax products={products} />
+        <HeroSection />
       </div>
       <CustomFeatures />
-      <FeaturesSectionDemo />
       <InfiniteMovingCardsDemo />
       <FAQSection />
       <SpotlightNewDemo />

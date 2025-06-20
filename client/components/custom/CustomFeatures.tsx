@@ -5,7 +5,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 export function CustomFeatures() {
   return (
-    <section className="w-full py-0 md:py-4 bg-background mt-[-8rem]">
+    <section className="w-full py-12 md:py-16 bg-background relative z-15">
       <div className="container mx-auto px-4">
         <div className="text-center mb-6 md:mb-8">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Revolutionary Learning Experience</h2>
