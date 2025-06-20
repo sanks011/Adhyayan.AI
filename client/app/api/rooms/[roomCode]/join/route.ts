@@ -4,10 +4,10 @@ import { db } from '@/lib/firebase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
     const { userId, userName } = await request.json();
 
     if (!userId || !userName) {

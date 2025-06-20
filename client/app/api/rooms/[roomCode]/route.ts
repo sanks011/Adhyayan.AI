@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRoom } from '@/lib/room-storage';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
     
     if (!roomCode) {
       return NextResponse.json(
@@ -15,15 +16,18 @@ export async function GET(
       );
     }
 
-    const room = await getRoom(roomCode);
+    // Get room from Firebase
+    const roomRef = doc(db, 'quiz-rooms', roomCode);
+    const roomSnap = await getDoc(roomRef);
     
-    if (!room) {
+    if (!roomSnap.exists()) {
       return NextResponse.json(
         { error: 'Room not found' },
         { status: 404 }
       );
     }
 
+    const room = roomSnap.data();
     return NextResponse.json(room);
     
   } catch (error) {

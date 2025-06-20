@@ -34,6 +34,7 @@ interface Room {
     timePerQuestion: number;
     showExplanations: boolean;
   };
+  participantAnswers: Record<string, Record<string, any>>;
 }
 
 function generateRoomCode(): string {
@@ -55,7 +56,8 @@ export async function POST(request: NextRequest) {
       questionCount = 10,
       maxParticipants = 8,
       hostId,
-      hostName
+      hostName,
+      timePerQuestion = 30
     } = body;
 
     // Validate required fields
@@ -90,6 +92,14 @@ export async function POST(request: NextRequest) {
         questionCount
       });
       console.log('Generated questions:', questions.length);
+      
+      // Ensure all questions have explanations
+      questions = questions.map((q, index) => ({
+        ...q,
+        id: q.id || `q_${roomCode}_${index}`,
+        explanation: q.explanation || `This is the correct answer for question ${index + 1}.`
+      }));
+      
     } catch (error) {
       console.error('Error generating questions:', error);
       return NextResponse.json(
@@ -128,9 +138,10 @@ export async function POST(request: NextRequest) {
       createdAt: serverTimestamp(),
       settings: {
         questionCount,
-        timePerQuestion: difficulty === 'easy' ? 30 : difficulty === 'medium' ? 25 : 20,
+        timePerQuestion: timePerQuestion || (difficulty === 'easy' ? 30 : difficulty === 'medium' ? 25 : 20),
         showExplanations: true
-      }
+      },
+      participantAnswers: {}
     };
 
     // Store room in Firebase Firestore

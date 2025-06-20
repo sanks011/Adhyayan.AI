@@ -4,10 +4,10 @@ import { db } from '@/lib/firebase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomCode: string } }
+  { params }: { params: Promise<{ roomCode: string }> }
 ) {
   try {
-    const { roomCode } = params;
+    const { roomCode } = await params;
 
     // Get room from Firebase
     const roomRef = doc(db, 'quiz-rooms', roomCode);
@@ -31,17 +31,28 @@ export async function GET(
     if (room.status === 'active' && room.questions && room.questions.length > 0) {
       const currentQuestion = room.questions[room.currentQuestionIndex];
       if (currentQuestion) {
-        // Don't send the correct answer to clients
+        // Don't send the correct answer to clients during the quiz
         response.currentQuestion = {
           id: currentQuestion.id,
           question: currentQuestion.question,
           options: currentQuestion.options,
-          questionNumber: room.currentQuestionIndex + 1
+          questionNumber: room.currentQuestionIndex + 1,
+          // Only include correct answer and explanation after question is completed
+          ...(room.status === 'completed' && {
+            correctAnswer: currentQuestion.correctAnswer,
+            explanation: currentQuestion.explanation
+          })
         };
         
-        // Calculate time left (assuming 30 seconds per question)
-        const timePerQuestion = room.settings?.timePerQuestion || 30;
-        response.timeLeft = timePerQuestion; // You can implement proper timing logic here
+        // Calculate time left based on question start time
+        if (room.questionStartTime) {
+          const timePerQuestion = room.settings?.timePerQuestion || 30;
+          const questionStartTime = new Date(room.questionStartTime.seconds * 1000 || room.questionStartTime);
+          const timeElapsed = Math.floor((Date.now() - questionStartTime.getTime()) / 1000);
+          response.timeLeft = Math.max(0, timePerQuestion - timeElapsed);
+        } else {
+          response.timeLeft = room.settings?.timePerQuestion || 30;
+        }
       }
     }
 
