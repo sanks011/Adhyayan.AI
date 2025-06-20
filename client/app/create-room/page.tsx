@@ -136,7 +136,7 @@ export default function CreateRoom() {
 
             {/* Create Room Option */}
             <div 
-              onClick={() => router.push('/room-setup')}
+              onClick={() => router.push('/rooms/create')} // Changed from '/room-setup'
               className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-white/30"
             >
               <div className="text-center">

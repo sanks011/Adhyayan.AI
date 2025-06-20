@@ -90,8 +90,8 @@ export default function CreateRoomPage() {
       
       if (response.ok) {
         const data = await response.json();
-        // Redirect to the waiting room
-        router.push(`/rooms/${data.roomCode}`);
+        // Redirect to the quiz room waiting page
+        router.push(`/quiz-room/${data.roomCode}`);
       } else {
         const errorText = await response.text();
         try {
@@ -136,11 +136,11 @@ export default function CreateRoomPage() {
         
         <div className="fixed top-4 left-4 z-50">
           <button 
-            onClick={() => router.push('/rooms')}
+            onClick={() => router.push('/create-room')}
             className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all duration-200"
           >
             <IconArrowLeft className="h-4 w-4" />
-            Back to Rooms
+            Back
           </button>
         </div>
 

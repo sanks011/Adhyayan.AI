@@ -30,6 +30,16 @@ export default function RoomsPage() {
     }
   };
 
+  const handleCreateRoom = () => {
+    console.log('Create room clicked - navigating to /rooms/create');
+    router.push('/rooms/create');
+  };
+
+  const handleJoinRoom = () => {
+    console.log('Join room clicked - navigating to /rooms/join');
+    router.push('/rooms/join');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -99,7 +109,7 @@ export default function RoomsPage() {
             
             {/* Create Room Option */}
             <div 
-              onClick={() => router.push('/rooms/create')}
+              onClick={handleCreateRoom}
               className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl cursor-pointer transition-all duration-500 hover:scale-[1.02] hover:border-blue-500/50 hover:bg-blue-500/5"
             >
               <div className="text-center">
@@ -127,7 +137,13 @@ export default function RoomsPage() {
                   </span>
                 </div>
                 
-                <button className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCreateRoom();
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl"
+                >
                   Create New Room
                 </button>
               </div>
@@ -135,7 +151,7 @@ export default function RoomsPage() {
 
             {/* Join Room Option */}
             <div 
-              onClick={() => router.push('/rooms/join')}
+              onClick={handleJoinRoom}
               className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl cursor-pointer transition-all duration-500 hover:scale-[1.02] hover:border-green-500/50 hover:bg-green-500/5"
             >
               <div className="text-center">
@@ -163,14 +179,27 @@ export default function RoomsPage() {
                   </span>
                 </div>
                 
-                <button className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleJoinRoom();
+                  }}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl"
+                >
                   Join with Code
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-2xl">
+          {/* Debug Info */}
+          <div className="mt-8 text-center">
+            <p className="text-xs text-neutral-500">
+              Debug: Current path - {typeof window !== 'undefined' ? window.location.pathname : 'SSR'}
+            </p>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-2xl">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-400">2.5K+</div>
               <div className="text-neutral-400 text-sm">Rooms Created</div>
