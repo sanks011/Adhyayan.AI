@@ -20,7 +20,8 @@ import {
   IconEye,
   IconCheck,
   IconVolumeOff,
-  IconVolume
+  IconVolume,
+  IconList
 } from "@tabler/icons-react";
 
 // Types for settings
@@ -283,7 +284,6 @@ export default function Settings() {
     router.push('/');
     return null;
   }
-
   const dockLinks = [
     {
       title: "Home",
@@ -296,18 +296,22 @@ export default function Settings() {
       href: "/dashboard",
     },
     {
-      title: "Create Room",
+      title: "Quiz",
       icon: <IconUsers className="h-full w-full text-neutral-500 dark:text-neutral-300" />,
-      href: "/rooms/create",
+      href: "/create-room",
     },
     {
       title: "Mind Map",
       icon: <IconMap className="h-full w-full text-neutral-500 dark:text-neutral-300" />,
       href: "/mind-map",
+    },    {
+      title: "Flash Cards",
+      icon: <IconList className="h-full w-full text-neutral-500 dark:text-neutral-300" />,
+      href: "/flashCard",
     },
     {
       title: "Settings",
-      icon: <IconSettings className="h-full w-full text-neutral-500 dark:text-neutral-300" />,
+      icon: <IconSettings className="h-full w-full text-red-400 dark:text-red-400" />,
       href: "/settings",
     },
     {
@@ -625,13 +629,12 @@ export default function Settings() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Floating Dock */}
+          </div>          {/* Floating Dock */}
           <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
             <FloatingDock
               mobileClassName="translate-y-20"
               items={dockLinks}
+              activeItem="/settings"
             />
           </div>
         </main>

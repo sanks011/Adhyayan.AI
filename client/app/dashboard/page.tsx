@@ -118,7 +118,6 @@ export default function Dashboard() {
     router.push('/');
     return null;
   }
-
   const dockLinks = [
     {
       title: "Home",
@@ -128,9 +127,16 @@ export default function Dashboard() {
       href: "/",
     },
     {
+      title: "Dashboard",
+      icon: (
+        <IconBrain className="h-full w-full text-red-400 dark:text-red-400" />
+      ),
+      href: "/dashboard",
+    },
+    {
       title: "Quiz",
       icon: (
-        <IconBrain className="h-full w-full text-neutral-500 dark:text-neutral-300" />
+        <IconUsers className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
       href: "/create-room",
     },
@@ -146,7 +152,7 @@ export default function Dashboard() {
       icon: (
         <IconList className="h-full w-full text-neutral-500 dark:text-neutral-300" />
       ),
-      href: "flashCard",
+      href: "/flashCard",
     },
     {
       title: "Settings",
@@ -211,13 +217,12 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Floating Dock positioned like macOS taskbar */}
+        </div>        {/* Floating Dock positioned like macOS taskbar */}
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
           <FloatingDock
             mobileClassName="translate-y-20"
             items={dockLinks}
+            activeItem="/dashboard"
           />
         </div>
       </WavyBackground>
