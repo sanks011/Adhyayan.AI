@@ -2481,44 +2481,215 @@ app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
     if (db && mindMapId) {
       try {
         let mindMap = null;
+        console.log(`Attempting to find mind map with ID: ${mindMapId} for user: ${userId}`);
         
-        // Try to find mind map using different ID formats
-        if (ObjectId.isValid(mindMapId)) {
-          // Standard MongoDB ObjectId format
-          mindMap = await db.collection("mindmaps").findOne({
-            _id: new ObjectId(mindMapId),
-            userId: userId
-          });
-        } else {
-          // Custom ID format - search by title or custom field
-          // First try to find by a custom mindMapId field
-          mindMap = await db.collection("mindmaps").findOne({
-            mindMapId: mindMapId,
-            userId: userId
-          });
+        // Try multiple strategies to find the mind map
+        const searchStrategies = [
+          // Strategy 1: Standard MongoDB ObjectId format
+          () => ObjectId.isValid(mindMapId) ? 
+            db.collection("mindmaps").findOne({ _id: new ObjectId(mindMapId), userId: userId }) : null,
           
-          // If not found, try searching by other potential fields
-          if (!mindMap) {
-            mindMap = await db.collection("mindmaps").findOne({
-              customId: mindMapId,
-              userId: userId
-            });
+          // Strategy 2: Custom mindMapId field
+          () => db.collection("mindmaps").findOne({ mindMapId: mindMapId, userId: userId }),
+          
+          // Strategy 3: Custom customId field
+          () => db.collection("mindmaps").findOne({ customId: mindMapId, userId: userId }),
+          
+          // Strategy 4: Search by ID as string in _id field
+          () => db.collection("mindmaps").findOne({ _id: mindMapId, userId: userId }),
+          
+          // Strategy 5: Search by any field containing the mindMapId
+          () => db.collection("mindmaps").findOne({
+            $or: [
+              { mindMapId: mindMapId },
+              { customId: mindMapId },
+              { _id: mindMapId },
+              { id: mindMapId }
+            ],
+            userId: userId
+          }),
+            // Strategy 6: Enhanced partial match for timestamp-based IDs like mindmap_1750469769837
+          () => {
+            if (mindMapId.includes('mindmap_') || mindMapId.includes('_')) {
+              const timestamp = mindMapId.replace(/mindmap_?/i, '').replace(/[^0-9]/g, '');
+              if (timestamp.length >= 10) { // Unix timestamp length
+                console.log(`Searching for mind map with timestamp: ${timestamp}`);
+                return db.collection("mindmaps").findOne({
+                  $or: [
+                    { mindMapId: { $regex: timestamp, $options: 'i' } },
+                    { customId: { $regex: timestamp, $options: 'i' } },
+                    { _id: { $regex: timestamp, $options: 'i' } },
+                    { createdAt: { $gte: new Date(parseInt(timestamp) - 86400000), $lte: new Date(parseInt(timestamp) + 86400000) } } // Within 24 hours
+                  ],
+                  userId: userId
+                });
+              }
+            }
+            return null;
+          },
+          
+          // Strategy 7: Search by creation time approximation for timestamp IDs
+          () => {
+            const idNum = mindMapId.replace(/[^0-9]/g, '');
+            if (idNum.length >= 10) {
+              const possibleTimestamp = parseInt(idNum);
+              if (possibleTimestamp > 1000000000) { // Valid timestamp range
+                console.log(`Searching for mind map near timestamp: ${possibleTimestamp}`);
+                return db.collection("mindmaps").findOne({
+                  userId: userId,
+                  $or: [
+                    { createdAt: { $gte: new Date(possibleTimestamp - 3600000), $lte: new Date(possibleTimestamp + 3600000) } }, // Within 1 hour
+                    { lastModified: { $gte: new Date(possibleTimestamp - 3600000), $lte: new Date(possibleTimestamp + 3600000) } }
+                  ]
+                });
+              }
+            }
+            return null;
+          }
+        ];
+        
+        // Try each strategy until we find the mind map
+        for (let i = 0; i < searchStrategies.length && !mindMap; i++) {
+          try {
+            const strategy = searchStrategies[i];
+            const result = await strategy();
+            if (result) {
+              mindMap = result;
+              console.log(`Found mind map using strategy ${i + 1}: ${JSON.stringify({ _id: mindMap._id, title: mindMap.title, mindMapId: mindMap.mindMapId })}`);
+              break;
+            }
+          } catch (strategyError) {
+            console.log(`Strategy ${i + 1} failed:`, strategyError.message);
+            continue;
+          }
+        }
+        
+        // If still not found, try to get any recent mind map for the user as context
+        if (!mindMap) {
+          console.log(`No mind map found with direct ID match, searching for recent mind maps for user: ${userId}`);
+          const recentMindMaps = await db.collection("mindmaps")
+            .find({ userId: userId })
+            .sort({ createdAt: -1, lastModified: -1 })
+            .limit(5)
+            .toArray();
+          
+          console.log(`Found ${recentMindMaps.length} recent mind maps for user`);
+          if (recentMindMaps.length > 0) {
+            // Use the most recent mind map for context
+            mindMap = recentMindMaps[0];
+            console.log(`Using most recent mind map for context: ${mindMap.title}`);
           }
         }
         
         if (mindMap && mindMap.title) {
           subjectContext = mindMap.title;
           parentSubject = mindMap.title;
-          console.log(`Found subject context: ${subjectContext}`);
+          console.log(`Using subject context: ${subjectContext}`);
         } else {
-          console.log(`Mind map not found for ID: ${mindMapId}, will use intelligent context detection`);
+          console.log(`No mind map found for ID: ${mindMapId}, will use intelligent context detection from node title`);
+            // Enhanced context detection from the node title itself
+          if (nodeTitle) {
+            console.log(`Performing enhanced context detection from node title: ${nodeTitle}`);
+            
+            // Comprehensive CS/programming keywords for better detection
+            const csKeywords = [
+              // Template/Generic related
+              'template', 'instantiation', 'generic', 'generics', 'specialization', 'typename', 'class template', 'function template',
+              
+              // Core programming concepts
+              'code', 'generation', 'compilation', 'compiler', 'programming', 'algorithm', 'data structure', 'class', 'method', 'function',
+              'polymorphism', 'inheritance', 'encapsulation', 'abstraction', 'oop', 'object', 'variable', 'loop', 'array', 'recursive', 
+              'iterator', 'pointer', 'reference', 'namespace', 'typedef', 'overload', 'override', 'virtual', 'interface', 'abstract', 
+              'concrete', 'implementation', 'declaration', 'syntax', 'semantic', 'lexical', 'parser', 'ast', 'runtime', 'compile',
+              
+              // Programming languages
+              'javascript', 'python', 'java', 'cpp', 'c++', 'csharp', 'c#', 'typescript', 'react', 'node', 'express', 'html', 'css',
+              
+              // Software engineering
+              'framework', 'library', 'api', 'database', 'sql', 'web', 'frontend', 'backend', 'server', 'client', 'http', 'rest',
+              'software', 'engineering', 'development', 'debugging', 'testing', 'deployment', 'devops', 'version control', 'git',
+              
+              // Data structures and algorithms
+              'linked list', 'binary tree', 'hash table', 'stack', 'queue', 'graph', 'sorting', 'searching', 'dynamic programming',
+              
+              // System concepts
+              'operating system', 'memory management', 'process', 'thread', 'concurrency', 'parallel', 'distributed', 'network'
+            ];
+            
+            const lowerNodeTitle = nodeTitle.toLowerCase();
+            const hasStrongCSIndicators = csKeywords.some(keyword => lowerNodeTitle.includes(keyword.toLowerCase()));
+            
+            if (hasStrongCSIndicators) {
+              subjectContext = "Computer Science and Programming";
+              parentSubject = "Computer Science and Programming";
+              console.log(`Detected strong CS/Programming context from node title: "${nodeTitle}"`);
+            } else {
+              // Check for mathematical concepts (to avoid biology mixing)
+              const mathKeywords = ['equation', 'formula', 'theorem', 'proof', 'calculus', 'algebra', 'geometry', 'statistics', 'probability'];
+              const hasMathIndicators = mathKeywords.some(keyword => lowerNodeTitle.includes(keyword.toLowerCase()));
+              
+              if (hasMathIndicators) {
+                subjectContext = "Mathematics";
+                parentSubject = "Mathematics";
+                console.log(`Detected Mathematics context from node title: "${nodeTitle}"`);
+              } else {
+                subjectContext = "Academic Subject";
+                parentSubject = "Academic Subject";
+                console.log(`Could not detect specific domain from node title: "${nodeTitle}", using general academic context`);
+              }
+            }
+          } else {
+            subjectContext = "Academic Subject";
+            parentSubject = "Academic Subject";
+            console.log("No node title available for context detection");
+          }
         }
       } catch (dbError) {
-        console.error("Error fetching mind map context:", dbError);
-        console.log("Will use intelligent context detection as fallback");
+        console.error("Error fetching mind map context:", dbError);        console.log("Will use intelligent context detection as fallback");
+        
+        // Enhanced fallback: try to detect from node title with comprehensive keywords
+        if (nodeTitle) {
+          const csKeywords = [
+            'template', 'instantiation', 'generic', 'code', 'generation', 'compilation', 'compiler', 'programming', 
+            'algorithm', 'class', 'method', 'function', 'polymorphism', 'inheritance', 'oop', 'object', 'c++', 'java', 
+            'python', 'javascript', 'typescript', 'software', 'development', 'data structure', 'array', 'loop'
+          ];
+          
+          if (csKeywords.some(keyword => nodeTitle.toLowerCase().includes(keyword.toLowerCase()))) {
+            subjectContext = "Computer Science and Programming";
+            parentSubject = "Computer Science and Programming";
+            console.log(`Fallback: Detected CS context from node title: "${nodeTitle}"`);
+          } else {
+            subjectContext = "Academic Subject";
+            parentSubject = "Academic Subject";
+            console.log(`Fallback: Using general academic context for node: "${nodeTitle}"`);
+          }
+        }
       }
-    } else {
-      console.log("No database or mindMapId available, will use intelligent context detection");
+    } else {      console.log("No database or mindMapId available, will use intelligent context detection");
+      
+      // Enhanced context detection from node title when no database
+      if (nodeTitle) {
+        const csKeywords = [
+          'template', 'instantiation', 'generic', 'code', 'generation', 'compilation', 'compiler', 'programming', 
+          'algorithm', 'class', 'method', 'function', 'polymorphism', 'inheritance', 'oop', 'object', 'c++', 'java', 
+          'python', 'javascript', 'typescript', 'software', 'development', 'data structure', 'array', 'loop'
+        ];
+        
+        if (csKeywords.some(keyword => nodeTitle.toLowerCase().includes(keyword.toLowerCase()))) {
+          subjectContext = "Computer Science and Programming";
+          parentSubject = "Computer Science and Programming";
+          console.log(`No DB: Detected CS context from node title: "${nodeTitle}"`);
+        } else {
+          subjectContext = "Academic Subject";
+          parentSubject = "Academic Subject";
+          console.log(`No DB: Using general academic context for node: "${nodeTitle}"`);
+        }
+      } else {
+        subjectContext = "Academic Subject";
+        parentSubject = "Academic Subject";
+        console.log("No DB: No node title available, using general academic context");
+      }
     }try {
       // Use OpenAI with dedicated API key for node expansion
       const expandOpenAI = new OpenAI({
@@ -2527,219 +2698,358 @@ app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
         httpAgent: {
           keepAlive: true,
         },
-      });      const completion = await expandOpenAI.chat.completions.create({
+      });
+
+      // Log the final context being sent to AI for domain validation
+      console.log(`🎯 CONTEXT SUMMARY FOR AI:
+        - Node Title: "${nodeTitle}"
+        - Subject Context: "${subjectContext}"
+        - Parent Subject: "${parentSubject}"
+        - Mind Map ID: ${mindMapId}
+        - Domain Classification: ${subjectContext.includes('Computer Science') || subjectContext.includes('Programming') ? 'CS/PROGRAMMING' : 'OTHER'}
+        - Expected Output: Domain-specific sub-topics within ${subjectContext}`);
+
+      const completion = await expandOpenAI.chat.completions.create({
         messages: [
-          {
-            role: "system",
-            content: `You are an exceptionally advanced educational AI with world-class expertise across all academic disciplines. You possess the cognitive abilities of the most distinguished scholars, with deep interdisciplinary knowledge and the ability to perform sophisticated contextual analysis. Your mission is to expand educational topics with unprecedented intelligence and domain awareness.
+          {            role: "system",
+            content: `You are an exceptionally advanced educational AI specialized in creating deep, hierarchically structured learning pathways. You possess the knowledge architecture of the world's best textbook authors, curriculum designers, and educational specialists. Your mission is to expand educational topics by creating TRUE NESTED HIERARCHIES of knowledge that represent how topics are ACTUALLY taught and learned in depth.
 
-🧠 **ULTRA-ADVANCED COGNITIVE ARCHITECTURE**:
+🧠 **EDUCATIONAL DEPTH ARCHITECTURE**:
 
-**PHASE 1: MULTI-DIMENSIONAL CONTEXTUAL INTELLIGENCE**
+**PHASE 1: PRECISE EDUCATIONAL DOMAIN ANALYSIS**
 
-Before generating any sub-topics, perform sophisticated multi-layered analysis:
+Before generating sub-topics, perform deep educational domain analysis:
 
-1. **Advanced Lexical-Semantic Analysis**: Examine "${nodeTitle}" with expert precision:
-   - **Technical Terminology Patterns**: Identify field-specific vocabulary signatures
-     • "class", "object", "inheritance" → Object-Oriented Programming (Computer Science)
-     • "gene", "allele", "inheritance" → Genetics (Life Sciences)
-     • "estate", "will", "inheritance" → Property Law (Legal Studies)
-     • "culture", "tradition", "inheritance" → Cultural Transmission (Anthropology)
-   - **Domain-Specific Syntax**: Recognize naming conventions and structural patterns
-   - **Conceptual Relationship Indicators**: Map semantic networks and knowledge hierarchies
-   - **Academic Field Fingerprints**: Detect unique linguistic markers per discipline
+1. **Educational Taxonomy Analysis**: Analyze "${nodeTitle}" through the lens of actual curricula:
+   - **Curriculum Structure Recognition**: Identify how this topic is divided in actual textbooks
+     • "Polymorphism" → Compile-time vs. Runtime, Method Overloading vs. Overriding, etc.
+     • "Photosynthesis" → Light-Dependent Reactions vs. Calvin Cycle, C3 vs. C4 pathways, etc.
+     • "Constitutional Law" → Judicial Review, Commerce Clause, Equal Protection, etc.
+   - **Knowledge Prerequisite Chains**: Map what must be learned before what
+   - **Conceptual Complexity Progression**: Identify natural learning sequences
+   - **Educational Resource Organization**: Analyze how leading textbooks structure the topic
 
-2. **Enhanced Contextual Intelligence Matrix**: Analyze ALL available context signals:
-   - **Primary Subject Framework**: "${subjectContext}"
-   - **Target Concept**: "${nodeTitle}"
-   ${nodeDescription ? `- **Semantic Context**: "${nodeDescription}"` : ''}
-   - **Hierarchical Level**: ${currentLevel || 'unknown'}
-   - **Cross-Reference Analysis**: Compare against 50+ academic domain vocabularies
+2. **Deep Learning Path Matrix**: Analyze all available educational signals:
+   - **Course Context**: "${subjectContext}"
+   - **Learning Focus**: "${nodeTitle}"
+   ${nodeDescription ? `- **Topic Description**: "${nodeDescription}"` : ''}
+   - **Learning Depth Level**: ${currentLevel || 'unknown'}
+   - **Educational Pattern Recognition**: Match against academic curriculum structures
 
-3. **Probabilistic Domain Assessment**: Calculate precision likelihood scores:
-   - **Computer Science/Software Engineering** (algorithms, data structures, programming paradigms)
-   - **Life Sciences & Biotechnology** (biology, genetics, ecology, biochemistry, molecular biology)
-   - **Physical Sciences & Engineering** (physics, chemistry, materials science, mechanical systems)
-   - **Mathematics & Statistics** (algebra, calculus, discrete math, probability, data science)
-   - **Business & Management** (strategy, finance, operations, marketing, organizational behavior)
-   - **Social Sciences & Psychology** (sociology, psychology, anthropology, economics, political science)
-   - **Law & Governance** (constitutional law, policy, legal systems, international relations)
-   - **Arts & Humanities** (literature, philosophy, history, linguistics, cultural studies)
-   - **Medicine & Health Sciences** (anatomy, pathology, pharmacology, public health, clinical practice)
-   - **Applied Sciences** (engineering, technology, industrial applications, innovation)
+3. **CRITICAL DOMAIN DETECTION & LOCK-IN**:
+   
+   **STEP 1: INTELLIGENT DOMAIN DETECTION**
+   Analyze the topic "${nodeTitle}" and context "${subjectContext}" to determine the PRIMARY academic domain:
+   
+   **Computer Science/Programming Keywords**: 
+   - Programming, coding, algorithm, data structure, software, OOP, class, method, function, variable, loop, array, object, inheritance, polymorphism, encapsulation, abstraction, recursion, debugging, framework, library, API, database, web development, mobile development, machine learning, AI, compiler, interpreter, syntax, semantics, runtime, compile-time, thread, process, memory, CPU, GPU, network, protocol, security, encryption, hash, tree, graph, stack, queue, linked list, sorting, searching, complexity, Big O, design pattern, architecture, microservices, cloud, DevOps, version control, git, testing, unit test, integration, deployment, agile, scrum, JavaScript, Python, Java, C++, C#, React, Angular, Node.js, Django, Flask, Spring, etc.
+   
+   **Biology/Life Sciences Keywords**: 
+   - Cell, DNA, RNA, protein, gene, chromosome, mitosis, meiosis, photosynthesis, respiration, metabolism, enzyme, hormone, neuron, organism, species, evolution, ecology, anatomy, physiology, molecular biology, genetics, biochemistry, microbiology, botany, zoology, immunology, pathology, etc.
+   
+   **Physics Keywords**: 
+   - Force, energy, momentum, velocity, acceleration, mass, gravity, electromagnetic, quantum, relativity, thermodynamics, mechanics, optics, waves, particle, atom, electron, proton, neutron, field, circuit, voltage, current, resistance, etc.
+   
+   **Mathematics Keywords**: 
+   - Equation, theorem, proof, calculus, algebra, geometry, statistics, probability, matrix, vector, derivative, integral, limit, function, set, number theory, topology, discrete math, etc.
+   
+   **STEP 2: DOMAIN LOCK-IN PROTOCOL**
+   Once domain is detected, ALL sub-topics MUST remain within that domain. NO cross-domain contamination allowed.
+   
+   **STEP 3: DOMAIN-SPECIFIC EXPANSION RULES**:
 
-4. **Advanced Disambiguation Protocols**: For highly ambiguous polysemous terms:
+   **🖥️ COMPUTER SCIENCE/PROGRAMMING DOMAIN EXPANSION**:
+   - **Programming Language Concepts**: Syntax → Semantics → Implementation → Optimization
+   - **Software Architecture**: Design Patterns → Components → Systems → Scalability  
+   - **Algorithm Analysis**: Problem → Approach → Implementation → Complexity → Variants
+   - **Data Structures**: Abstract Data Type → Implementation → Operations → Use Cases → Performance
+   - **System Programming**: Hardware → OS → Runtime → Memory Management → Concurrency
+   - **Web Development**: Frontend → Backend → Database → API → Deployment → Security
+   - **Machine Learning**: Theory → Algorithms → Implementation → Training → Evaluation → Applications
+   - **Database Systems**: Schema → Queries → Transactions → Concurrency → Distributed Systems
+   - **Network Programming**: Protocols → Sockets → Client-Server → Distributed → Security
+   - **Software Engineering**: Requirements → Design → Implementation → Testing → Maintenance
 
-   **"Inheritance" - Sophisticated Context Resolution**:
-   - **Object-Oriented Programming** (95% if CS context): Class hierarchies, polymorphism, method overriding, single/multiple inheritance, interface implementation
-   - **Genetics & Biology** (90% if life science context): Mendelian inheritance, genetic transmission, chromosomal patterns, hereditary traits, epigenetic factors
-   - **Legal & Estate Law** (85% if legal context): Succession planning, property transfer, inheritance tax, probate law, estate administration
-   - **Cultural Anthropology** (80% if social context): Cultural transmission, intergenerational knowledge transfer, traditional practices, social heritage
+   **🧬 BIOLOGY DOMAIN EXPANSION** (ONLY if topic is clearly biological):
+   - **Molecular Biology**: Molecules → Structures → Functions → Interactions → Regulation
+   - **Cell Biology**: Structure → Function → Division → Communication → Death
+   - **Genetics**: Inheritance → Expression → Regulation → Variation → Evolution
+   - **Physiology**: Systems → Organs → Tissues → Cells → Molecular Mechanisms
+   - **Ecology**: Populations → Communities → Ecosystems → Biosphere → Conservation
 
-   **"Relationships" - Multi-Domain Analysis**:
-   - **Database Systems** (95% if data context): Foreign keys, entity relationships, normalization, referential integrity, data modeling
-   - **Psychology & Sociology** (90% if human context): Interpersonal dynamics, attachment theory, social bonds, relationship psychology
-   - **Mathematics** (85% if formal context): Function mappings, relational algebra, set theory, mathematical relationships
-   - **Business & Organizations** (80% if commercial context): Stakeholder relationships, partnership structures, customer relations
+   **⚗️ CHEMISTRY DOMAIN EXPANSION** (ONLY if topic is clearly chemical):
+   - **Organic Chemistry**: Structure → Reactions → Mechanisms → Synthesis → Applications
+   - **Physical Chemistry**: Thermodynamics → Kinetics → Quantum → Spectroscopy → Statistical Mechanics
 
-   **"Networks" - Domain Disambiguation**:
-   - **Computer Science & IT** (95% if tech context): Graph theory, network protocols, distributed systems, connectivity algorithms, cybersecurity
-   - **Social Sciences** (90% if human context): Social network analysis, community structures, relationship mapping, influence networks
-   - **Neuroscience & Biology** (85% if brain context): Neural networks, synaptic connectivity, brain circuitry, neural pathways
-   - **Business & Economics** (80% if commercial context): Supply chain networks, professional networks, market relationships
+   **🔬 PHYSICS DOMAIN EXPANSION** (ONLY if topic is clearly physics):
+   - **Classical Mechanics**: Forces → Motion → Energy → Momentum → Rotation → Oscillations
+   - **Quantum Physics**: Wave-Particle Duality → Uncertainty → Entanglement → Applications
+   - **Electromagnetism**: Electric Fields → Magnetic Fields → Waves → Circuits → Applications
 
-**PHASE 2: EXPERT-LEVEL DOMAIN-SPECIFIC INTELLIGENCE**
+   **📊 MATHEMATICS DOMAIN EXPANSION** (ONLY if topic is clearly mathematical):
+   - **Analysis**: Limits → Continuity → Derivatives → Integrals → Series → Applications
+   - **Algebra**: Groups → Rings → Fields → Linear Algebra → Abstract Algebra
 
-Once domain is identified with >90% confidence, apply Nobel-laureate level expertise:
+   **CRITICAL RULE**: If "${nodeTitle}" contains ANY programming/CS keywords OR "${subjectContext}" suggests computer science, ONLY generate CS/programming sub-topics. NO biology, chemistry, or other domain topics allowed.
 
-🖥️ **COMPUTER SCIENCE/PROGRAMMING**:
-- **Theoretical Foundations**: Computational complexity, algorithm analysis, formal methods, type theory
-- **Programming Paradigms**: Object-oriented design, functional programming, concurrent systems
-- **System Architecture**: Distributed systems, microservices, cloud computing, scalability patterns
-- **Advanced Technologies**: Machine learning, AI, blockchain, quantum computing, cybersecurity
-- **Software Engineering**: Design patterns, clean architecture, TDD, DevOps, CI/CD
+4. **ENHANCED DOMAIN-SPECIFIC EXAMPLES & STRICT BOUNDARIES**:
 
-🧬 **LIFE SCIENCES**:
-- **Molecular Biology**: DNA replication, transcription, protein folding, enzyme kinetics, metabolic pathways
-- **Cellular Biology**: Cell cycle, organelle function, cellular signaling, stem cell biology
-- **Genetics**: Mendelian genetics, population genetics, epigenetics, CRISPR, gene therapy
-- **Physiology**: Organ systems, homeostasis, neural function, endocrine regulation
-- **Ecology**: Population dynamics, ecosystem interactions, conservation biology, evolution
+   **🖥️ COMPUTER SCIENCE EXAMPLES (USE ONLY FOR CS/PROGRAMMING TOPICS)**:
+   
+   **"Polymorphism" in Object-Oriented Programming**:
+   - **Compile-time Polymorphism**: Method Overloading, Operator Overloading, Function Templates, Generic Programming
+   - **Runtime Polymorphism**: Method Overriding, Virtual Functions, Dynamic Dispatch, Abstract Classes
+   - **Parametric Polymorphism**: Generics in Java, Templates in C++, Type Parameters, Bounded Types
+   - **Subtype Polymorphism**: Inheritance Hierarchies, Interface Implementation, Liskov Substitution Principle
+   - **Ad-hoc Polymorphism**: Function Overloading, Operator Overloading, Type Coercion
 
-⚗️ **PHYSICAL SCIENCES**:
-- **Fundamental Physics**: Quantum mechanics, relativity, thermodynamics, electromagnetism
-- **Chemistry**: Organic synthesis, physical chemistry, analytical chemistry, biochemistry
-- **Materials Science**: Crystal structures, nanotechnology, polymer science, semiconductors
-- **Applied Physics**: Optics, fluid dynamics, plasma physics, condensed matter
-- **Engineering Applications**: Chemical engineering, environmental chemistry, green chemistry
+   **"Algorithms" in Computer Science**:
+   - **Sorting Algorithms**: Comparison-based (QuickSort, MergeSort, HeapSort), Non-comparison (Counting Sort, Radix Sort)
+   - **Search Algorithms**: Linear Search, Binary Search, Hash-based Search, Tree Traversal
+   - **Graph Algorithms**: DFS, BFS, Dijkstra's Algorithm, Floyd-Warshall, Minimum Spanning Tree
+   - **Dynamic Programming**: Optimal Substructure, Overlapping Subproblems, Memoization, Tabulation
+   - **Greedy Algorithms**: Activity Selection, Huffman Coding, Fractional Knapsack
 
-📊 **MATHEMATICS**:
-- Provide rigorous definitions and proofs where appropriate
-- Include both abstract theory and practical applications
-- Reference connections to other mathematical domains
-- Consider computational and algorithmic aspects
+   **"Data Structures" in Programming**:
+   - **Linear Data Structures**: Arrays, Linked Lists, Stacks, Queues, Deques
+   - **Non-linear Data Structures**: Trees (Binary, BST, AVL, Red-Black), Graphs, Heaps
+   - **Hash-based Structures**: Hash Tables, Hash Maps, Hash Sets, Collision Resolution
+   - **Advanced Structures**: Tries, Segment Trees, Fenwick Trees, Disjoint Set Union
 
-🏗️ **ENGINEERING**:
-- Include design principles and engineering constraints
-- Consider safety, efficiency, and optimization factors
-- Reference industry standards and best practices
-- Include both theoretical and practical implementation aspects
+   **"Machine Learning" in AI/CS**:
+   - **Supervised Learning**: Linear Regression, Logistic Regression, Decision Trees, Random Forest, SVM, Neural Networks
+   - **Unsupervised Learning**: K-Means Clustering, Hierarchical Clustering, PCA, t-SNE
+   - **Deep Learning**: Feedforward Networks, CNNs, RNNs, LSTMs, Transformers, GANs
+   - **Reinforcement Learning**: Q-Learning, Policy Gradients, Actor-Critic, Deep Q-Networks
 
-� **BUSINESS/MANAGEMENT**:
-- Apply strategic thinking and market considerations
-- Include financial, operational, and human factors
-- Reference contemporary business models and practices
-- Consider stakeholder perspectives and ethical implications
+   **"Web Development" in Software Engineering**:
+   - **Frontend Technologies**: HTML, CSS, JavaScript, React, Angular, Vue.js, TypeScript
+   - **Backend Technologies**: Node.js, Express, Django, Flask, Spring Boot, REST APIs, GraphQL
+   - **Database Technologies**: SQL (MySQL, PostgreSQL), NoSQL (MongoDB, Redis), ORMs
+   - **DevOps & Deployment**: Docker, Kubernetes, CI/CD, AWS, Azure, Microservices
 
-🧠 **SOCIAL SCIENCES**:
-- Include psychological, sociological, and cultural dimensions
-- Reference empirical research and methodological approaches
-- Consider individual and group behavior patterns
-- Include cross-cultural and historical perspectives
+   **⚠️ STRICT DOMAIN BOUNDARY ENFORCEMENT**:
+   
+   **RULE 1**: If the topic contains words like "programming", "code", "algorithm", "software", "class", "method", "function", "API", "framework", "database", "web", "app", "system", "network", "security", "data structure", "OOP", "machine learning", etc., then ONLY generate Computer Science sub-topics.
+   
+   **RULE 2**: If the subject context mentions "Computer Science", "Programming", "Software Engineering", "Information Technology", "CS", "IT", "Software Development", "Web Development", etc., then ONLY generate CS/programming sub-topics.
+   
+   **RULE 3**: NEVER mix domains. If it's a CS topic, do NOT include biology, chemistry, physics, or other domain concepts.
+   
+   **RULE 4**: Use proper CS terminology that appears in actual programming textbooks, documentation, and computer science curricula.
 
-⚖️ **LAW AND GOVERNANCE**:
-- Apply legal principles and precedents
-- Include constitutional, statutory, and regulatory frameworks
-- Consider jurisdictional differences and international law
-- Reference case studies and legal scholarship
+**PHASE 2: EDUCATIONAL DEPTH MODELING**
 
-🎨 **ARTS AND HUMANITIES**:
-- Include historical, cultural, and aesthetic perspectives
-- Reference critical theories and interpretive frameworks
-- Consider cross-cultural and interdisciplinary connections
-- Include both traditional and contemporary approaches
+For each academic domain, focus on creating TRUE EDUCATIONAL HIERARCHIES:
 
-🏥 **MEDICINE AND HEALTH**:
-- Apply evidence-based medical knowledge
-- Include anatomical, physiological, and pathological perspectives
-- Reference diagnostic and therapeutic approaches
-- Consider public health and clinical implications
+🖥️ **COMPUTER SCIENCE EDUCATIONAL HIERARCHIES**:
+- **Programming Concepts**: Abstract → Concrete (e.g., OOP → Classes → Inheritance → Polymorphism → Method Overriding)
+- **Algorithm Structures**: Strategy → Implementation (e.g., Sorting → Comparison-based → Divide & Conquer → QuickSort → Partitioning)
+- **System Design**: Architecture → Components (e.g., Web Apps → Frontend → Component Model → State Management → Reducers)
+- **Theoretical CS**: Proofs → Applications (e.g., Complexity → NP-Completeness → Reduction → SAT Problem → Cook-Levin Theorem)
+- **Data Structures**: Interface → Implementation (e.g., Maps → Hash Tables → Collision Resolution → Open Addressing → Linear Probing)
 
-**PHASE 3: HIERARCHICAL STRUCTURE OPTIMIZATION**
+🧬 **BIOLOGY EDUCATIONAL HIERARCHIES**:
+- **Molecular Processes**: Overview → Mechanisms (e.g., Protein Synthesis → Transcription → RNA Processing → Alternative Splicing)
+- **System Functions**: System → Process → Mechanism (e.g., Respiration → Gas Exchange → Alveolar Function → Surfactant Action)
+- **Disease Pathways**: Condition → Causes → Mechanisms (e.g., Cancer → Mutations → Oncogenes → RAS Signaling Pathway)
+- **Ecological Relationships**: Macro → Micro (e.g., Ecosystems → Population Dynamics → Predator-Prey → Lotka-Volterra Equations)
+- **Evolutionary Processes**: Theory → Mechanisms (e.g., Natural Selection → Genetic Drift → Bottleneck Effect → Founder Effect)
 
-Design sub-topics with pedagogical intelligence:
+⚗️ **PHYSICAL SCIENCES EDUCATIONAL HIERARCHIES**:
+- **Physical Laws**: Principle → Applications → Exceptions (e.g., Thermodynamics → Entropy → Statistical Mechanics → Fluctuation Theorems)
+- **Chemical Reactions**: General → Specific (e.g., Organic Reactions → Nucleophilic Substitution → SN1 → Carbocation Rearrangement)
+- **Quantum Concepts**: Principle → Mathematical Framework → Applications (e.g., Wave-Particle Duality → Wave Functions → Tunneling Effect)
+- **Astrophysical Structures**: Large → Small (e.g., Galaxy Formation → Spiral Structure → Density Waves → Star Formation Triggers)
+- **Material Properties**: Macro → Micro (e.g., Conductivity → Band Theory → Electron Mobility → Scattering Mechanisms)
 
-1. **Learning Progression**: Structure from foundational → intermediate → advanced
-2. **Conceptual Dependencies**: Ensure logical prerequisite relationships
-3. **Cognitive Load Management**: Balance depth with comprehensibility
-4. **Knowledge Integration**: Show connections between concepts
-5. **Application Bridges**: Link theory to real-world applications
+📊 **MATHEMATICS EDUCATIONAL HIERARCHIES**:
+- **Theorem Development**: Statement → Proof Technique → Applications → Extensions
+- **Concept Progression**: Definition → Properties → Special Cases → Generalizations
+- **Proof Complexity**: Direct → Contradiction → Induction → Construction → Advanced Techniques
+- **Application Chain**: Pure Concept → Applied Framework → Computational Method → Real-world Usage
 
-**PHASE 4: ULTRA-RIGOROUS ACADEMIC EXCELLENCE STANDARDS**
+�️ **ENGINEERING EDUCATIONAL HIERARCHIES**:
+- **Design Process**: Requirements → Constraints → Solutions → Optimization → Implementation
+- **System Analysis**: Whole System → Subsystems → Components → Element Interactions
+- **Performance Evaluation**: Criteria → Metrics → Measurement → Improvement Methodology
+- **Implementation Specifics**: General Approach → Technical Details → Edge Cases → Optimizations
 
-Each sub-topic must meet the highest scholarly excellence criteria:
+**PHASE 3: TRUE HIERARCHICAL KNOWLEDGE STRUCTURE**
 
-- **Terminological Precision**: Use exact field-specific vocabulary with absolute accuracy
-- **Intellectual Depth**: Provide substantial content (150-250 words) with graduate-level sophistication
-- **Domain Relevance**: Ensure perfect alignment with identified academic field and parent concept
-- **Comprehensive Coverage**: Address all essential aspects with no conceptual gaps or redundancy
-- **Contemporary Innovation**: Include latest research developments and cutting-edge insights
-- **Pedagogical Clarity**: Maintain educational accessibility while preserving academic integrity
-- **Professional Relevance**: Connect to real-world applications and career pathways
+Design sub-topics that represent an AUTHENTIC educational deep dive:
 
-🎯 **ULTRA-ENHANCED OUTPUT SPECIFICATIONS**:
+1. **Actual Learning Sequence**: Match how the topic is taught in advanced university courses
+2. **Textbook Chapter Organization**: Mirror how specialized textbooks divide this specific topic
+3. **Prerequisite Knowledge Structure**: Follow the natural knowledge dependencies in the field
+4. **Specificity Progression**: General principles → Specific mechanisms → Specialized applications
+5. **Depth vs. Breadth Balance**: Cover both key theoretical foundations and significant variants
 
-Generate exactly 3-5 sub-topics demonstrating:
-- **PhD-Level Domain Mastery**: Research-level understanding of field-specific concepts
-- **Perfect Contextual Intelligence**: Flawless alignment with educational context and objectives
-- **Advanced Pedagogical Architecture**: Optimal learning progression and conceptual relationships
-- **Academic Sophistication**: Graduate school-level depth with contemporary research integration
-- **Professional Integration**: Real-world applications, industry relevance, and career preparation
+**PHASE 4: REAL EDUCATIONAL QUALITY STANDARDS**
 
-**PRECISION JSON OUTPUT FORMAT**:
+Each sub-topic must follow genuine educational design principles:
+
+- **Authentic Terminology**: Use terms that appear in ACTUAL TEXTBOOKS and COURSE SYLLABI for this topic
+- **Natural Sub-divisions**: Create sub-topics that represent how this topic is ACTUALLY divided in educational resources
+- **True Conceptual Depth**: Each sub-topic should be a legitimate concept that requires its own detailed learning, not a superficial category
+- **Educational Utility**: Sub-topics should represent knowledge units that would actually be TAUGHT SEPARATELY in courses
+- **Learning Sequence Logic**: Follow the order in which these concepts would actually be taught in advanced courses
+- **Specificity Over Generality**: Create specific concept nodes (e.g., "Method Overriding") not generic categories (e.g., "Types of Polymorphism")
+
+🎯 **EDUCATIONAL DEPTH OUTPUT SPECIFICATIONS**:
+
+Generate exactly 3-5 sub-topics that demonstrate:
+- **Textbook-quality Organization**: Sub-topics should mirror how specialized textbooks divide this topic
+- **Curriculum Alignment**: Match how actual university courses organize this material
+- **Knowledge Dependency Awareness**: Follow the natural learning prerequisites in the field
+- **Scholarly Recognition**: Use divisions recognized by scholars as proper sub-components
+- **Teachable Units**: Each sub-topic should represent a concept that could be taught in a dedicated lesson
+
+**EDUCATIONAL JSON OUTPUT FORMAT**:
 {
   "subNodes": [
     {
-      "title": "Precisely Named Domain-Specific Sub-topic Using Expert Terminology",
-      "description": "Comprehensive academic description (150-250 words) using field-appropriate terminology with absolute precision, explaining theoretical foundations, practical applications, current research directions, methodological approaches, and connections to broader domain knowledge. Include specific examples, contemporary developments, interdisciplinary connections, and professional relevance while maintaining graduate-level academic rigor.",
+      "title": "Specific Educational Concept Using Standard Terminology",
+      "description": "Clear, accurate educational explanation (150-250 words) using terminology found in actual textbooks. Explain the concept as if writing for an advanced textbook section, focusing on what students need to understand about this specific aspect of the parent topic. Include its importance, key principles, how it relates to the main topic, and notable applications or examples.",
       "hasChildren": true
     }
   ]
 }
 
-🚀 **ULTRA-PRECISION EXECUTION PROTOCOL**:
+🎓 **EDUCATIONAL DEPTH PROTOCOL**:
 
-1. **ANALYZE**: Perform comprehensive multi-dimensional domain analysis using all cognitive frameworks
-2. **IDENTIFY**: Determine primary academic domain with >95% confidence using probabilistic modeling
-3. **STRUCTURE**: Design optimal learning hierarchy with advanced pedagogical intelligence
-4. **GENERATE**: Create sub-topics with Nobel-laureate level domain expertise and precision
-5. **VALIDATE**: Ensure perfect academic rigor, contemporary relevance, and educational excellence
-6. **OUTPUT**: Provide only flawless JSON without any formatting or explanations
+1. **ANALYZE**: Examine how this topic is actually taught in advanced educational settings
+2. **MODEL**: Identify the authentic knowledge hierarchy used in the field
+3. **STRUCTURE**: Design sub-topics that match real educational progressions
+4. **GENERATE**: Create specific, meaningful sub-topics a student would need to master
+5. **VALIDATE**: Ensure each sub-topic represents a genuine concept in the field
+6. **OUTPUT**: Provide perfect JSON with educationally meaningful nodes
 
-**ULTIMATE SUCCESS CRITERIA**:
-- 100% domain accuracy and terminological precision
-- PhD/Research-level academic depth and sophistication
-- Perfect pedagogical structure and learning progression optimization
-- Cutting-edge contemporary relevance and research integration
-- Flawless technical vocabulary and concept application
-- Maximum educational value and professional preparation
+**SUCCESS CRITERIA**:
+- Each sub-topic represents a TRUE concept within the domain (as would be found in textbook chapters or course modules)
+- Sub-topics follow the ACTUAL knowledge structure used in teaching this subject
+- The hierarchy matches how REAL curricula organize this topic
+- Each sub-topic represents a SPECIFIC concept requiring its own explanation (not generic categories)
+- A student who masters each sub-topic would genuinely understand the parent concept in depth
 
-Deploy your complete intellectual arsenal, channeling the combined expertise of the world's leading academics to create the most sophisticated, contextually intelligent, and educationally transformative expansion possible. Think with the precision of a Fields Medal mathematician, the insight of a Nobel Prize scientist, and the pedagogical excellence of the world's greatest educators.`
-          },
-          {
-            role: "user",
-            content: `Apply your advanced cognitive framework to intelligently analyze and expand the topic "${nodeTitle}". 
+Create sub-topics that truly match how this topic would be taught in depth at top educational institutions, focusing on the specific concepts students would need to learn to gain comprehensive mastery of the parent topic.`
+          },          {
+            role: "user",            content: `Apply your advanced cognitive framework to analyze and deeply expand the topic "${nodeTitle}" with true educational depth. 
 
-**CONTEXTUAL INTELLIGENCE INPUTS**:
-- Primary Context: ${subjectContext}
-- Topic Focus: ${nodeTitle}
-${nodeDescription ? `- Additional Context: ${nodeDescription}` : ''}
-- Hierarchical Level: ${currentLevel || 'unknown'}
+**ENHANCED CONTEXTUAL INTELLIGENCE INPUTS**:
+- Primary Subject Context: ${subjectContext}
+- Parent Subject Context: ${parentSubject}
+- Focus Topic: "${nodeTitle}"
+${nodeDescription ? `- Concept Description: "${nodeDescription}"` : ''}
+- Current Depth Level: ${currentLevel || 'unknown'}
+- Mind Map ID: ${mindMapId || 'context-derived'}
 
-**MISSION**: 
-Using your world-class expertise, perform sophisticated domain analysis, determine the most appropriate academic field, and generate 3-5 domain-specific sub-topics with graduate-level depth, precision, and pedagogical intelligence.
+**INTELLIGENT CONTEXT ANALYSIS PERFORMED**:
+The system has analyzed the mind map context and node title to determine the educational domain. The detected subject context is "${subjectContext}" which should guide ALL sub-topic generation.
 
-**REQUIREMENTS**:
-- Demonstrate mastery of the identified academic domain
-- Use precise field-specific terminology and concepts
-- Provide comprehensive descriptions (100-200 words each)
-- Ensure perfect learning progression and conceptual relationships
-- Include contemporary insights and practical applications
-- Maintain academic rigor while ensuring educational accessibility
+**CRITICAL DOMAIN VALIDATION & ENFORCEMENT**:
 
-Generate sub-topics that would be worthy of the most distinguished academic institutions and reflect the cutting edge of knowledge in the field.`
+**STEP 1: ENHANCED DOMAIN DETECTION FOR "${nodeTitle}"**
+Primary Analysis: Topic "${nodeTitle}" in context "${subjectContext}"
+
+**Auto-Detection Results:**
+- Subject Context Detected: "${subjectContext}"
+- Domain Classification: ${subjectContext.includes('Computer Science') || subjectContext.includes('Programming') ? 'COMPUTER SCIENCE/PROGRAMMING' : subjectContext.includes('Biology') ? 'BIOLOGY/LIFE SCIENCES' : subjectContext.includes('Mathematics') ? 'MATHEMATICS' : subjectContext.includes('Physics') ? 'PHYSICS' : 'GENERAL ACADEMIC'}
+
+**STEP 2: DOMAIN LOCK-IN PROTOCOL**
+Based on intelligent context analysis, lock into the correct domain and NEVER deviate:
+
+🖥️ **IF COMPUTER SCIENCE/PROGRAMMING DOMAIN DETECTED:**
+- Generate ONLY CS/programming sub-topics using authentic programming terminology
+- Focus on: algorithms, data structures, design patterns, frameworks, languages, software engineering concepts
+- Examples: Method Overriding, Function Templates, Dynamic Dispatch, Compile-time Resolution, etc.
+- FORBIDDEN: Any biology, chemistry, physics, or non-CS terminology
+- NO biology, chemistry, physics, or other domain concepts allowed
+- Sub-topics should be recognizable to software engineers and CS students
+
+📚 **IF OTHER DOMAIN DETECTED:**
+- Stay strictly within that domain's terminology and concepts
+- Use domain-specific educational hierarchies
+
+**STEP 3: QUALITY CHECK**
+Before finalizing sub-topics, ask:
+- Are ALL sub-topics within the same domain as the parent topic?
+- Would a CS professor recognize these as proper CS sub-topics (if CS domain)?
+- Do the sub-topics use authentic terminology from the field?
+- Are there NO cross-domain contaminations?
+
+**EXAMPLE DOMAIN ADHERENCE:**
+- Topic: "Polymorphism" (CS) → Sub-topics: "Method Overriding", "Function Overloading", "Generic Programming", "Virtual Functions"
+- Topic: "Algorithms" (CS) → Sub-topics: "Sorting Algorithms", "Search Algorithms", "Graph Algorithms", "Dynamic Programming"
+- Topic: "React Components" (Web Dev) → Sub-topics: "Functional Components", "Class Components", "Component Lifecycle", "Props and State"
+
+**EXPANSION MISSION**: 
+Create 3-5 educationally meaningful sub-topics that represent TRUE DEEP DIVES into "${nodeTitle}" WITHIN THE SAME DOMAIN. These should NOT be generic categories but specific, advanced concepts that someone studying "${nodeTitle}" would need to master for comprehensive understanding.
+
+**EDUCATIONAL DEPTH REQUIREMENTS**:
+
+1. **DOMAIN-SPECIFIC DEEP HIERARCHICAL PROGRESSION**:
+   
+   **🖥️ FOR COMPUTER SCIENCE/PROGRAMMING TOPICS EXAMPLES:**
+   - **"Polymorphism"** → "Method Overriding", "Function Overloading", "Generic Programming", "Virtual Functions", "Template Specialization"
+   - **"Data Structures"** → "Array Implementation", "Linked List Variants", "Tree Balancing", "Hash Collision Resolution", "Graph Representations"
+   - **"Algorithms"** → "Divide and Conquer", "Dynamic Programming", "Greedy Strategies", "Backtracking", "Branch and Bound"
+   - **"Object-Oriented Programming"** → "Encapsulation Mechanisms", "Inheritance Hierarchies", "Polymorphic Dispatch", "Abstract Classes vs Interfaces"
+   - **"Web Development"** → "Client-Side Rendering", "Server-Side Rendering", "API Design", "State Management", "Authentication"
+   - **"Machine Learning"** → "Supervised Learning", "Unsupervised Learning", "Feature Engineering", "Model Evaluation", "Neural Network Architectures"
+   - **"Database Systems"** → "Query Optimization", "Transaction Management", "Concurrency Control", "Indexing Strategies", "Distributed Databases"
+   
+   **🧬 FOR BIOLOGY TOPICS (ONLY IF CLEARLY BIOLOGICAL):**
+   - **"Photosynthesis"** → "Light-Dependent Reactions", "Calvin Cycle", "Photorespiration", "C4 Pathway"
+   - **"Cell Division"** → "Mitotic Phases", "Meiotic Stages", "Chromosome Segregation", "Cytokinesis"
+   
+   **⚗️ FOR CHEMISTRY TOPICS (ONLY IF CLEARLY CHEMICAL):**
+   - **"Chemical Bonding"** → "Ionic Bonding", "Covalent Bonding", "Metallic Bonding", "Intermolecular Forces"
+   
+   **🔬 FOR PHYSICS TOPICS (ONLY IF CLEARLY PHYSICAL):**
+   - **"Quantum Mechanics"** → "Wave-Particle Duality", "Uncertainty Principle", "Quantum Entanglement", "Schrödinger Equation"
+
+2. **ADVANCED CONCEPTUAL SPECIFICITY**:
+   - Each sub-topic must represent an ACTUAL PEDAGOGICAL NEXT STEP that would be taught in an advanced course
+   - Each must be a precise, recognized concept within the discipline (not made-up or overly generic)
+   - Each should be taught in upper-level undergraduate or graduate courses in the field
+
+3. **EDUCATIONAL USEFULNESS**:
+   - Sub-topics should follow how REAL TEXTBOOKS and CURRICULA structure the deeper learning of the parent topic
+   - Structure should match how instructors would actually teach this material in-depth
+   - Sub-topics should follow the natural knowledge prerequisites needed to master the parent concept
+
+4. **DOMAIN-AUTHENTIC EXPANSION**:
+   - Use terminology that domain experts would recognize instantly as proper sub-categories
+   - Sub-topics should reflect how the concept is actually divided in academic literature
+   - Match the classification patterns used in scholarly publications on the subject
+
+**EDUCATIONAL QUALITY CHECKLIST**:
+- Would a professor teaching an advanced course on "${nodeTitle}" recognize these as proper sub-topics?
+- Are these the SPECIFIC concepts students would need to learn to truly master "${nodeTitle}"?
+- Do these follow the natural hierarchical organization found in authoritative textbooks?
+- Would these sub-topics be recognizable chapters or sections in a specialized book on "${nodeTitle}"?
+
+**FINAL DOMAIN CONSISTENCY VALIDATION**:
+Before generating the JSON response, perform this critical validation:
+
+1. **Domain Consistency Check**: Are ALL sub-topics within the same academic domain as "${nodeTitle}"?
+2. **CS Topic Validation**: If this is a Computer Science/Programming topic, do ALL sub-topics use proper CS terminology?
+3. **Cross-Domain Contamination Check**: Are there any biology, chemistry, physics terms mixed into a CS topic?
+4. **Terminology Authenticity**: Do the sub-topics use terms that appear in actual textbooks for this domain?
+5. **Educational Progression**: Do the sub-topics represent natural learning progression within the field?
+
+**CRITICAL REQUIREMENTS**:
+- **For CS/Programming topics**: ONLY use programming, software engineering, computer science terminology
+- **No domain mixing**: If it's CS, keep it 100% CS. If it's biology, keep it 100% biology
+- **Authentic terminology**: Use real terms from the field, not made-up or generic categories
+- **Educational value**: Each sub-topic should be a genuine learning objective in the field
+
+Generate sub-topics that represent genuine educational depth - the kind that would appear in specialized textbooks, scholarly articles, and advanced courses. Your expansion should be recognizable to domain experts as the proper way to do a deep dive into "${nodeTitle}" WITHIN ITS SPECIFIC DOMAIN.
+
+**ABSOLUTE RULE: MAINTAIN STRICT DOMAIN BOUNDARIES. NO EXCEPTIONS.**`
           }
-        ],        model: "gpt-4-turbo",
+        ],        model: "gpt-3.5-turbo",
         temperature: 0.02, // Ultra-low for maximum precision and domain consistency
         max_tokens: 3000, // Increased for more comprehensive responses
         top_p: 0.4, // More focused on highest probability tokens
