@@ -12,6 +12,7 @@ export interface SidebarSubtopic {
   id: string;
   title: string;
   isRead: boolean;
+  level?: number;
 }
 
 export interface BackendNode {

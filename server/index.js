@@ -2388,6 +2388,246 @@ Your tone should be that of a knowledgeable and engaging tutor who's passionate 
   }
 });
 
+// Mind Map Node Expansion Endpoint - Generate sub-nodes for leaf nodes
+app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
+  try {
+    const { mindMapId, nodeId, nodeTitle, nodeDescription, currentLevel } = req.body;
+
+    if (!mindMapId || !nodeId || !nodeTitle) {
+      return res.status(400).json({
+        success: false,
+        error: "Mind map ID, node ID, and node title are required",
+      });
+    }
+
+    const userId = req.user.uid;
+    console.log(`Expanding node: ${nodeTitle} (${nodeId}) for user: ${userId}`);
+
+    try {
+      // Use the dedicated Gemini API key for node expansion
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.QUERY_GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are an educational AI that expands topics into detailed sub-concepts for deep learning. Generate 3-5 relevant sub-topics that would help students understand the given topic in greater depth.
+
+Topic to expand: "${nodeTitle}"
+${nodeDescription ? `Context: ${nodeDescription}` : ''}
+Current level: ${currentLevel || 'unknown'}
+
+Generate educational sub-topics that:
+1. Break down the main topic into logical components
+2. Cover different aspects or perspectives of the topic
+3. Are appropriate for deep learning and understanding
+4. Include both theoretical and practical elements where applicable
+5. Are structured for progressive learning
+
+IMPORTANT: Return ONLY a valid JSON object with this exact structure. Do not include any markdown formatting, code blocks, or explanations.
+
+{
+  "subNodes": [
+    {
+      "title": "Sub-topic Title 1",
+      "description": "Comprehensive description explaining this sub-concept and its importance",
+      "hasChildren": true
+    },
+    {
+      "title": "Sub-topic Title 2", 
+      "description": "Detailed explanation of this aspect with educational context",
+      "hasChildren": true
+    },
+    {
+      "title": "Sub-topic Title 3",
+      "description": "In-depth description covering key points and applications",
+      "hasChildren": true
+    }
+  ]
+}
+
+Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic. Each description should be 50-150 words and educationally valuable.`
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 1500,
+              topP: 0.8,
+              topK: 10
+            }
+          }),
+        }
+      );
+
+      const data = await response.json();
+      
+      // Extract the generated content from Gemini response
+      let expansionText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"subNodes": []}';
+      
+      // Clean up the response - remove markdown code blocks if present
+      expansionText = expansionText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      // Parse the JSON response
+      let expansionResult;
+      try {
+        expansionResult = JSON.parse(expansionText);
+        
+        // Validate the response structure
+        if (!expansionResult.subNodes || !Array.isArray(expansionResult.subNodes)) {
+          throw new Error("Invalid response format - subNodes not found or not an array");
+        }
+        
+        // Ensure we have valid sub-nodes
+        expansionResult.subNodes = expansionResult.subNodes.filter(node => 
+          node.title && node.description && 
+          typeof node.title === 'string' && 
+          typeof node.description === 'string'
+        );
+        
+        if (expansionResult.subNodes.length === 0) {
+          throw new Error("No valid sub-nodes generated");
+        }
+        
+      } catch (parseError) {
+        console.error("Failed to parse expansion response:", parseError);
+        console.log("Raw response text:", expansionText);
+        
+        // Return default expansion nodes on parsing error
+        expansionResult = {
+          subNodes: [
+            {
+              title: `${nodeTitle} - Fundamentals`,
+              description: `Basic principles and foundational concepts of ${nodeTitle}`,
+              hasChildren: true
+            },
+            {
+              title: `${nodeTitle} - Applications`,
+              description: `Practical applications and real-world uses of ${nodeTitle}`,
+              hasChildren: true
+            },
+            {
+              title: `${nodeTitle} - Advanced Concepts`,
+              description: `Advanced topics and deeper understanding of ${nodeTitle}`,
+              hasChildren: true
+            }
+          ]
+        };
+      }
+
+      // Update the mind map in the database with the new expanded nodes
+      if (db) {
+        try {
+          const mindMap = await db.collection("mindmaps").findOne({
+            _id: new ObjectId(mindMapId),
+            userId: userId
+          });
+
+          if (mindMap) {
+            // Generate unique IDs for the new sub-nodes
+            const newSubNodes = expansionResult.subNodes.map((subNode, index) => ({
+              id: `${nodeId}_expanded_${index + 1}`,
+              title: subNode.title,
+              description: subNode.description,
+              hasChildren: subNode.hasChildren !== false, // Default to true unless explicitly false
+              parentNode: nodeId,
+              level: (currentLevel || 0) + 1,
+              isExpanded: false,
+              position: { x: 0, y: 0 } // Will be calculated by frontend
+            }));
+
+            // Update the mind map document to mark the node as expanded and add the new sub-nodes
+            await db.collection("mindmaps").updateOne(
+              { _id: new ObjectId(mindMapId), userId: userId },
+              { 
+                $set: { 
+                  [`expandedNodes.${nodeId}`]: {
+                    expanded: true,
+                    subNodes: newSubNodes,
+                    expandedAt: new Date()
+                  },
+                  lastModified: new Date()
+                }
+              }
+            );
+
+            console.log(`Successfully expanded node ${nodeId} with ${newSubNodes.length} sub-nodes`);
+          }
+        } catch (dbError) {
+          console.error("Error updating mind map in database:", dbError);
+          // Continue anyway - the expansion can still work without DB update
+        }
+      }
+
+      return res.json({
+        success: true,
+        expandedNodes: expansionResult.subNodes.map((subNode, index) => ({
+          id: `${nodeId}_expanded_${index + 1}`,
+          title: subNode.title,
+          description: subNode.description,
+          hasChildren: subNode.hasChildren !== false,
+          parentNode: nodeId,
+          level: (currentLevel || 0) + 1,
+          isExpanded: false
+        }))
+      });
+
+    } catch (apiError) {
+      console.error("Error calling Gemini API for node expansion:", apiError);
+      
+      // Return default expansion nodes on API error
+      const defaultSubNodes = [
+        {
+          id: `${nodeId}_expanded_1`,
+          title: `${nodeTitle} - Fundamentals`,
+          description: `Basic principles and foundational concepts of ${nodeTitle}`,
+          hasChildren: true,
+          parentNode: nodeId,
+          level: (currentLevel || 0) + 1,
+          isExpanded: false
+        },
+        {
+          id: `${nodeId}_expanded_2`,
+          title: `${nodeTitle} - Applications`,
+          description: `Practical applications and real-world uses of ${nodeTitle}`,
+          hasChildren: true,
+          parentNode: nodeId,
+          level: (currentLevel || 0) + 1,
+          isExpanded: false
+        },
+        {
+          id: `${nodeId}_expanded_3`,
+          title: `${nodeTitle} - Advanced Topics`,
+          description: `Advanced concepts and deeper understanding of ${nodeTitle}`,
+          hasChildren: true,
+          parentNode: nodeId,
+          level: (currentLevel || 0) + 1,
+          isExpanded: false
+        }
+      ];
+
+      return res.json({
+        success: true,
+        expandedNodes: defaultSubNodes
+      });
+    }
+  } catch (error) {
+    console.error("Error expanding mind map node:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to expand node",
+      details: error.message,
+    });
+  }
+});
+
 // Global error handling middleware (must be last)
 app.use((err, req, res, next) => {
   console.error("Unhandled server error:", err);
