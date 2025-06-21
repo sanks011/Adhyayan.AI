@@ -29,10 +29,18 @@ export async function GET() {
         maxParticipants: roomData.maxParticipants
       });
       
-      // Filter for public rooms that aren't full
+      // Check if participants are active (within last 5 minutes)
+      const now = new Date();
+      const activeParticipants = roomData.participants?.filter((participant: any) => {
+        const lastActivity = participant.lastActivity?.toDate ? participant.lastActivity.toDate() : new Date(participant.lastActivity || now);
+        const minutesSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+        return minutesSinceActivity <= 5; // 5 minutes threshold
+      }) || [];
+      
+      // Filter for public rooms that aren't full and have active participants
       if (roomData.isPublic === true && 
-          roomData.participants && 
-          roomData.participants.length < roomData.maxParticipants) {
+          activeParticipants.length > 0 &&
+          activeParticipants.length < roomData.maxParticipants) {
         publicRooms.push({
           roomCode: roomData.roomCode,
           roomName: roomData.roomName || 'Untitled Room',
@@ -40,7 +48,7 @@ export async function GET() {
           topic: roomData.topic || 'Mixed Topics',
           difficulty: roomData.difficulty || 'medium',
           hostName: roomData.hostName || 'Anonymous Host',
-          participantCount: roomData.participants.length,
+          participantCount: activeParticipants.length,
           maxParticipants: roomData.maxParticipants || 8,
           createdAt: roomData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
           settings: {

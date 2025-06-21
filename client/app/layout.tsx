@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
+import { RoomManagerProvider } from "../components/RoomManagerProvider";
 
 const outfitFont = Outfit({
   variable: "--font-outfit",
@@ -58,7 +59,9 @@ export default function RootLayout({
         className={`${outfitFont.variable} antialiased bg-neutral-950 text-white`}
       >
         <Providers>
-          {children}
+          <RoomManagerProvider>
+            {children}
+          </RoomManagerProvider>
           <Analytics/>
         </Providers>
       </body>
