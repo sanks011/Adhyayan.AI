@@ -15,7 +15,7 @@ import {
   IconMap,
   IconDeviceGamepad2,
   IconUsersGroup,
-  IconWorldWww
+  IconWorld
 } from "@tabler/icons-react";
 
 export default function CreateRoom() {
@@ -108,8 +108,8 @@ export default function CreateRoom() {
             </p>
           </div>
 
-          {/* Updated Options Container - Now 4 columns for larger screens */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-7xl">
+          {/* Updated Options Container - Now 4 columns for larger screens, 2x2 grid for medium */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-7xl">
             
             {/* Solo Quiz Option */}
             <div 
@@ -190,7 +190,7 @@ export default function CreateRoom() {
             >
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-lg flex items-center justify-center">
-                  <IconWorldWww className="h-8 w-8 text-white" />
+                  <IconWorld className="h-8 w-8 text-white" />
                 </div>
                 
                 <h3 className="text-2xl font-bold text-white mb-3">
@@ -198,11 +198,11 @@ export default function CreateRoom() {
                 </h3>
                 
                 <p className="text-neutral-400 mb-6">
-                  Get matched with random players worldwide. Join public rooms instantly.
+                  Join public rooms and compete with random players from around the world.
                 </p>
                 
                 <button className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-lg transition-all duration-300">
-                  Find Match
+                  Find Random Match
                 </button>
               </div>
             </div>
