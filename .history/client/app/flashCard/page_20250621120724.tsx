@@ -534,7 +534,7 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             <CardBody
               className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
             >
-              <span className="text-4xl font-bold text-green-200">{flashcards[currentIndex]?.answer}</span>
+              <span className="text-2xl font-semibold text-green-200">{flashcards[currentIndex]?.answer}</span>
             </CardBody>
           </Card>
         </div>

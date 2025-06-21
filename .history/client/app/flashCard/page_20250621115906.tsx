@@ -490,18 +490,16 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
       {/* Interactive Flashcard with Enhanced Hover Effects */}
       <div
         className="relative h-[400px] w-full group overflow-hidden"
-        style={{ perspective: "1000px", willChange: "transform", zIndex: 0 }}
+        style={{ perspective: "1000px" }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
         <div
-          className="absolute inset-0 w-full h-full transition-all duration-700 ease-in-out cursor-pointer"
+          className={`absolute inset-0 w-full h-full transition-all duration-700 ease-in-out cursor-pointer`}
           style={{
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
             height: "100%",
-            willChange: "transform",
-            zIndex: 0,
           }}
           onClick={() => setIsFlipped(!isFlipped)}
         >
@@ -510,14 +508,46 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             className="absolute inset-0 w-full h-full overflow-hidden"
             style={{
               backfaceVisibility: "hidden",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-2xl font-bold text-white">{flashcards[currentIndex]?.question}</span>
+            <CardBody className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden">
+              {/* Animated background elements */}
+              <div
+                className={`absolute top-4 right-4 transition-all duration-300 ${isHovering ? "opacity-100 scale-110" : "opacity-60"}`}
+              >
+                <IconFlipVertical className="w-6 h-6 text-purple-300/50" />
+              </div>
+
+              <div className="space-y-6 max-w-3xl relative z-10">
+                <div
+                  className={`p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full w-fit mx-auto transition-all duration-300 ${
+                    isHovering ? "scale-110 rotate-12" : ""
+                  }`}
+                >
+                  <IconBrain className="w-10 h-10 text-purple-300" />
+                </div>
+                <h3
+                  className={`text-2xl md:text-3xl font-bold text-white leading-relaxed transition-all duration-300 ${
+                    isHovering ? "scale-105" : ""
+                  }`}
+                >
+                  {cleanText(currentCard.question)}
+                </h3>
+                <div className="flex items-center justify-center gap-3 text-white/60">
+                  <div
+                    className={`w-2 h-2 bg-purple-400 rounded-full transition-all duration-300 ${
+                      isHovering ? "animate-bounce" : "animate-pulse"
+                    }`}
+                  ></div>
+                  <p className="text-lg">Click to reveal answer</p>
+                  <div
+                    className={`w-2 h-2 bg-pink-400 rounded-full transition-all duration-300 ${
+                      isHovering ? "animate-bounce" : "animate-pulse"
+                    }`}
+                    style={{ animationDelay: "0.2s" }}
+                  ></div>
+                </div>
+              </div>
             </CardBody>
           </Card>
 
@@ -527,14 +557,50 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             style={{
               backfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-4xl font-bold text-green-200">{flashcards[currentIndex]?.answer}</span>
+            <CardBody className="flex items-center justify-center p-8 h-full relative overflow-hidden">
+              {/* Animated background elements */}
+              <div
+                className={`absolute top-4 left-4 transition-all duration-300 ${isHovering ? "opacity-100 scale-110" : "opacity-60"}`}
+              >
+                <IconStar className="w-6 h-6 text-blue-300/50" />
+              </div>
+
+              {/* ONLY ANSWER CONTENT */}
+              <div className="flex flex-col items-center justify-center h-full w-full max-w-5xl relative z-10">
+                <div
+                  className={`p-4 bg-gradient-to-br from-blue-500/20 to-green-500/20 rounded-full w-fit mx-auto mb-8 transition-all duration-300 ${
+                    isHovering ? "scale-110 rotate-12" : ""
+                  }`}
+                >
+                  <IconEye className="w-12 h-12 text-blue-300" />
+                </div>
+
+                {/* Large Answer Text Container */}
+                <div
+                  className={`w-full bg-black/30 rounded-2xl p-8 backdrop-blur-sm border border-white/20 transition-all duration-300 ${
+                    isHovering ? "bg-black/40 border-white/30 scale-[1.02]" : ""
+                  }`}
+                >
+                  <div className="text-center">
+                    <h4 className="text-2xl font-bold text-blue-200 mb-6">Answer</h4>
+                    <div className="max-h-64 overflow-y-auto">
+                      <p
+                        className="text-white text-2xl md:text-3xl leading-relaxed font-semibold"
+                        style={{
+                          fontFamily: "system-ui, -apple-system, sans-serif",
+                          letterSpacing: "0.025em",
+                          wordSpacing: "0.1em",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        {cleanText(currentCard.answer)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardBody>
           </Card>
         </div>

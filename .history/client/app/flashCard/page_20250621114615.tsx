@@ -267,12 +267,11 @@ export default function FlashcardPage() {
                         <p className="text-white/50 text-xs">Choose between 15-25 cards</p>
                       </div>
 
-                      {/* Grey Generate Button */}
                       <Button
                         onClick={generateFlashcards}
                         isLoading={isGenerating}
                         disabled={!topic.trim() || isGenerating}
-                        className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white font-semibold shadow-lg hover:shadow-gray-500/25 transition-all duration-200 hover:scale-[1.02] h-12"
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold shadow-lg hover:shadow-purple-500/25 transition-all duration-200 hover:scale-[1.02] h-12"
                         size="lg"
                         startContent={!isGenerating && <IconPlus className="w-5 h-5" />}
                       >
@@ -418,7 +417,7 @@ function HistoryView({
   )
 }
 
-// Enhanced Flashcard Viewer with proper answer-only display
+// Enhanced Flashcard Viewer with interactive hover effects
 function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -436,24 +435,13 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
 
   const currentCard = flashcards[currentIndex]
 
-  // Enhanced text cleaning function to fix all encoding issues
+  // Clean text function to fix encoding issues
   const cleanText = (text: string) => {
-    if (!text) return ""
-
-    return (
-      text
-        // Remove all non-printable and problematic characters
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-        // Remove zero-width characters
-        .replace(/[\u200B-\u200D\uFEFF]/g, "")
-        // Remove any remaining control characters
-        .replace(/[\x00-\x1F\x7F]/g, "")
-        // Normalize whitespace
-        .replace(/\s+/g, " ")
-        // Remove any remaining weird characters that might cause overlap
-        .replace(/[^\w\s.,!?;:()\-'"]/g, "")
-        .trim()
-    )
+    return text
+      .replace(/[^\x20-\x7E\u00A0-\u024F\u1E00-\u1EFF\n\r]/g, "") // Keep line breaks
+      .replace(/\s+/g, " ") // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, "\n\n") // Preserve paragraph breaks
+      .trim()
   }
 
   return (
@@ -489,52 +477,110 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
 
       {/* Interactive Flashcard with Enhanced Hover Effects */}
       <div
-        className="relative h-[400px] w-full group overflow-hidden"
-        style={{ perspective: "1000px", willChange: "transform", zIndex: 0 }}
+        className="relative h-[400px] w-full group"
+        style={{ perspective: "1000px" }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
         <div
-          className="absolute inset-0 w-full h-full transition-all duration-700 ease-in-out cursor-pointer"
+          className={`absolute inset-0 w-full h-full transition-all duration-700 ease-in-out cursor-pointer ${
+            isHovering ? "scale-[1.02]" : ""
+          }`}
           style={{
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-            height: "100%",
-            willChange: "transform",
-            zIndex: 0,
           }}
           onClick={() => setIsFlipped(!isFlipped)}
         >
           {/* Front (Question) */}
           <Card
-            className="absolute inset-0 w-full h-full overflow-hidden"
-            style={{
-              backfaceVisibility: "hidden",
-              willChange: "transform",
-              zIndex: 0,
-            }}
+            className={`absolute inset-0 w-full h-full bg-gradient-to-br from-purple-500/20 via-purple-600/10 to-pink-500/20 backdrop-blur-xl border border-purple-500/30 shadow-2xl transition-all duration-300 ${
+              isHovering ? "shadow-purple-500/30 border-purple-500/50" : "hover:shadow-purple-500/20"
+            }`}
+            style={{ backfaceVisibility: "hidden" }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-2xl font-bold text-white">{flashcards[currentIndex]?.question}</span>
+            <CardBody className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden">
+              {/* Animated background elements */}
+              <div
+                className={`absolute top-4 right-4 transition-all duration-300 ${isHovering ? "opacity-100 scale-110" : "opacity-60"}`}
+              >
+                <IconFlipVertical className="w-6 h-6 text-purple-300/50" />
+              </div>
+
+              <div className="space-y-6 max-w-3xl relative z-10">
+                <div
+                  className={`p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full w-fit mx-auto transition-all duration-300 ${
+                    isHovering ? "scale-110 rotate-12" : ""
+                  }`}
+                >
+                  <IconBrain className="w-10 h-10 text-purple-300" />
+                </div>
+                <h3
+                  className={`text-2xl md:text-3xl font-bold text-white leading-relaxed transition-all duration-300 ${
+                    isHovering ? "scale-105" : ""
+                  }`}
+                >
+                  {cleanText(currentCard.question)}
+                </h3>
+                <div className="flex items-center justify-center gap-3 text-white/60">
+                  <div
+                    className={`w-2 h-2 bg-purple-400 rounded-full transition-all duration-300 ${
+                      isHovering ? "animate-bounce" : "animate-pulse"
+                    }`}
+                  ></div>
+                  <p className="text-lg">Click to reveal answer</p>
+                  <div
+                    className={`w-2 h-2 bg-pink-400 rounded-full transition-all duration-300 ${
+                      isHovering ? "animate-bounce" : "animate-pulse"
+                    }`}
+                    style={{ animationDelay: "0.2s" }}
+                  ></div>
+                </div>
+              </div>
             </CardBody>
           </Card>
 
           {/* Back (Answer) */}
           <Card
-            className="absolute inset-0 w-full h-full overflow-hidden"
+            className={`absolute inset-0 w-full h-full bg-gradient-to-br from-blue-500/20 via-blue-600/10 to-green-500/20 backdrop-blur-xl border border-blue-500/30 shadow-2xl transition-all duration-300 ${
+              isHovering ? "shadow-blue-500/30 border-blue-500/50" : "hover:shadow-blue-500/20"
+            }`}
             style={{
               backfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-4xl font-bold text-green-200">{flashcards[currentIndex]?.answer}</span>
+            <CardBody className="flex flex-col justify-center p-8 h-full relative overflow-hidden">
+              {/* Animated background elements */}
+              <div
+                className={`absolute top-4 left-4 transition-all duration-300 ${isHovering ? "opacity-100 scale-110" : "opacity-60"}`}
+              >
+                <IconStar className="w-6 h-6 text-blue-300/50" />
+              </div>
+
+              <div className="flex flex-col justify-center items-center h-full max-w-full relative z-10">
+                <div
+                  className={`p-3 bg-gradient-to-br from-blue-500/20 to-green-500/20 rounded-full w-fit mx-auto mb-6 transition-all duration-300 ${
+                    isHovering ? "scale-110 rotate-12" : ""
+                  }`}
+                >
+                  <IconEye className="w-10 h-10 text-blue-300" />
+                </div>
+
+                <h4 className="text-xl font-semibold text-blue-200 mb-6 text-center">Answer:</h4>
+
+                <div
+                  className={`w-full max-w-3xl bg-white/5 rounded-xl p-6 backdrop-blur-sm border border-white/10 transition-all duration-300 ${
+                    isHovering ? "bg-white/10 border-white/20 scale-[1.02]" : ""
+                  }`}
+                >
+                  <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                    <p className="text-white text-lg leading-relaxed font-medium break-words whitespace-pre-wrap">
+                      {cleanText(currentCard.answer)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardBody>
           </Card>
         </div>

@@ -490,7 +490,7 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
       {/* Interactive Flashcard with Enhanced Hover Effects */}
       <div
         className="relative h-[400px] w-full group overflow-hidden"
-        style={{ perspective: "1000px", willChange: "transform", zIndex: 0 }}
+        style={{ perspective: "1000px" }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
@@ -500,8 +500,6 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
             height: "100%",
-            willChange: "transform",
-            zIndex: 0,
           }}
           onClick={() => setIsFlipped(!isFlipped)}
         >
@@ -510,12 +508,11 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             className="absolute inset-0 w-full h-full overflow-hidden"
             style={{
               backfaceVisibility: "hidden",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
             <CardBody
               className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
+              style={{ backfaceVisibility: "hidden" }}
             >
               <span className="text-2xl font-bold text-white">{flashcards[currentIndex]?.question}</span>
             </CardBody>
@@ -527,14 +524,13 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
             style={{
               backfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
             <CardBody
               className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
+              style={{ backfaceVisibility: "hidden" }}
             >
-              <span className="text-4xl font-bold text-green-200">{flashcards[currentIndex]?.answer}</span>
+              <span className="text-2xl font-semibold text-green-200">{flashcards[currentIndex]?.answer}</span>
             </CardBody>
           </Card>
         </div>

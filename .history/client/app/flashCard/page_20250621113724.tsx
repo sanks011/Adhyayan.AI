@@ -18,8 +18,6 @@ import {
   IconRefresh,
   IconChevronLeft,
   IconChevronRight,
-  IconFlipVertical,
-  IconStar,
 } from "@tabler/icons-react"
 
 interface Flashcard {
@@ -72,9 +70,9 @@ export default function FlashcardPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+          <div className="w-20 h-20 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
           <div
-            className="absolute inset-0 w-16 h-16 border-4 border-pink-500/30 border-b-pink-500 rounded-full animate-spin"
+            className="absolute inset-0 w-20 h-20 border-4 border-pink-500/30 border-b-pink-500 rounded-full animate-spin"
             style={{ animationDirection: "reverse" }}
           ></div>
         </div>
@@ -95,7 +93,7 @@ export default function FlashcardPage() {
 
     setIsGenerating(true)
     try {
-      const response = await fetch("/api/generate-flashcards", {
+      const response = await fetch("/api/generate-flashcard", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -159,15 +157,15 @@ export default function FlashcardPage() {
     <div className="min-h-screen relative overflow-hidden">
       <WavyBackground className="min-h-screen">
         {/* Gyan Points Display */}
-        <div className="fixed top-4 right-4 z-50">
+        <div className="fixed top-6 right-6 z-50">
           <GyanPointsDisplay />
         </div>
 
-        {/* Main Container - Reasonable Size */}
-        <div className="container mx-auto px-4 py-6 max-w-7xl relative z-10">
+        {/* Main Container - Much Larger */}
+        <div className="container mx-auto px-6 py-8 max-w-[1600px] relative z-10">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between mb-12">
+            <div className="flex items-center gap-6">
               <Button
                 isIconOnly
                 variant="ghost"
@@ -177,19 +175,19 @@ export default function FlashcardPage() {
               >
                 <IconArrowLeft className="w-6 h-6" />
               </Button>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl backdrop-blur-sm border border-white/10">
-                  <IconCards className="w-8 h-8 text-white" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl backdrop-blur-sm border border-white/10">
+                  <IconCards className="w-10 h-10 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-bold text-white bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  <h1 className="text-5xl font-bold text-white bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                     Flashcards
                   </h1>
-                  <p className="text-white/70 text-sm md:text-base">AI-powered learning cards</p>
+                  <p className="text-white/70 text-lg mt-1">AI-powered learning cards</p>
                 </div>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               <Button
                 variant={showHistory ? "solid" : "ghost"}
                 onClick={() => setShowHistory(!showHistory)}
@@ -198,7 +196,7 @@ export default function FlashcardPage() {
                     ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg"
                     : "text-white hover:bg-white/10 border border-white/20"
                 }
-                startContent={<IconHistory className="w-4 h-4" />}
+                startContent={<IconHistory className="w-5 h-5" />}
                 size="lg"
               >
                 History ({history.length})
@@ -208,7 +206,7 @@ export default function FlashcardPage() {
                   variant="ghost"
                   onClick={clearAllHistory}
                   className="text-red-400 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all duration-200"
-                  startContent={<IconTrash className="w-4 h-4" />}
+                  startContent={<IconTrash className="w-5 h-5" />}
                   size="lg"
                 >
                   Clear All
@@ -221,36 +219,36 @@ export default function FlashcardPage() {
           {showHistory ? (
             <HistoryView history={history} onView={viewFlashcardSet} onDelete={deleteFromHistory} />
           ) : (
-            <div className="grid lg:grid-cols-3 gap-8">
-              {/* Generation Panel - 1 column */}
-              <div className="lg:col-span-1">
-                <Card className="bg-black/30 backdrop-blur-xl border border-white/10 shadow-xl hover:shadow-2xl transition-all duration-300 hover:border-white/20 h-fit">
-                  <CardBody className="p-6">
-                    <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg">
-                        <IconBrain className="w-6 h-6" />
+            <div className="grid xl:grid-cols-5 gap-12">
+              {/* Generation Panel - 2 columns */}
+              <div className="xl:col-span-2">
+                <Card className="bg-black/30 backdrop-blur-2xl border border-white/10 shadow-2xl h-fit">
+                  <CardBody className="p-10">
+                    <h2 className="text-3xl font-bold text-white mb-10 flex items-center gap-4">
+                      <div className="p-3 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl">
+                        <IconBrain className="w-8 h-8" />
                       </div>
                       Generate Flashcards
                     </h2>
 
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-white/90 text-sm font-medium block">Topic</label>
+                    <div className="space-y-8">
+                      <div className="space-y-3">
+                        <label className="text-white/90 text-lg font-medium block">Topic</label>
                         <Input
-                          placeholder="Enter a topic (e.g., Photosynthesis)"
+                          placeholder="Enter a topic (e.g., Photosynthesis, World War 2)"
                           value={topic}
                           onChange={(e) => setTopic(e.target.value)}
                           classNames={{
-                            input: "text-white bg-transparent placeholder:text-white/40",
+                            input: "text-white text-lg bg-transparent placeholder:text-white/40",
                             inputWrapper:
-                              "border border-white/20 hover:border-white/40 focus-within:border-purple-500/60 bg-white/5 backdrop-blur-sm h-12 rounded-lg transition-all duration-200",
+                              "border-2 border-white/20 hover:border-white/40 focus-within:border-purple-500/60 bg-white/5 backdrop-blur-sm h-14 rounded-xl",
                           }}
                           size="lg"
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-white/90 text-sm font-medium block">Number of Cards</label>
+                      <div className="space-y-3">
+                        <label className="text-white/90 text-lg font-medium block">Number of Cards</label>
                         <Input
                           type="number"
                           min="15"
@@ -258,39 +256,38 @@ export default function FlashcardPage() {
                           value={count.toString()}
                           onChange={(e) => setCount(Math.max(15, Math.min(25, Number.parseInt(e.target.value) || 15)))}
                           classNames={{
-                            input: "text-white bg-transparent",
+                            input: "text-white text-lg bg-transparent",
                             inputWrapper:
-                              "border border-white/20 hover:border-white/40 focus-within:border-purple-500/60 bg-white/5 backdrop-blur-sm h-12 rounded-lg transition-all duration-200",
+                              "border-2 border-white/20 hover:border-white/40 focus-within:border-purple-500/60 bg-white/5 backdrop-blur-sm h-14 rounded-xl",
                           }}
                           size="lg"
                         />
-                        <p className="text-white/50 text-xs">Choose between 15-25 cards</p>
+                        <p className="text-white/50 text-sm">Choose between 15-25 cards</p>
                       </div>
 
-                      {/* Grey Generate Button */}
                       <Button
                         onClick={generateFlashcards}
                         isLoading={isGenerating}
                         disabled={!topic.trim() || isGenerating}
-                        className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white font-semibold shadow-lg hover:shadow-gray-500/25 transition-all duration-200 hover:scale-[1.02] h-12"
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold shadow-xl hover:shadow-purple-500/25 transition-all duration-200 hover:scale-[1.02] h-16 text-lg"
                         size="lg"
-                        startContent={!isGenerating && <IconPlus className="w-5 h-5" />}
+                        startContent={!isGenerating && <IconPlus className="w-6 h-6" />}
                       >
                         {isGenerating ? "Generating..." : "Generate Flashcards"}
                       </Button>
                     </div>
 
                     {selectedSet && (
-                      <div className="mt-6 p-4 bg-gradient-to-br from-green-500/10 to-blue-500/10 rounded-xl border border-green-500/20 backdrop-blur-sm">
+                      <div className="mt-10 p-8 bg-gradient-to-br from-green-500/10 to-blue-500/10 rounded-2xl border border-green-500/20 backdrop-blur-sm">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="text-white font-semibold">{selectedSet.topic}</h3>
-                            <p className="text-white/60 text-sm">
-                              {selectedSet.count} cards • {new Date(selectedSet.createdAt).toLocaleDateString()}
+                            <h3 className="text-white font-semibold text-xl">{selectedSet.topic}</h3>
+                            <p className="text-white/60 text-base mt-1">
+                              {selectedSet.count} cards • Created {new Date(selectedSet.createdAt).toLocaleDateString()}
                             </p>
                           </div>
-                          <Chip color="success" variant="flat" size="sm">
-                            Current
+                          <Chip color="success" variant="flat" size="lg" className="text-base px-4 py-2">
+                            Current Set
                           </Chip>
                         </div>
                       </div>
@@ -299,19 +296,19 @@ export default function FlashcardPage() {
                 </Card>
               </div>
 
-              {/* Flashcard Display - 2 columns */}
-              <div className="lg:col-span-2">
+              {/* Flashcard Display - 3 columns */}
+              <div className="xl:col-span-3">
                 {currentFlashcards.length > 0 ? (
                   <FlashcardViewer flashcards={currentFlashcards} />
                 ) : (
-                  <Card className="bg-black/30 backdrop-blur-xl border border-white/10 h-full shadow-xl min-h-[500px] hover:shadow-2xl transition-all duration-300 hover:border-white/20">
-                    <CardBody className="flex items-center justify-center p-12">
+                  <Card className="bg-black/30 backdrop-blur-2xl border border-white/10 h-full shadow-2xl min-h-[600px]">
+                    <CardBody className="flex items-center justify-center p-16">
                       <div className="text-center">
-                        <div className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full w-fit mx-auto mb-6 hover:scale-110 transition-transform duration-300">
-                          <IconCards className="w-16 h-16 text-white/30" />
+                        <div className="p-8 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full w-fit mx-auto mb-8">
+                          <IconCards className="w-20 h-20 text-white/30" />
                         </div>
-                        <h3 className="text-2xl font-semibold text-white mb-3">No Flashcards Yet</h3>
-                        <p className="text-white/60 text-lg">
+                        <h3 className="text-3xl font-semibold text-white mb-4">No Flashcards Yet</h3>
+                        <p className="text-white/60 text-xl max-w-md">
                           Generate flashcards or select from history to get started
                         </p>
                       </div>
@@ -327,7 +324,7 @@ export default function FlashcardPage() {
   )
 }
 
-// History View Component with enhanced hover effects
+// History View Component
 function HistoryView({
   history,
   onView,
@@ -339,14 +336,14 @@ function HistoryView({
 }) {
   if (history.length === 0) {
     return (
-      <Card className="bg-black/30 backdrop-blur-xl border border-white/10 shadow-xl">
-        <CardBody className="flex items-center justify-center p-16">
+      <Card className="bg-black/30 backdrop-blur-2xl border border-white/10 shadow-2xl">
+        <CardBody className="flex items-center justify-center p-20">
           <div className="text-center">
-            <div className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full w-fit mx-auto mb-6 hover:scale-110 transition-transform duration-300">
-              <IconHistory className="w-16 h-16 text-white/30" />
+            <div className="p-8 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full w-fit mx-auto mb-8">
+              <IconHistory className="w-20 h-20 text-white/30" />
             </div>
-            <h3 className="text-2xl font-semibold text-white mb-3">No History Yet</h3>
-            <p className="text-white/60 text-lg">Generate some flashcards to see them here</p>
+            <h3 className="text-3xl font-semibold text-white mb-4">No History Yet</h3>
+            <p className="text-white/60 text-xl">Generate some flashcards to see them here</p>
           </div>
         </CardBody>
       </Card>
@@ -354,46 +351,36 @@ function HistoryView({
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {history.map((set, index) => (
         <Card
           key={set.id}
-          className="bg-black/30 backdrop-blur-xl border border-white/10 hover:bg-black/40 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl shadow-lg hover:border-white/30 group cursor-pointer"
+          className="bg-black/30 backdrop-blur-2xl border border-white/10 hover:bg-black/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl shadow-lg"
           style={{
             animationDelay: `${index * 100}ms`,
           }}
         >
-          <CardBody className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-white font-semibold text-lg truncate pr-2 group-hover:text-purple-300 transition-colors duration-200">
-                {set.topic}
-              </h3>
+          <CardBody className="p-8">
+            <div className="flex items-start justify-between mb-6">
+              <h3 className="text-white font-semibold text-xl truncate pr-2">{set.topic}</h3>
               <Button
                 isIconOnly
                 size="sm"
                 variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete(set.id)
-                }}
-                className="text-red-400 hover:bg-red-500/20 hover:text-red-300 min-w-unit-8 w-8 h-8 hover:scale-110 transition-all duration-200"
+                onClick={() => onDelete(set.id)}
+                className="text-red-400 hover:bg-red-500/10 min-w-unit-8 w-8 h-8 hover:scale-110 transition-all duration-200"
               >
                 <IconTrash className="w-4 h-4" />
               </Button>
             </div>
 
-            <div className="space-y-3 mb-6">
+            <div className="space-y-4 mb-8">
               <div className="flex items-center gap-2">
-                <Chip
-                  size="sm"
-                  color="primary"
-                  variant="flat"
-                  className="font-semibold group-hover:scale-105 transition-transform duration-200"
-                >
+                <Chip size="lg" color="primary" variant="flat" className="font-semibold text-base px-4 py-2">
                   {set.count} cards
                 </Chip>
               </div>
-              <p className="text-white/60 text-sm group-hover:text-white/80 transition-colors duration-200">
+              <p className="text-white/60 text-base">
                 Created:{" "}
                 {new Date(set.createdAt).toLocaleDateString("en-US", {
                   year: "numeric",
@@ -405,8 +392,8 @@ function HistoryView({
 
             <Button
               onClick={() => onView(set)}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold shadow-lg hover:shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] group-hover:from-blue-400 group-hover:to-purple-400"
-              startContent={<IconEye className="w-4 h-4" />}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold shadow-lg hover:shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] h-12 text-base"
+              startContent={<IconEye className="w-5 h-5" />}
               size="lg"
             >
               View Cards
@@ -418,11 +405,10 @@ function HistoryView({
   )
 }
 
-// Enhanced Flashcard Viewer with proper answer-only display
+// Flashcard Viewer Component with perfect 3D flip animation and fixed text rendering
 function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
-  const [isHovering, setIsHovering] = useState(false)
 
   const nextCard = () => {
     setCurrentIndex((prev) => (prev + 1) % flashcards.length)
@@ -436,43 +422,31 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
 
   const currentCard = flashcards[currentIndex]
 
-  // Enhanced text cleaning function to fix all encoding issues
+  // Clean text function to fix encoding issues
   const cleanText = (text: string) => {
-    if (!text) return ""
-
-    return (
-      text
-        // Remove all non-printable and problematic characters
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-        // Remove zero-width characters
-        .replace(/[\u200B-\u200D\uFEFF]/g, "")
-        // Remove any remaining control characters
-        .replace(/[\x00-\x1F\x7F]/g, "")
-        // Normalize whitespace
-        .replace(/\s+/g, " ")
-        // Remove any remaining weird characters that might cause overlap
-        .replace(/[^\w\s.,!?;:()\-'"]/g, "")
-        .trim()
-    )
+    return text
+      .replace(/[^\x20-\x7E\u00A0-\u024F\u1E00-\u1EFF]/g, "") // Remove non-printable characters
+      .replace(/\s+/g, " ") // Replace multiple spaces with single space
+      .trim()
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Progress Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="text-white/90 text-xl font-semibold">
+        <div className="flex items-center gap-6">
+          <span className="text-white/90 text-2xl font-semibold">
             Card {currentIndex + 1} of {flashcards.length}
           </span>
           <Button
-            size="sm"
+            size="lg"
             variant="ghost"
             onClick={() => {
               setCurrentIndex(0)
               setIsFlipped(false)
             }}
-            className="text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200 hover:scale-105"
-            startContent={<IconRefresh className="w-4 h-4" />}
+            className="text-white/60 hover:bg-white/10 hover:text-white transition-all duration-200"
+            startContent={<IconRefresh className="w-5 h-5" />}
           >
             Reset
           </Button>
@@ -480,74 +454,80 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden backdrop-blur-sm">
+      <div className="w-full bg-white/10 rounded-full h-4 overflow-hidden backdrop-blur-sm">
         <div
-          className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500 ease-out shadow-lg"
+          className="bg-gradient-to-r from-purple-500 to-pink-500 h-4 rounded-full transition-all duration-500 ease-out shadow-lg"
           style={{ width: `${((currentIndex + 1) / flashcards.length) * 100}%` }}
         />
       </div>
 
-      {/* Interactive Flashcard with Enhanced Hover Effects */}
-      <div
-        className="relative h-[400px] w-full group overflow-hidden"
-        style={{ perspective: "1000px", willChange: "transform", zIndex: 0 }}
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
-      >
+      {/* Flashcard with 3D Flip Animation - Much Larger */}
+      <div className="relative h-[500px] w-full" style={{ perspective: "1200px" }}>
         <div
-          className="absolute inset-0 w-full h-full transition-all duration-700 ease-in-out cursor-pointer"
+          className={`absolute inset-0 w-full h-full transition-transform duration-700 ease-in-out cursor-pointer`}
           style={{
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
-            height: "100%",
-            willChange: "transform",
-            zIndex: 0,
           }}
           onClick={() => setIsFlipped(!isFlipped)}
         >
           {/* Front (Question) */}
           <Card
-            className="absolute inset-0 w-full h-full overflow-hidden"
-            style={{
-              backfaceVisibility: "hidden",
-              willChange: "transform",
-              zIndex: 0,
-            }}
+            className="absolute inset-0 w-full h-full bg-gradient-to-br from-purple-500/20 via-purple-600/10 to-pink-500/20 backdrop-blur-2xl border-2 border-purple-500/30 shadow-2xl hover:shadow-purple-500/20 transition-all duration-300"
+            style={{ backfaceVisibility: "hidden" }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-2xl font-bold text-white">{flashcards[currentIndex]?.question}</span>
+            <CardBody className="flex items-center justify-center p-12 text-center h-full">
+              <div className="space-y-8 max-w-4xl">
+                <div className="p-4 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full w-fit mx-auto">
+                  <IconBrain className="w-12 h-12 text-purple-300" />
+                </div>
+                <h3 className="text-3xl md:text-4xl font-bold text-white leading-relaxed">
+                  {cleanText(currentCard.question)}
+                </h3>
+                <div className="flex items-center justify-center gap-3 text-white/60">
+                  <div className="w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
+                  <p className="text-xl">Click to reveal answer</p>
+                  <div className="w-3 h-3 bg-pink-400 rounded-full animate-pulse"></div>
+                </div>
+              </div>
             </CardBody>
           </Card>
 
           {/* Back (Answer) */}
           <Card
-            className="absolute inset-0 w-full h-full overflow-hidden"
+            className="absolute inset-0 w-full h-full bg-gradient-to-br from-blue-500/20 via-blue-600/10 to-green-500/20 backdrop-blur-2xl border-2 border-blue-500/30 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300"
             style={{
               backfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
-              willChange: "transform",
-              zIndex: 0,
             }}
           >
-            <CardBody
-              className="flex items-center justify-center p-8 text-center h-full relative overflow-hidden"
-            >
-              <span className="text-4xl font-bold text-green-200">{flashcards[currentIndex]?.answer}</span>
+            <CardBody className="flex items-center justify-center p-12 text-center h-full">
+              <div className="space-y-8 max-w-4xl">
+                <div className="p-4 bg-gradient-to-br from-blue-500/20 to-green-500/20 rounded-full w-fit mx-auto">
+                  <IconEye className="w-12 h-12 text-blue-300" />
+                </div>
+                <div className="space-y-6">
+                  <h4 className="text-2xl font-semibold text-blue-200">Answer:</h4>
+                  <div className="bg-white/5 rounded-2xl p-8 backdrop-blur-sm border border-white/10">
+                    <p className="text-white text-xl md:text-2xl leading-relaxed font-medium">
+                      {cleanText(currentCard.answer)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardBody>
           </Card>
         </div>
       </div>
 
-      {/* Enhanced Navigation Controls */}
-      <div className="flex justify-between items-center gap-4">
+      {/* Navigation Controls */}
+      <div className="flex justify-between items-center gap-6">
         <Button
           onClick={prevCard}
           disabled={flashcards.length <= 1}
           variant="ghost"
-          className="text-white hover:bg-white/10 border border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 h-12 px-6"
-          startContent={<IconChevronLeft className="w-5 h-5" />}
+          className="text-white hover:bg-white/10 border-2 border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 h-14 px-8 text-lg"
+          startContent={<IconChevronLeft className="w-6 h-6" />}
           size="lg"
         >
           Previous
@@ -555,9 +535,8 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
 
         <Button
           onClick={() => setIsFlipped(!isFlipped)}
-          className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 hover:border-purple-500/50 backdrop-blur-sm transition-all duration-200 hover:scale-105 h-12 px-6 font-semibold"
+          className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white hover:from-purple-500/30 hover:to-pink-500/30 border-2 border-purple-500/30 hover:border-purple-500/50 backdrop-blur-sm transition-all duration-200 hover:scale-105 h-14 px-8 text-lg font-semibold"
           size="lg"
-          startContent={<IconFlipVertical className="w-5 h-5" />}
         >
           {isFlipped ? "Show Question" : "Show Answer"}
         </Button>
@@ -566,16 +545,16 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
           onClick={nextCard}
           disabled={flashcards.length <= 1}
           variant="ghost"
-          className="text-white hover:bg-white/10 border border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 h-12 px-6"
-          endContent={<IconChevronRight className="w-5 h-5" />}
+          className="text-white hover:bg-white/10 border-2 border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 h-14 px-8 text-lg"
+          endContent={<IconChevronRight className="w-6 h-6" />}
           size="lg"
         >
           Next
         </Button>
       </div>
 
-      {/* Interactive Card Navigation Dots */}
-      <div className="flex justify-center gap-2 mt-6">
+      {/* Card Navigation Dots */}
+      <div className="flex justify-center gap-3 mt-8">
         {flashcards.slice(0, Math.min(10, flashcards.length)).map((_, index) => (
           <button
             key={index}
@@ -583,15 +562,15 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
               setCurrentIndex(index)
               setIsFlipped(false)
             }}
-            className={`w-3 h-3 rounded-full transition-all duration-200 hover:scale-125 ${
+            className={`w-4 h-4 rounded-full transition-all duration-200 hover:scale-125 ${
               index === currentIndex
-                ? "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg scale-125"
+                ? "bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg"
                 : "bg-white/20 hover:bg-white/40"
             }`}
           />
         ))}
         {flashcards.length > 10 && (
-          <span className="text-white/40 text-sm self-center ml-2">+{flashcards.length - 10} more</span>
+          <span className="text-white/40 text-base self-center ml-3">+{flashcards.length - 10} more</span>
         )}
       </div>
     </div>

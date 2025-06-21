@@ -597,3 +597,14 @@ function FlashcardViewer({ flashcards }: { flashcards: Flashcard[] }) {
     </div>
   )
 }
+
+const prompt = `Create ${numCards} educational flashcards about "${topic}".
+Return ONLY a valid JSON array with no additional text, markdown, or formatting.
+Each flashcard should have a "question" and "answer" field.
+Make questions clear and concise (max 15 words).
+Make answers as detailed, in-depth, and comprehensive as possible, covering all key points, examples, and explanations relevant to the question.
+
+Example format:
+[{"question":"What is photosynthesis?","answer":"Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize foods with the help of chlorophyll. It involves the transformation of carbon dioxide and water into glucose and oxygen, providing energy for the plant and releasing oxygen as a byproduct. The process occurs mainly in the chloroplasts of plant cells and is fundamental to life on Earth."}]
+
+Topic: ${topic}`
