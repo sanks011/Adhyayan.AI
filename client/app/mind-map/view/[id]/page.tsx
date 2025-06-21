@@ -62,14 +62,17 @@ type CustomNodeData = {
   onExpandNode?: (nodeId: string) => void;
 }
 
-// Custom node component for expandable/collapsible behavior
+// Custom node component for expandable/collapsible behavior with enhanced UI
 const CustomNode = ({ data, id }: NodeProps) => {
   const { setNodes, getNodes, setCenter, getZoom } = useReactFlow();
   const nodeData = data as CustomNodeData;
+  const [isHovered, setIsHovered] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   
-  // Function to handle expand/collapse
+  // Function to handle expand/collapse with animation
   const toggleExpanded = useCallback(() => {
     const targetNodeId = id;
+    setIsAnimating(true);
     
     setNodes((nds) => {
       return nds.map((node) => {
@@ -92,7 +95,9 @@ const CustomNode = ({ data, id }: NodeProps) => {
         }
         return node;
       });
-    });    // Center view on the expanded area after a slight delay to allow for node updates
+    });
+
+    // Center view on the expanded area after a slight delay to allow for node updates
     setTimeout(() => {
       const updatedNodes = getNodes();
       const expandedNode = updatedNodes.find(n => n.id === targetNodeId);
@@ -116,6 +121,7 @@ const CustomNode = ({ data, id }: NodeProps) => {
           setCenter(expandedNode.position.x, expandedNode.position.y, { zoom: getZoom(), duration: 800 });
         }
       }
+      setIsAnimating(false);
     }, 100);
   }, [id, setNodes, getNodes, setCenter, getZoom]);
   // Function to toggle read status
@@ -134,18 +140,30 @@ const CustomNode = ({ data, id }: NodeProps) => {
       nodeData.onNodeClick(id);
     }
   }, [nodeData, id]);
-    // Determine border color based on read status and selection
+
+  // Determine border and background colors with minimal, classic design
   const getBorderColor = () => {
-    if (nodeData.isSelected) return "border-white border-2"; // White border for selected nodes
-    if (nodeData.isRoot) return "border-blue-500";
-    return nodeData.isRead ? "border-green-500" : "border-neutral-700";
+    if (nodeData.isSelected) return "border-white border-2 shadow-white/20 shadow-md"; 
+    if (nodeData.isRoot) return "border-gray-400 border-2 shadow-gray-400/20 shadow-sm";
+    if (isHovered) return "border-gray-300 border-2 shadow-gray-300/20 shadow-sm";
+    return nodeData.isRead ? "border-green-500 border-2" : "border-neutral-600 border";
   };
   
-  // Determine background color
   const getBackgroundColor = () => {
-    if (nodeData.isRoot) return "bg-neutral-900";
-    return nodeData.isRead ? "bg-green-700" : "bg-neutral-900";
-  };  // Function to handle node expansion for leaf nodes
+    if (nodeData.isSelected) return "bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 backdrop-blur-sm";
+    if (nodeData.isRoot) return "bg-gradient-to-br from-neutral-800/90 to-neutral-700/90 backdrop-blur-sm";
+    if (isHovered) return "bg-gradient-to-br from-neutral-800/80 to-neutral-700/80 backdrop-blur-sm";
+    return nodeData.isRead ? "bg-gradient-to-br from-green-900/60 to-green-800/60 backdrop-blur-sm" : "bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 backdrop-blur-sm";
+  };
+
+  const getTextColor = () => {
+    if (nodeData.isSelected) return "text-white";
+    if (nodeData.isRoot) return "text-gray-100";
+    if (isHovered) return "text-gray-100";
+    return nodeData.isRead ? "text-green-100" : "text-neutral-200";
+  };
+
+  // Function to handle node expansion for leaf nodes
   const handleExpandNode = useCallback(async () => {
     if (nodeData.onExpandNode) {
       nodeData.onExpandNode(id);
@@ -154,84 +172,150 @@ const CustomNode = ({ data, id }: NodeProps) => {
 
   return (
     <>
-      {/* Expandable button for nodes with children */}
+      {/* Floating expand/collapse button for nodes with children */}
       {data.hasChildren && (
         <div 
-          className="absolute -left-6 top-1/2 transform -translate-y-1/2 w-5 h-5 rounded-full bg-neutral-800 flex items-center justify-center cursor-pointer hover:bg-neutral-700 transition-colors"
-          onClick={toggleExpanded}
-          style={{ zIndex: 10 }}
-          title={data.expanded ? "Collapse" : "Expand"}
-        >
-          {data.expanded ? (
-            <IconMinus className="h-3 w-3 text-white" />
-          ) : (
-            <IconPlus className="h-3 w-3 text-white" />
+          className={cn(
+            "absolute -left-10 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full",
+            "flex items-center justify-center cursor-pointer transition-all duration-300",
+            "shadow-lg border-2 backdrop-blur-sm",
+            isHovered 
+              ? "bg-gradient-to-br from-neutral-600 to-neutral-700 border-neutral-500 scale-110 shadow-neutral-400/30" 
+              : "bg-gradient-to-br from-neutral-700 to-neutral-800 border-neutral-600 hover:scale-105"
           )}
+          onClick={toggleExpanded}
+          style={{ zIndex: 15 }}
+          title={data.expanded ? "Collapse" : "Expand"}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <div className={cn(
+            "transition-transform duration-300",
+            data.expanded ? "rotate-180" : "rotate-0"
+          )}>
+            {data.expanded ? (
+              <IconMinus className="h-4 w-4 text-white" />
+            ) : (
+              <IconPlus className="h-4 w-4 text-white" />
+            )}
+          </div>
         </div>
       )}
 
-      {/* Expand button for leaf nodes (AI expansion) */}
+      {/* AI Expansion button for leaf nodes */}
       {!data.hasChildren && data.canExpand && !nodeData.isRoot && (
         <div 
-          className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-5 h-5 rounded-full bg-orange-600 hover:bg-orange-500 flex items-center justify-center cursor-pointer transition-colors"
+          className={cn(
+            "absolute -right-10 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full",
+            "flex items-center justify-center cursor-pointer transition-all duration-300",
+            "shadow-lg border-2 backdrop-blur-sm",
+            "bg-gradient-to-br from-orange-500 to-red-600 border-orange-400",
+            "hover:scale-110 hover:shadow-orange-400/40",
+            nodeData.isExpanding && "animate-pulse"
+          )}
           onClick={handleExpandNode}
-          style={{ zIndex: 10 }}
+          style={{ zIndex: 15 }}
           title="Deep dive into this topic (AI expansion)"
         >
-          {data.isExpanding ? (
-            <IconLoader2 className="h-3 w-3 text-white animate-spin" />
+          {nodeData.isExpanding ? (
+            <IconLoader2 className="h-4 w-4 text-white animate-spin" />
           ) : (
-            <IconPlus className="h-3 w-3 text-white" />
+            <IconPlus className="h-4 w-4 text-white" />
           )}
         </div>
       )}
 
-      {/* Main node container */}
+      {/* Main node container with enhanced interactive design */}
       <div 
         className={cn(
-          "px-4 py-2 min-w-32 rounded-md flex items-center justify-center border cursor-pointer",
+          "relative px-8 py-5 min-w-48 rounded-xl cursor-pointer",
+          "transition-all duration-300 ease-out transform",
           getBorderColor(),
           getBackgroundColor(),
-          nodeData.isRoot ? "font-semibold" : "font-normal"
+          getTextColor(),
+          nodeData.isRoot ? "font-bold text-lg px-10 py-6" : "font-medium",
+          isHovered && "scale-105 -translate-y-1",
+          nodeData.isSelected && "scale-110 shadow-2xl",
+          isAnimating && "animate-pulse"
         )}
         onClick={handleNodeClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          boxShadow: nodeData.isSelected 
+            ? '0 20px 40px rgba(6, 182, 212, 0.3)' 
+            : isHovered 
+              ? '0 10px 25px rgba(0, 0, 0, 0.4)' 
+              : '0 4px 15px rgba(0, 0, 0, 0.2)'
+        }}
       >
-        {/* Read status indicator/toggle button for non-root nodes - more subtle design */}
+        {/* Progress indicator ring for non-root nodes */}
         {!nodeData.isRoot && (
           <div 
             className={cn(
-              "absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1/4 w-3 h-3 rounded-full flex items-center justify-center cursor-pointer",
-              nodeData.isRead ? "bg-green-500" : "bg-neutral-700",
-              "hover:opacity-80 transition-opacity border border-black"
+              "absolute -top-2 -left-2 w-6 h-6 rounded-full border-2 transition-all duration-300",
+              "flex items-center justify-center cursor-pointer backdrop-blur-sm",
+              nodeData.isRead 
+                ? "bg-green-500 border-green-400 shadow-green-400/50" 
+                : "bg-neutral-700 border-neutral-500 hover:border-neutral-400"
             )}
             onClick={(e) => {
-              e.stopPropagation(); // Prevent triggering other node events
+              e.stopPropagation();
               toggleReadStatus();
             }}
             title={nodeData.isRead ? "Mark as unread" : "Mark as read"}
-            style={{ zIndex: 5 }}
+            style={{ zIndex: 10 }}
           >
-            {nodeData.isRead && (
-              <div className="h-1.5 w-1.5 bg-white rounded-full"></div>
+            {nodeData.isRead ? (
+              <IconCheck className="h-3 w-3 text-white" />
+            ) : (
+              <div className="w-2 h-2 rounded-full bg-neutral-400"></div>
             )}
           </div>
         )}
-        
-        <div className="text-sm text-white">{nodeData.label}</div>
+
+        {/* Node content with icon based on type */}
+        <div className="flex items-center gap-3">
+          {nodeData.isRoot ? (
+            <IconBrain className={cn("h-6 w-6", getTextColor())} />
+          ) : data.hasChildren ? (
+            <IconMap className={cn("h-4 w-4", getTextColor())} />
+          ) : (
+            <div className={cn("w-2 h-2 rounded-full", nodeData.isRead ? "bg-green-400" : "bg-neutral-400")} />
+          )}
+          
+          <div className="text-center">
+            <div className={cn("leading-tight", getTextColor())}>
+              {nodeData.label}
+            </div>
+            {nodeData.isRoot && (
+              <div className="text-xs text-gray-300 mt-1 opacity-80">
+                Main Topic
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Subtle glow effect */}
+        <div className={cn(
+          "absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300",
+          isHovered && "opacity-20",
+          nodeData.isSelected 
+            ? "bg-gradient-to-br from-white to-gray-300" 
+            : "bg-gradient-to-br from-white to-gray-300"
+        )} />
       </div>
 
-      {/* Connection points - making them nearly invisible */}
+      {/* Connection points - invisible but functional */}
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="w-1 h-1 border-0 bg-transparent" 
-        style={{ opacity: 0 }}
+        className="w-1 h-1 border-0 bg-transparent opacity-0" 
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="w-1 h-1 border-0 bg-transparent" 
-        style={{ opacity: 0 }}
+        className="w-1 h-1 border-0 bg-transparent opacity-0" 
       />
     </>
   );
@@ -319,16 +403,16 @@ function MindMapContent() {
     if (mindMapData && mindMapData.length > 0) {
       setLocalMindMapData(mindMapData);
       
-      // Initialize the read status state from the mindMapData
+      // Initialize the read status state from the mindMapData - but keep unchecked by default
       const initialStatus: Record<string, boolean> = {};
       
-      // Add main topics
+      // Add main topics as unchecked by default
       mindMapData.forEach(topic => {
-        initialStatus[topic.id] = topic.isRead || false;
+        initialStatus[topic.id] = false; // Default to unchecked
         
-        // Add subtopics
+        // Add subtopics as unchecked by default
         topic.subtopics.forEach(subtopic => {
-          initialStatus[subtopic.id] = subtopic.isRead || false;
+          initialStatus[subtopic.id] = false; // Default to unchecked
         });
       });
       
@@ -338,20 +422,141 @@ function MindMapContent() {
   
   // State for tracking topic/subtopic read status
   const [topicsReadStatus, setTopicsReadStatus] = useState<Record<string, boolean>>(() => {
-    // Initialize from mindMapData
+    // Initialize all nodes as unchecked by default
     const initialStatus: Record<string, boolean> = {};
     
-    // Add main topics
+    // Add main topics as unchecked
     mindMapData.forEach(topic => {
-      initialStatus[topic.id] = topic.isRead || false;
+      initialStatus[topic.id] = false; // Default to unchecked
       
-      // Add subtopics
+      // Add subtopics as unchecked
       topic.subtopics.forEach(subtopic => {
-        initialStatus[subtopic.id] = subtopic.isRead || false;
+        initialStatus[subtopic.id] = false; // Default to unchecked
       });
     });
       return initialStatus;
   });
+
+  // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
+  const initialNodes = useMemo(() => {
+    const flowNodes: Node[] = [];    // Central node for the main topic - root node
+    flowNodes.push({
+      id: 'central',
+      type: 'customNode',
+      position: { x: 400, y: 300 },      
+      data: { 
+        label: mindMapTitle, 
+        expanded: true,
+        hasChildren: mindMapData.length > 0,
+        isRoot: true,
+        isSelected: selectedNode === 'central',
+        onToggleReadStatus: () => {}, // Will be updated later
+        onNodeClick: () => {} // Will be updated later
+      },
+      draggable: true,
+    });
+
+    // Calculate positions for main topic nodes with better spacing
+    const mainTopicsCount = mindMapData.length;
+    const mainTopicYStep = 120; // Increased spacing between main topics
+    const mainTopicStartY = 300 - ((mainTopicsCount - 1) * mainTopicYStep) / 2;
+    
+    // Create main topic nodes from mindMapData (first level)
+    mindMapData.forEach((topic, topicIndex) => {
+      // Position topics with even spacing vertically
+      const yPos = mainTopicStartY + topicIndex * mainTopicYStep;
+        flowNodes.push({
+        id: topic.id,
+        type: 'customNode',
+        position: { x: 750, y: yPos }, // Increased distance from central node
+        data: { 
+          label: topic.title, 
+          expanded: false,
+          hasChildren: topic.subtopics.length > 0,
+          parentNode: 'central',
+          isRead: false, // Default to unchecked
+          isSelected: selectedNode === topic.id,
+          onToggleReadStatus: () => {}, // Will be updated later
+          onNodeClick: () => {} // Will be updated later
+        },
+        draggable: true,
+      });
+      
+      // Add subtopic nodes for this topic with improved spacing
+      if (topic.subtopics.length > 0) {
+        const subtopicsCount = topic.subtopics.length;
+        const subtopicYStep = 80; // Increased spacing between subtopics
+        const subtopicStartY = yPos - ((subtopicsCount - 1) * subtopicYStep) / 2;
+        
+        topic.subtopics.forEach((subtopic, subtopicIndex) => {
+          // Position subtopics with even spacing
+          const subYPos = subtopicStartY + subtopicIndex * subtopicYStep;
+          
+          flowNodes.push({
+            id: subtopic.id,
+            type: 'customNode',
+            position: { x: 1100, y: subYPos }, // Increased distance from parent topics
+            data: { 
+              label: subtopic.title, 
+              expanded: false,
+              hasChildren: false,
+              canExpand: true, // Allow further expansion
+              isRoot: false,
+              isRead: false, // Default to unchecked
+              parentNode: topic.id,
+              level: subtopic.level || 1,
+              isSelected: false,
+              onToggleReadStatus: () => {}, // Will be updated later
+              onNodeClick: () => {} // Will be updated later
+            },
+            hidden: true, // Initially hidden until parent is expanded
+            draggable: true,
+          });
+        });
+      }
+    });    return flowNodes;
+  }, [mindMapData, selectedNode, topicsReadStatus]);
+
+  // Create initial edges from the mindMapData structure
+  const initialEdges = useMemo(() => {
+    const flowEdges: Edge[] = [];
+    
+    // Create edges from central node to main topics
+    mindMapData.forEach(topic => {
+      flowEdges.push({        id: `central-${topic.id}`,
+        source: 'central',
+        target: topic.id,
+        type: 'bezier',
+        animated: false,
+        style: { 
+          stroke: '#6b7280', 
+          strokeWidth: 2,
+        },
+        markerEnd: undefined,
+        markerStart: undefined,
+        data: { curvature: 0.4 }
+      });
+        // Create edges from topics to their subtopics
+      topic.subtopics.forEach(subtopic => {
+        flowEdges.push({          id: `${topic.id}-${subtopic.id}`,
+          source: topic.id,
+          target: subtopic.id,
+          type: 'bezier',
+          animated: false,
+          style: { 
+            stroke: '#6b7280', 
+            strokeWidth: 1.5,
+          },
+          markerEnd: undefined,
+          markerStart: undefined,
+          data: { curvature: 0.3 }
+        });
+      });
+    });    return flowEdges;
+  }, []);  
+    // Set up state hooks for nodes and edges
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   // Function to toggle read status of a node
   const handleToggleReadStatus = useCallback(async (nodeId: string, isRead?: boolean): Promise<void> => {
     try {
@@ -374,66 +579,117 @@ function MindMapContent() {
       
       setTopicsReadStatus(updatedStatus);
       
-      // Update local mind map data and check for auto-parent marking
-      setLocalMindMapData(prev => {
-        const updatedData = prev.map(topic => {
-          if (topic.id === nodeId) {
-            // Direct topic toggle
-            return {
-              ...topic,
-              isRead: newIsRead
-            };
-          }
-          
-          // Check if this is a subtopic being toggled
-          const updatedTopic = {
-            ...topic,
-            subtopics: topic.subtopics.map(subtopic => 
-              subtopic.id === nodeId ? {
-                ...subtopic,
-                isRead: newIsRead
-              } : subtopic
-            )
-          };
-          
-          // Auto-mark parent as read if all subtopics are read
-          if (topic.subtopics.some(sub => sub.id === nodeId) && newIsRead) {
-            const allSubtopicsRead = updatedTopic.subtopics.every(sub => 
-              sub.id === nodeId ? newIsRead : updatedStatus[sub.id]
-            );
-            
-            if (allSubtopicsRead && topic.subtopics.length > 0) {
-              console.log(`Auto-marking parent topic ${topic.id} as read - all subtopics completed`);
-              updatedStatus[topic.id] = true;
-              setTopicsReadStatus(updatedStatus);
-              
-              // Also update in backend
-              setTimeout(() => {
-                apiService.updateNodeReadStatus(mindMapId, topic.id, true)
-                  .catch(error => console.error('Error auto-updating parent read status:', error));
-              }, 100);
-              
-              return {
-                ...updatedTopic,
-                isRead: true
-              };
-            }
-          }
-          
-          return updatedTopic;
-        });
-        
-        return updatedData;
-      });
-
-      // Update node colors in the mind map visualization
-      setNodes(nodes => nodes.map(node => ({
+      // Update nodes visualization immediately
+      setNodes((nodes: Node[]) => nodes.map((node: Node) => ({
         ...node,
         data: {
           ...node.data,
-          isRead: updatedStatus[node.id] || false
+          isRead: node.id === nodeId ? newIsRead : (node.data.isRead || false)
         }
       })));
+
+      // Check for parent-child relationships and auto-update accordingly
+      const currentNodes = getNodes();
+      const currentNode = currentNodes.find(n => n.id === nodeId);
+      
+      if (currentNode) {
+        const parentNodeId = currentNode.data.parentNode as string;
+        
+        // If marking as read, check if all siblings are now read to mark parent as read
+        if (newIsRead && parentNodeId) {
+          const siblingNodes = currentNodes.filter(n => n.data.parentNode === parentNodeId);
+          const allSiblingsRead = siblingNodes.every(n => 
+            n.id === nodeId ? newIsRead : updatedStatus[n.id]
+          );
+          
+          if (allSiblingsRead && siblingNodes.length > 0) {
+            console.log(`Auto-marking parent ${parentNodeId} as read - all children completed`);
+            updatedStatus[parentNodeId] = true;
+            setTopicsReadStatus(updatedStatus);
+            
+            // Update parent node visualization
+            setNodes((nodes: Node[]) => nodes.map((node: Node) => ({
+              ...node,
+              data: {
+                ...node.data,
+                isRead: node.id === parentNodeId ? true : (updatedStatus[node.id] || (node.data.isRead as boolean) || false)
+              }
+            })));
+            
+            // Also update parent in backend
+            setTimeout(() => {
+              apiService.updateNodeReadStatus(mindMapId, parentNodeId, true)
+                .catch(error => console.error('Error auto-updating parent read status:', error));
+            }, 100);
+          }
+        }
+        
+        // If marking as unread, mark parent as unread too
+        if (!newIsRead && parentNodeId && updatedStatus[parentNodeId]) {
+          console.log(`Auto-marking parent ${parentNodeId} as unread - child marked as unread`);
+          updatedStatus[parentNodeId] = false;
+          setTopicsReadStatus(updatedStatus);
+          
+          // Update parent node visualization
+          setNodes((nodes: Node[]) => nodes.map((node: Node) => ({
+            ...node,
+            data: {
+              ...node.data,
+              isRead: node.id === parentNodeId ? false : (updatedStatus[node.id] || (node.data.isRead as boolean) || false)
+            }
+          })));
+          
+          // Also update parent in backend
+          setTimeout(() => {
+            apiService.updateNodeReadStatus(mindMapId, parentNodeId, false)
+              .catch(error => console.error('Error auto-updating parent read status:', error));
+          }, 100);
+        }
+        
+        // If marking parent as unread, mark all children as unread
+        if (!newIsRead) {
+          const childNodes = currentNodes.filter(n => n.data.parentNode === nodeId);
+          if (childNodes.length > 0) {
+            console.log(`Auto-marking ${childNodes.length} children as unread - parent marked as unread`);
+            childNodes.forEach(child => {
+              updatedStatus[child.id] = false;
+            });
+            setTopicsReadStatus(updatedStatus);
+            
+            // Update child nodes visualization
+            setNodes((nodes: Node[]) => nodes.map((node: Node) => ({
+              ...node,
+              data: {
+                ...node.data,
+                isRead: childNodes.some(child => child.id === node.id) ? false : (node.data.isRead as boolean || false)
+              }
+            })));
+            
+            // Also update children in backend
+            childNodes.forEach(child => {
+              setTimeout(() => {
+                apiService.updateNodeReadStatus(mindMapId, child.id, false)
+                  .catch(error => console.error(`Error auto-updating child ${child.id} read status:`, error));
+              }, 100);
+            });
+          }
+        }
+      }
+
+      // Update local mind map data for sidebar sync
+      setLocalMindMapData(prev => prev.map(topic => {
+        if (topic.id === nodeId) {
+          return { ...topic, isRead: newIsRead };
+        }
+        return {
+          ...topic,
+          isRead: updatedStatus[topic.id] || false,
+          subtopics: topic.subtopics.map(subtopic => ({
+            ...subtopic,
+            isRead: updatedStatus[subtopic.id] || false
+          }))
+        };
+      }));
 
       // Persist to backend
       try {
@@ -446,27 +702,18 @@ function MindMapContent() {
           ...prev,
           [nodeId]: !newIsRead
         }));
-        setLocalMindMapData(prev => prev.map(topic => {
-          if (topic.id === nodeId) {
-            return {
-              ...topic,
-              isRead: !newIsRead
-            };
+        setNodes((nodes: Node[]) => nodes.map((node: Node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            isRead: node.id === nodeId ? !newIsRead : (topicsReadStatus[node.id] || false)
           }
-          return {
-            ...topic,
-            subtopics: topic.subtopics.map(subtopic => 
-              subtopic.id === nodeId ? {
-                ...subtopic,
-                isRead: !newIsRead
-              } : subtopic
-            )
-          };
-        }));
+        })));
       }
     } catch (error) {
       console.error('Error in handleToggleReadStatus:', error);
-    }}, [topicsReadStatus, params?.id, setLocalMindMapData]);
+    }
+  }, [topicsReadStatus, params?.id, setLocalMindMapData, setNodes, getNodes]);
 
   // Function to load read status from backend
   const loadReadStatus = useCallback(async () => {
@@ -540,7 +787,7 @@ function MindMapContent() {
                     expanded: isRoot, // Start with root expanded
                     hasChildren: hasChildren,
                     canExpand: !isRoot && !hasChildren, // Leaf nodes (not root, no children) can be expanded
-                    isRead: false,
+                    isRead: false, // Default to unchecked
                     isExpanding: false,
                     onToggleReadStatus: handleToggleReadStatus,
                     onNodeClick: handleNodeClick
@@ -1474,124 +1721,7 @@ More detailed content will be available soon with comprehensive explanations, eq
     }
   }, [selectedNode, nodeDescriptions]);
 
-  // Create initial nodes and edges for React Flow from mind map data with hierarchical layout
-  const initialNodes = useMemo(() => {
-    const flowNodes: Node[] = [];    // Central node for the main topic - root node
-    flowNodes.push({
-      id: 'central',
-      type: 'customNode',
-      position: { x: 300, y: 200 },      
-      data: { 
-        label: mindMapTitle, 
-        expanded: true,
-        hasChildren: mindMapData.length > 0,
-        isRoot: true,
-        isSelected: selectedNode === 'central',
-        onToggleReadStatus: handleToggleReadStatus,
-        onNodeClick: handleNodeClick
-      },
-      draggable: true,
-    });
 
-    // Calculate positions for main topic nodes
-    const mainTopicsCount = mindMapData.length;
-    const mainTopicYStep = 100;
-    const mainTopicStartY = 200 - ((mainTopicsCount - 1) * mainTopicYStep) / 2;
-    
-    // Create main topic nodes from mindMapData (first level)
-    mindMapData.forEach((topic, topicIndex) => {
-      // Position topics with even spacing vertically
-      const yPos = mainTopicStartY + topicIndex * mainTopicYStep;
-        flowNodes.push({
-        id: topic.id,
-        type: 'customNode',
-        position: { x: 600, y: yPos },
-        data: { 
-          label: topic.title, 
-          expanded: false,
-          hasChildren: topic.subtopics.length > 0,
-          parentNode: 'central',
-          isRead: topicsReadStatus[topic.id],
-          isSelected: selectedNode === topic.id,
-          onToggleReadStatus: handleToggleReadStatus,
-          onNodeClick: handleNodeClick
-        },
-        draggable: true,
-      });
-      
-      // Add subtopic nodes for this topic
-      if (topic.subtopics.length > 0) {
-        const subtopicsCount = topic.subtopics.length;
-        const subtopicYStep = 50;
-        const subtopicStartY = yPos - ((subtopicsCount - 1) * subtopicYStep) / 2;
-        
-        topic.subtopics.forEach((subtopic, subtopicIndex) => {
-          // Position subtopics with even spacing
-          const subYPos = subtopicStartY + subtopicIndex * subtopicYStep;
-          
-          flowNodes.push({
-            id: subtopic.id,
-            type: 'customNode',
-            position: { x: 900, y: subYPos },            data: { 
-              label: subtopic.title, 
-              expanded: false,
-              hasChildren: false,
-              canExpand: true, // Allow further expansion
-              isRoot: false,
-              isRead: false,
-              parentNode: topic.id,
-              level: subtopic.level || 1,
-              isSelected: false,
-              onToggleReadStatus: handleToggleReadStatus,
-              onNodeClick: handleNodeClick
-            },
-            hidden: true, // Initially hidden until parent is expanded
-            draggable: true,
-          });
-        });
-      }
-    });    return flowNodes;
-  }, [mindMapData, selectedNode, topicsReadStatus, handleToggleReadStatus, handleNodeClick]);
-  // Create initial edges from the mindMapData structure
-  const initialEdges = useMemo(() => {
-    const flowEdges: Edge[] = [];
-    
-    // Create edges from central node to main topics
-    mindMapData.forEach(topic => {
-      flowEdges.push({        id: `central-${topic.id}`,
-        source: 'central',
-        target: topic.id,
-        type: 'bezier',
-        animated: false,
-        style: { 
-          stroke: '#333', 
-          strokeWidth: 1,
-        },
-        markerEnd: undefined, // Remove endpoint markers
-        markerStart: undefined, // Remove startpoint markers
-        data: { curvature: 0.25 }
-      });
-        // Create edges from topics to their subtopics
-      topic.subtopics.forEach(subtopic => {
-        flowEdges.push({          id: `${topic.id}-${subtopic.id}`,
-          source: topic.id,
-          target: subtopic.id,
-          type: 'bezier',
-          animated: false,
-          style: { 
-            stroke: '#333', 
-            strokeWidth: 1,
-          },
-          markerEnd: undefined, // Remove endpoint markers
-          markerStart: undefined, // Remove startpoint markers
-          data: { curvature: 0.25 }
-        });
-      });
-    });    return flowEdges;
-  }, []);  
-    // Set up state hooks for nodes and edges
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // Function to handle AI expansion of leaf nodes
   const handleExpandNode = useCallback(async (nodeId: string) => {
@@ -1644,10 +1774,11 @@ More detailed content will be available soon with comprehensive explanations, eq
       if (response.success && response.expandedNodes) {
         console.log(`Successfully expanded node ${nodeId} with ${response.expandedNodes.length} sub-nodes`);
 
-        // Calculate positions for the new sub-nodes
+        // Calculate positions for the new sub-nodes with enhanced spacing
         const parentPosition = nodeData.position;
         const subNodesCount = response.expandedNodes.length;
-        const yStep = 80;
+        const yStep = 100; // Increased spacing between AI-generated nodes
+        const xOffset = 350; // Increased horizontal offset
         const startY = parentPosition.y - ((subNodesCount - 1) * yStep) / 2;
 
         // Create new nodes for the expanded sub-nodes
@@ -1655,7 +1786,7 @@ More detailed content will be available soon with comprehensive explanations, eq
           id: subNode.id,
           type: 'customNode',
           position: { 
-            x: parentPosition.x + 300, 
+            x: parentPosition.x + xOffset, 
             y: startY + index * yStep 
           },
           data: {
@@ -1685,12 +1816,12 @@ More detailed content will be available soon with comprehensive explanations, eq
           type: 'bezier',
           animated: false,
           style: { 
-            stroke: '#333', 
-            strokeWidth: 1,
+            stroke: '#6b7280', 
+            strokeWidth: 1.5,
           },
           markerEnd: undefined,
           markerStart: undefined,
-          data: { curvature: 0.25 }
+          data: { curvature: 0.3 }
         }));
 
         // Add new nodes and edges to the graph
@@ -1719,14 +1850,38 @@ More detailed content will be available soon with comprehensive explanations, eq
           [nodeId]: response.expandedNodes
         }));
 
-        // Center the view on the newly expanded area
+        // Center the view on the newly expanded area with smart zoom
         setTimeout(() => {
           if (newNodes.length > 0) {
-            const avgX = newNodes.reduce((sum: number, node: any) => sum + node.position.x, 0) / newNodes.length;
-            const avgY = newNodes.reduce((sum: number, node: any) => sum + node.position.y, 0) / newNodes.length;
-            setCenter(avgX, avgY, { zoom: getZoom(), duration: 800 });
+            // Calculate bounds of all new nodes plus parent
+            const allRelevantNodes = [nodeData, ...newNodes];
+            const positions = allRelevantNodes.map(n => n.position);
+            
+            const minX = Math.min(...positions.map(p => p.x)) - 100; // Add padding
+            const maxX = Math.max(...positions.map(p => p.x)) + 200; // Add padding for node width
+            const minY = Math.min(...positions.map(p => p.y)) - 100; // Add padding
+            const maxY = Math.max(...positions.map(p => p.y)) + 100; // Add padding
+            
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            
+            // Calculate required zoom to fit all nodes
+            const viewportWidth = reactFlowWrapper.current?.clientWidth || 1000;
+            const viewportHeight = reactFlowWrapper.current?.clientHeight || 600;
+            
+            const contentWidth = maxX - minX;
+            const contentHeight = maxY - minY;
+            
+            const zoomX = (viewportWidth * 0.8) / contentWidth; // 80% of viewport
+            const zoomY = (viewportHeight * 0.8) / contentHeight; // 80% of viewport
+            
+            const optimalZoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.3), 1.2); // Clamp between 0.3 and 1.2
+            
+            console.log(`Auto-zoom: centerX=${centerX}, centerY=${centerY}, zoom=${optimalZoom}`);
+            
+            setCenter(centerX, centerY, { zoom: optimalZoom, duration: 1000 });
           }
-        }, 100);
+        }, 200);
 
       } else {
         console.error('Failed to expand node:', response.error || 'Unknown error');
@@ -1754,29 +1909,7 @@ More detailed content will be available soon with comprehensive explanations, eq
         return newSet;
       });    }
   }, [params?.id, expandingNodes, getNodes, nodeDescriptions, handleToggleReadStatus, handleNodeClick, setNodes, setEdges, setCenter, getZoom]);
-  // Effect to add expand handlers to nodes after handleExpandNode is defined
-  useEffect(() => {
-    setNodes(prevNodes => prevNodes.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        onExpandNode: node.data.canExpand ? handleExpandNode : undefined
-      }
-    })));
-  }, [handleExpandNode, setNodes]);
 
-  // Effect to ensure expand handlers are attached when nodes are loaded from localStorage/API
-  useEffect(() => {
-    if (!isLoading && nodes.length > 0) {
-      setNodes(prevNodes => prevNodes.map(node => ({
-        ...node,
-        data: {
-          ...node.data,
-          onExpandNode: node.data.canExpand ? handleExpandNode : undefined
-        }
-      })));
-    }
-  }, [isLoading, nodes.length, handleExpandNode, setNodes]);
 
   // Handle edge connections
   const onConnect = useCallback(
@@ -1795,16 +1928,21 @@ More detailed content will be available soon with comprehensive explanations, eq
     },
     [setEdges]
   );
+
+
     // Sync the expanded topics and selected node between sidebar and mind map visualization
   useEffect(() => {
     // Update node expansion state and selection based on expandedTopics and selectedNode
     setNodes(nds => nds.map(node => {
       let updatedNode = { ...node };
-        // Update selection state
+        // Update all node data including handlers and state
       updatedNode.data = { 
         ...updatedNode.data, 
         isSelected: selectedNode === node.id,
-        onNodeClick: handleNodeClick
+        onNodeClick: handleNodeClick,
+        onToggleReadStatus: handleToggleReadStatus,
+        onExpandNode: node.data.canExpand ? handleExpandNode : undefined,
+        isRead: topicsReadStatus[node.id] || false
       };
       
       // Update expansion state
@@ -1819,7 +1957,7 @@ More detailed content will be available soon with comprehensive explanations, eq
       
       return updatedNode;
     }));
-  }, [expandedTopics, selectedNode, setNodes, handleNodeClick]);
+  }, [expandedTopics, selectedNode, setNodes, handleNodeClick, handleToggleReadStatus, handleExpandNode, topicsReadStatus]);
   const handleSignOut = async () => {
     try {
       await logout();
@@ -1920,14 +2058,18 @@ More detailed content will be available soon with comprehensive explanations, eq
               className="bg-black"
               nodesDraggable={true}
               zoomOnScroll={true}
-              panOnScroll={true}              defaultEdgeOptions={{
+              panOnScroll={true}              
+              defaultEdgeOptions={{
                 type: 'bezier',
                 animated: false,
-                style: { strokeWidth: 1, stroke: '#333' },
+                style: { strokeWidth: 1.5, stroke: '#6b7280' },
                 markerEnd: undefined,
                 markerStart: undefined,
                 data: { curvature: 0.25 }
               }}
+              minZoom={0.1}
+              maxZoom={2}
+              defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
             >
               <Controls className="bg-neutral-800 text-white border-neutral-700" />
               <Background color="#333" gap={16} size={1} />
