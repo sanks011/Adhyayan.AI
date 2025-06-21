@@ -2579,117 +2579,36 @@ app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
             mindMap = recentMindMaps[0];
             console.log(`Using most recent mind map for context: ${mindMap.title}`);
           }
-        }
-        
-        if (mindMap && mindMap.title) {
-          subjectContext = mindMap.title;
-          parentSubject = mindMap.title;
-          console.log(`Using subject context: ${subjectContext}`);
-        } else {
-          console.log(`No mind map found for ID: ${mindMapId}, will use intelligent context detection from node title`);
-            // Enhanced context detection from the node title itself
-          if (nodeTitle) {
-            console.log(`Performing enhanced context detection from node title: ${nodeTitle}`);
-            
-            // Comprehensive CS/programming keywords for better detection
-            const csKeywords = [
-              // Template/Generic related
-              'template', 'instantiation', 'generic', 'generics', 'specialization', 'typename', 'class template', 'function template',
-              
-              // Core programming concepts
-              'code', 'generation', 'compilation', 'compiler', 'programming', 'algorithm', 'data structure', 'class', 'method', 'function',
-              'polymorphism', 'inheritance', 'encapsulation', 'abstraction', 'oop', 'object', 'variable', 'loop', 'array', 'recursive', 
-              'iterator', 'pointer', 'reference', 'namespace', 'typedef', 'overload', 'override', 'virtual', 'interface', 'abstract', 
-              'concrete', 'implementation', 'declaration', 'syntax', 'semantic', 'lexical', 'parser', 'ast', 'runtime', 'compile',
-              
-              // Programming languages
-              'javascript', 'python', 'java', 'cpp', 'c++', 'csharp', 'c#', 'typescript', 'react', 'node', 'express', 'html', 'css',
-              
-              // Software engineering
-              'framework', 'library', 'api', 'database', 'sql', 'web', 'frontend', 'backend', 'server', 'client', 'http', 'rest',
-              'software', 'engineering', 'development', 'debugging', 'testing', 'deployment', 'devops', 'version control', 'git',
-              
-              // Data structures and algorithms
-              'linked list', 'binary tree', 'hash table', 'stack', 'queue', 'graph', 'sorting', 'searching', 'dynamic programming',
-              
-              // System concepts
-              'operating system', 'memory management', 'process', 'thread', 'concurrency', 'parallel', 'distributed', 'network'
-            ];
-            
-            const lowerNodeTitle = nodeTitle.toLowerCase();
-            const hasStrongCSIndicators = csKeywords.some(keyword => lowerNodeTitle.includes(keyword.toLowerCase()));
-            
-            if (hasStrongCSIndicators) {
-              subjectContext = "Computer Science and Programming";
-              parentSubject = "Computer Science and Programming";
-              console.log(`Detected strong CS/Programming context from node title: "${nodeTitle}"`);
-            } else {
-              // Check for mathematical concepts (to avoid biology mixing)
-              const mathKeywords = ['equation', 'formula', 'theorem', 'proof', 'calculus', 'algebra', 'geometry', 'statistics', 'probability'];
-              const hasMathIndicators = mathKeywords.some(keyword => lowerNodeTitle.includes(keyword.toLowerCase()));
-              
-              if (hasMathIndicators) {
-                subjectContext = "Mathematics";
-                parentSubject = "Mathematics";
-                console.log(`Detected Mathematics context from node title: "${nodeTitle}"`);
-              } else {
-                subjectContext = "Academic Subject";
-                parentSubject = "Academic Subject";
-                console.log(`Could not detect specific domain from node title: "${nodeTitle}", using general academic context`);
-              }
-            }
-          } else {
-            subjectContext = "Academic Subject";
-            parentSubject = "Academic Subject";
-            console.log("No node title available for context detection");
-          }
-        }
-      } catch (dbError) {
-        console.error("Error fetching mind map context:", dbError);        console.log("Will use intelligent context detection as fallback");
-        
-        // Enhanced fallback: try to detect from node title with comprehensive keywords
-        if (nodeTitle) {
-          const csKeywords = [
-            'template', 'instantiation', 'generic', 'code', 'generation', 'compilation', 'compiler', 'programming', 
-            'algorithm', 'class', 'method', 'function', 'polymorphism', 'inheritance', 'oop', 'object', 'c++', 'java', 
-            'python', 'javascript', 'typescript', 'software', 'development', 'data structure', 'array', 'loop'
-          ];
+        }        if (mindMap && mindMap.title) {
+          // Check if the mind map title is generic/placeholder and doesn't make sense for the node
+          const isGenericTitle = /^(oops|test|temp|demo|example|untitled|new|default|placeholder|mindmap)$/i.test(mindMap.title.trim());
           
-          if (csKeywords.some(keyword => nodeTitle.toLowerCase().includes(keyword.toLowerCase()))) {
-            subjectContext = "Computer Science and Programming";
-            parentSubject = "Computer Science and Programming";
-            console.log(`Fallback: Detected CS context from node title: "${nodeTitle}"`);
+          if (isGenericTitle) {
+            console.log(`Mind map title "${mindMap.title}" appears to be generic/placeholder - letting AI determine context from node title instead`);
+            subjectContext = `Academic Subject (infer from "${nodeTitle}")`;
+            parentSubject = `Academic Subject (infer from "${nodeTitle}")`;
+            console.log(`Will let OpenAI intelligently determine domain from node title: "${nodeTitle}"`);
           } else {
-            subjectContext = "Academic Subject";
-            parentSubject = "Academic Subject";
-            console.log(`Fallback: Using general academic context for node: "${nodeTitle}"`);
-          }
-        }
+            subjectContext = mindMap.title;
+            parentSubject = mindMap.title;
+            console.log(`Using subject context from mind map: ${subjectContext}`);
+          }        } else {
+          console.log(`No mind map found for ID: ${mindMapId}, will let OpenAI determine context from node title`);
+          subjectContext = `Academic Subject (infer from "${nodeTitle}")`;
+          parentSubject = `Academic Subject (infer from "${nodeTitle}")`;
+          console.log(`Will let OpenAI intelligently determine domain from node title: "${nodeTitle}"`);
+        }      } catch (dbError) {
+        console.error("Error fetching mind map context:", dbError);
+        console.log("Will let OpenAI determine context from node title as fallback");
+        subjectContext = `Academic Subject (infer from "${nodeTitle}")`;
+        parentSubject = `Academic Subject (infer from "${nodeTitle}")`;
+        console.log(`Fallback: Will let OpenAI intelligently determine domain from node title: "${nodeTitle}"`);
       }
-    } else {      console.log("No database or mindMapId available, will use intelligent context detection");
-      
-      // Enhanced context detection from node title when no database
-      if (nodeTitle) {
-        const csKeywords = [
-          'template', 'instantiation', 'generic', 'code', 'generation', 'compilation', 'compiler', 'programming', 
-          'algorithm', 'class', 'method', 'function', 'polymorphism', 'inheritance', 'oop', 'object', 'c++', 'java', 
-          'python', 'javascript', 'typescript', 'software', 'development', 'data structure', 'array', 'loop'
-        ];
-        
-        if (csKeywords.some(keyword => nodeTitle.toLowerCase().includes(keyword.toLowerCase()))) {
-          subjectContext = "Computer Science and Programming";
-          parentSubject = "Computer Science and Programming";
-          console.log(`No DB: Detected CS context from node title: "${nodeTitle}"`);
-        } else {
-          subjectContext = "Academic Subject";
-          parentSubject = "Academic Subject";
-          console.log(`No DB: Using general academic context for node: "${nodeTitle}"`);
-        }
-      } else {
-        subjectContext = "Academic Subject";
-        parentSubject = "Academic Subject";
-        console.log("No DB: No node title available, using general academic context");
-      }
+    } else {
+      console.log("No database or mindMapId available, will let OpenAI determine context from node title");
+      subjectContext = `Academic Subject (infer from "${nodeTitle}")`;
+      parentSubject = `Academic Subject (infer from "${nodeTitle}")`;
+      console.log(`No DB: Will let OpenAI intelligently determine domain from node title: "${nodeTitle}"`);
     }try {
       // Use OpenAI with dedicated API key for node expansion
       const expandOpenAI = new OpenAI({
@@ -2698,16 +2617,12 @@ app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
         httpAgent: {
           keepAlive: true,
         },
-      });
-
-      // Log the final context being sent to AI for domain validation
+      });      // Log the final context being sent to AI for domain validation
       console.log(`🎯 CONTEXT SUMMARY FOR AI:
         - Node Title: "${nodeTitle}"
         - Subject Context: "${subjectContext}"
-        - Parent Subject: "${parentSubject}"
         - Mind Map ID: ${mindMapId}
-        - Domain Classification: ${subjectContext.includes('Computer Science') || subjectContext.includes('Programming') ? 'CS/PROGRAMMING' : 'OTHER'}
-        - Expected Output: Domain-specific sub-topics within ${subjectContext}`);
+        - AI Task: Intelligently determine domain from node title and generate appropriate sub-topics`);
 
       const completion = await expandOpenAI.chat.completions.create({
         messages: [
@@ -2741,20 +2656,16 @@ Before generating sub-topics, perform deep educational domain analysis:
    **STEP 1: INTELLIGENT DOMAIN DETECTION**
    Analyze the topic "${nodeTitle}" and context "${subjectContext}" to determine the PRIMARY academic domain:
    
-   **Computer Science/Programming Keywords**: 
-   - Programming, coding, algorithm, data structure, software, OOP, class, method, function, variable, loop, array, object, inheritance, polymorphism, encapsulation, abstraction, recursion, debugging, framework, library, API, database, web development, mobile development, machine learning, AI, compiler, interpreter, syntax, semantics, runtime, compile-time, thread, process, memory, CPU, GPU, network, protocol, security, encryption, hash, tree, graph, stack, queue, linked list, sorting, searching, complexity, Big O, design pattern, architecture, microservices, cloud, DevOps, version control, git, testing, unit test, integration, deployment, agile, scrum, JavaScript, Python, Java, C++, C#, React, Angular, Node.js, Django, Flask, Spring, etc.
-   
-   **Biology/Life Sciences Keywords**: 
-   - Cell, DNA, RNA, protein, gene, chromosome, mitosis, meiosis, photosynthesis, respiration, metabolism, enzyme, hormone, neuron, organism, species, evolution, ecology, anatomy, physiology, molecular biology, genetics, biochemistry, microbiology, botany, zoology, immunology, pathology, etc.
-   
-   **Physics Keywords**: 
-   - Force, energy, momentum, velocity, acceleration, mass, gravity, electromagnetic, quantum, relativity, thermodynamics, mechanics, optics, waves, particle, atom, electron, proton, neutron, field, circuit, voltage, current, resistance, etc.
-   
-   **Mathematics Keywords**: 
-   - Equation, theorem, proof, calculus, algebra, geometry, statistics, probability, matrix, vector, derivative, integral, limit, function, set, number theory, topology, discrete math, etc.
+   Use your natural language understanding to identify the academic field:
+   - Computer Science/Programming (algorithms, coding, software, data structures, etc.)
+   - Biology/Life Sciences (cells, DNA, ecology, evolution, physiology, etc.) 
+   - Physics (forces, energy, quantum mechanics, electromagnetism, etc.)
+   - Chemistry (reactions, molecules, bonding, organic chemistry, etc.)
+   - Mathematics (equations, proofs, calculus, algebra, geometry, etc.)
+   - Other academic disciplines
    
    **STEP 2: DOMAIN LOCK-IN PROTOCOL**
-   Once domain is detected, ALL sub-topics MUST remain within that domain. NO cross-domain contamination allowed.
+   Once you identify the domain, ALL sub-topics MUST remain within that domain. NO cross-domain contamination allowed.
    
    **STEP 3: DOMAIN-SPECIFIC EXPANSION RULES**:
 
@@ -2949,15 +2860,19 @@ The system has analyzed the mind map context and node title to determine the edu
 
 **CRITICAL DOMAIN VALIDATION & ENFORCEMENT**:
 
-**STEP 1: ENHANCED DOMAIN DETECTION FOR "${nodeTitle}"**
+**STEP 1: INTELLIGENT DOMAIN DETECTION FOR "${nodeTitle}"**
 Primary Analysis: Topic "${nodeTitle}" in context "${subjectContext}"
 
-**Auto-Detection Results:**
-- Subject Context Detected: "${subjectContext}"
-- Domain Classification: ${subjectContext.includes('Computer Science') || subjectContext.includes('Programming') ? 'COMPUTER SCIENCE/PROGRAMMING' : subjectContext.includes('Biology') ? 'BIOLOGY/LIFE SCIENCES' : subjectContext.includes('Mathematics') ? 'MATHEMATICS' : subjectContext.includes('Physics') ? 'PHYSICS' : 'GENERAL ACADEMIC'}
+Use your natural language understanding to determine the academic domain. The node title "${nodeTitle}" should give you clear signals about whether this is:
+- Computer Science/Programming (algorithms, coding, software engineering, data structures, web development, etc.)
+- Biology/Life Sciences (photosynthesis, cell biology, genetics, ecology, evolution, etc.)
+- Physics (mechanics, quantum, thermodynamics, electromagnetism, etc.)
+- Chemistry (reactions, bonding, organic chemistry, etc.)
+- Mathematics (calculus, algebra, geometry, proofs, etc.)
+- Other academic disciplines
 
 **STEP 2: DOMAIN LOCK-IN PROTOCOL**
-Based on intelligent context analysis, lock into the correct domain and NEVER deviate:
+Once you identify the domain, generate ONLY sub-topics within that domain:
 
 🖥️ **IF COMPUTER SCIENCE/PROGRAMMING DOMAIN DETECTED:**
 - Generate ONLY CS/programming sub-topics using authentic programming terminology
