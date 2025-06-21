@@ -324,15 +324,15 @@ export default function Settings() {
   ];
 
   return (
-    <div className="min-h-screen relative">
-      <WavyBackground className="min-h-screen flex flex-col items-center justify-start p-8 pt-16 relative">
+    <div className="min-h-screen relative overflow-auto">
+      <WavyBackground className="min-h-screen flex flex-col items-center justify-start p-4 pt-16 pb-40 relative">
         {/* Gyan Points Display */}
         <div className="fixed top-4 right-4 z-50 md:top-6 md:right-8 lg:right-12">
           <GyanPointsDisplay />
         </div>
         
         {/* Main Content */}
-        <main className="min-h-screen flex flex-col items-center justify-start relative z-10 max-w-6xl w-full">
+        <main className="flex flex-col items-center justify-start relative z-10 max-w-6xl w-full space-y-8">
           
           {/* Page Header */}
           <div className="text-center mb-12">
@@ -350,11 +350,11 @@ export default function Settings() {
           </div>
 
           {/* Settings Container */}
-          <div className="w-full mb-20">
-            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="w-full mb-32">
+            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl max-h-[calc(100vh-200px)] overflow-y-auto">
               
               {/* Settings Tabs */}
-              <div className="flex overflow-x-auto border-b border-white/10 bg-black/20">
+              <div className="flex overflow-x-auto border-b border-white/10 bg-black/20 sticky top-0 z-10">
                 {settingsTabs.map((tab) => {
                   const IconComponent = tab.icon;
                   return (
@@ -375,7 +375,7 @@ export default function Settings() {
               </div>
 
               {/* Settings Content */}
-              <div className="p-8">
+              <div className="p-4 md:p-8 max-h-[calc(80vh-70px)] overflow-y-auto">
                 {activeTab === 'profile' && (
                   <div className="space-y-8">
                     <div className="flex items-center justify-between">
@@ -628,7 +628,7 @@ export default function Settings() {
           </div>
 
           {/* Floating Dock */}
-          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
             <FloatingDock
               mobileClassName="translate-y-20"
               items={dockLinks}
