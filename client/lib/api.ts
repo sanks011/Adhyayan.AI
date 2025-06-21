@@ -305,6 +305,15 @@ class ApiService {
       userMessage 
     });
   }
+  
+  // Method for getting quiz questions for mark-as-read verification
+  async getMindMapNodeQuiz(nodeId: string, nodeDescription: string) {
+    return this.post('/mindmap/node-quiz', { 
+      nodeId, 
+      nodeDescription 
+    });
+  }
+  
   // File upload method for syllabus
   async uploadSyllabusFile(file: File) {
     try {
@@ -420,21 +429,17 @@ class ApiService {
       if (response.status === 400 || response.status === 404) {
         console.log(`Mind map with ID ${mongoId} not found on server or has invalid format, but was removed from localStorage`);
         return { success: true, message: "Mind map removed from local storage" };
-      }
-
-      if (!response.ok) {
+      }      if (!response.ok) {
         const error = await response.json();
         console.error("Server error:", error);
         // Even if server deletion fails, we've removed from localStorage
         return { success: true, message: "Mind map removed from local storage" };
       }
 
-      const result = await response.json();
-      return result;
-    } catch (error: any) {
-      console.error('Error in deleteMindMap:', error);
-      // Even if there's an error, we consider it a partial success if we removed it from localStorage
-      return { success: true, message: "Mind map removed from local storage only" };
+      return { success: true, message: "Mind map deleted successfully" };
+    } catch (error) {
+      console.error("Error deleting mind map:", error);
+      return { success: false, error: "Failed to delete mind map" };
     }
   }
 

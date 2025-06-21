@@ -1755,60 +1755,6 @@ mindMapCompletion = await openai.chat.completions.create({
 
 ---
 
-### EXAMPLE INPUT 2: PARSED STRUCTURE (Data Structures)
-**Input Parsed Structure:**
-\`\`\`json
-{
-  "parsed_structure": {
-    "main_subject": {
-      "title": "Data Structures",
-      "description": "Study of fundamental data organization techniques for efficient computation"
-    },
-    "units": [
-      {
-        "title": "Introduction",
-        "description": "Overview of data structures and their classifications",
-        "subtopics": [
-          {
-            "title": "Overview",
-            "description": "Introduction to data structures and their importance",
-            "sub_subtopics": []
-          }
-        ]
-      }
-    ]
-  }
-}
-\`\`\`
-
-**Expected Output:**
-\`\`\`json
-{
-  "mind_map": {
-    "central_node": {
-      "title": "Data Structures",
-      "description": "Study of fundamental data organization techniques for efficient computation",
-      "content": "Explores data structures for efficient storage and computation, critical for algorithm design and software development."
-    },
-    "module_nodes": [
-      {
-        "title": "Introduction",
-        "content": "Introduces data structures and their role in optimizing computational tasks",
-        "subtopics": [
-          {
-            "title": "Overview",
-            "content": "Significance of data structures in programming and algorithm efficiency",
-            "sub_subtopics": []
-          }
-        ]
-      }
-    ]
-  }
-}
-\`\`\`
-
----
-
 ### CRITICAL SUCCESS CRITERIA
 - Transform 100% of parsed structure content into mind map format.
 - Preserve exact hierarchical relationships and infinite nesting depth.
@@ -1823,7 +1769,7 @@ mindMapCompletion = await openai.chat.completions.create({
 - Respond with valid JSON only, starting with \`{\` and ending with \`}\`.
 - Do NOT include markdown, code blocks (\`\`\`json), or explanations.
 - Ensure all content is transformed and hierarchically organized.
-- If JSON parsing fails during validation, rebalance brackets and retry.`,
+- If JSON parsing fails during validation, rebalance brackets and retry before output.`,
     },
     {
       role: "user",
@@ -2528,76 +2474,282 @@ app.post("/api/mindmap/expand-node", verifyToken, async (req, res) => {
     }
 
     const userId = req.user.uid;
-    console.log(`Expanding node: ${nodeTitle} (${nodeId}) for user: ${userId}`);
+    console.log(`Expanding node: ${nodeTitle} (${nodeId}) for user: ${userId}`);    // Get the mind map subject context first
+    let subjectContext = "General Academic Subject";
+    let parentSubject = "";
+    
+    if (db && mindMapId) {
+      try {
+        let mindMap = null;
+        
+        // Try to find mind map using different ID formats
+        if (ObjectId.isValid(mindMapId)) {
+          // Standard MongoDB ObjectId format
+          mindMap = await db.collection("mindmaps").findOne({
+            _id: new ObjectId(mindMapId),
+            userId: userId
+          });
+        } else {
+          // Custom ID format - search by title or custom field
+          // First try to find by a custom mindMapId field
+          mindMap = await db.collection("mindmaps").findOne({
+            mindMapId: mindMapId,
+            userId: userId
+          });
+          
+          // If not found, try searching by other potential fields
+          if (!mindMap) {
+            mindMap = await db.collection("mindmaps").findOne({
+              customId: mindMapId,
+              userId: userId
+            });
+          }
+        }
+        
+        if (mindMap && mindMap.title) {
+          subjectContext = mindMap.title;
+          parentSubject = mindMap.title;
+          console.log(`Found subject context: ${subjectContext}`);
+        } else {
+          console.log(`Mind map not found for ID: ${mindMapId}, will use intelligent context detection`);
+        }
+      } catch (dbError) {
+        console.error("Error fetching mind map context:", dbError);
+        console.log("Will use intelligent context detection as fallback");
+      }
+    } else {
+      console.log("No database or mindMapId available, will use intelligent context detection");
+    }try {
+      // Use OpenAI with dedicated API key for node expansion
+      const expandOpenAI = new OpenAI({
+        apiKey: process.env.EXPAND_NODE_API_KEY,
+        maxRetries: 2,
+        httpAgent: {
+          keepAlive: true,
+        },
+      });      const completion = await expandOpenAI.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are an exceptionally advanced educational AI with world-class expertise across all academic disciplines. You possess the cognitive abilities of the most distinguished scholars, with deep interdisciplinary knowledge and the ability to perform sophisticated contextual analysis. Your mission is to expand educational topics with unprecedented intelligence and domain awareness.
 
-    try {
-      // Use the dedicated Gemini API key for node expansion
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.QUERY_GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `You are an educational AI that expands topics into detailed sub-concepts for deep learning. Generate 3-5 relevant sub-topics that would help students understand the given topic in greater depth.
+🧠 **ULTRA-ADVANCED COGNITIVE ARCHITECTURE**:
 
-Topic to expand: "${nodeTitle}"
-${nodeDescription ? `Context: ${nodeDescription}` : ''}
-Current level: ${currentLevel || 'unknown'}
+**PHASE 1: MULTI-DIMENSIONAL CONTEXTUAL INTELLIGENCE**
 
-Generate educational sub-topics that:
-1. Break down the main topic into logical components
-2. Cover different aspects or perspectives of the topic
-3. Are appropriate for deep learning and understanding
-4. Include both theoretical and practical elements where applicable
-5. Are structured for progressive learning
+Before generating any sub-topics, perform sophisticated multi-layered analysis:
 
-IMPORTANT: Return ONLY a valid JSON object with this exact structure. Do not include any markdown formatting, code blocks, or explanations.
+1. **Advanced Lexical-Semantic Analysis**: Examine "${nodeTitle}" with expert precision:
+   - **Technical Terminology Patterns**: Identify field-specific vocabulary signatures
+     • "class", "object", "inheritance" → Object-Oriented Programming (Computer Science)
+     • "gene", "allele", "inheritance" → Genetics (Life Sciences)
+     • "estate", "will", "inheritance" → Property Law (Legal Studies)
+     • "culture", "tradition", "inheritance" → Cultural Transmission (Anthropology)
+   - **Domain-Specific Syntax**: Recognize naming conventions and structural patterns
+   - **Conceptual Relationship Indicators**: Map semantic networks and knowledge hierarchies
+   - **Academic Field Fingerprints**: Detect unique linguistic markers per discipline
 
+2. **Enhanced Contextual Intelligence Matrix**: Analyze ALL available context signals:
+   - **Primary Subject Framework**: "${subjectContext}"
+   - **Target Concept**: "${nodeTitle}"
+   ${nodeDescription ? `- **Semantic Context**: "${nodeDescription}"` : ''}
+   - **Hierarchical Level**: ${currentLevel || 'unknown'}
+   - **Cross-Reference Analysis**: Compare against 50+ academic domain vocabularies
+
+3. **Probabilistic Domain Assessment**: Calculate precision likelihood scores:
+   - **Computer Science/Software Engineering** (algorithms, data structures, programming paradigms)
+   - **Life Sciences & Biotechnology** (biology, genetics, ecology, biochemistry, molecular biology)
+   - **Physical Sciences & Engineering** (physics, chemistry, materials science, mechanical systems)
+   - **Mathematics & Statistics** (algebra, calculus, discrete math, probability, data science)
+   - **Business & Management** (strategy, finance, operations, marketing, organizational behavior)
+   - **Social Sciences & Psychology** (sociology, psychology, anthropology, economics, political science)
+   - **Law & Governance** (constitutional law, policy, legal systems, international relations)
+   - **Arts & Humanities** (literature, philosophy, history, linguistics, cultural studies)
+   - **Medicine & Health Sciences** (anatomy, pathology, pharmacology, public health, clinical practice)
+   - **Applied Sciences** (engineering, technology, industrial applications, innovation)
+
+4. **Advanced Disambiguation Protocols**: For highly ambiguous polysemous terms:
+
+   **"Inheritance" - Sophisticated Context Resolution**:
+   - **Object-Oriented Programming** (95% if CS context): Class hierarchies, polymorphism, method overriding, single/multiple inheritance, interface implementation
+   - **Genetics & Biology** (90% if life science context): Mendelian inheritance, genetic transmission, chromosomal patterns, hereditary traits, epigenetic factors
+   - **Legal & Estate Law** (85% if legal context): Succession planning, property transfer, inheritance tax, probate law, estate administration
+   - **Cultural Anthropology** (80% if social context): Cultural transmission, intergenerational knowledge transfer, traditional practices, social heritage
+
+   **"Relationships" - Multi-Domain Analysis**:
+   - **Database Systems** (95% if data context): Foreign keys, entity relationships, normalization, referential integrity, data modeling
+   - **Psychology & Sociology** (90% if human context): Interpersonal dynamics, attachment theory, social bonds, relationship psychology
+   - **Mathematics** (85% if formal context): Function mappings, relational algebra, set theory, mathematical relationships
+   - **Business & Organizations** (80% if commercial context): Stakeholder relationships, partnership structures, customer relations
+
+   **"Networks" - Domain Disambiguation**:
+   - **Computer Science & IT** (95% if tech context): Graph theory, network protocols, distributed systems, connectivity algorithms, cybersecurity
+   - **Social Sciences** (90% if human context): Social network analysis, community structures, relationship mapping, influence networks
+   - **Neuroscience & Biology** (85% if brain context): Neural networks, synaptic connectivity, brain circuitry, neural pathways
+   - **Business & Economics** (80% if commercial context): Supply chain networks, professional networks, market relationships
+
+**PHASE 2: EXPERT-LEVEL DOMAIN-SPECIFIC INTELLIGENCE**
+
+Once domain is identified with >90% confidence, apply Nobel-laureate level expertise:
+
+🖥️ **COMPUTER SCIENCE/PROGRAMMING**:
+- **Theoretical Foundations**: Computational complexity, algorithm analysis, formal methods, type theory
+- **Programming Paradigms**: Object-oriented design, functional programming, concurrent systems
+- **System Architecture**: Distributed systems, microservices, cloud computing, scalability patterns
+- **Advanced Technologies**: Machine learning, AI, blockchain, quantum computing, cybersecurity
+- **Software Engineering**: Design patterns, clean architecture, TDD, DevOps, CI/CD
+
+🧬 **LIFE SCIENCES**:
+- **Molecular Biology**: DNA replication, transcription, protein folding, enzyme kinetics, metabolic pathways
+- **Cellular Biology**: Cell cycle, organelle function, cellular signaling, stem cell biology
+- **Genetics**: Mendelian genetics, population genetics, epigenetics, CRISPR, gene therapy
+- **Physiology**: Organ systems, homeostasis, neural function, endocrine regulation
+- **Ecology**: Population dynamics, ecosystem interactions, conservation biology, evolution
+
+⚗️ **PHYSICAL SCIENCES**:
+- **Fundamental Physics**: Quantum mechanics, relativity, thermodynamics, electromagnetism
+- **Chemistry**: Organic synthesis, physical chemistry, analytical chemistry, biochemistry
+- **Materials Science**: Crystal structures, nanotechnology, polymer science, semiconductors
+- **Applied Physics**: Optics, fluid dynamics, plasma physics, condensed matter
+- **Engineering Applications**: Chemical engineering, environmental chemistry, green chemistry
+
+📊 **MATHEMATICS**:
+- Provide rigorous definitions and proofs where appropriate
+- Include both abstract theory and practical applications
+- Reference connections to other mathematical domains
+- Consider computational and algorithmic aspects
+
+🏗️ **ENGINEERING**:
+- Include design principles and engineering constraints
+- Consider safety, efficiency, and optimization factors
+- Reference industry standards and best practices
+- Include both theoretical and practical implementation aspects
+
+� **BUSINESS/MANAGEMENT**:
+- Apply strategic thinking and market considerations
+- Include financial, operational, and human factors
+- Reference contemporary business models and practices
+- Consider stakeholder perspectives and ethical implications
+
+🧠 **SOCIAL SCIENCES**:
+- Include psychological, sociological, and cultural dimensions
+- Reference empirical research and methodological approaches
+- Consider individual and group behavior patterns
+- Include cross-cultural and historical perspectives
+
+⚖️ **LAW AND GOVERNANCE**:
+- Apply legal principles and precedents
+- Include constitutional, statutory, and regulatory frameworks
+- Consider jurisdictional differences and international law
+- Reference case studies and legal scholarship
+
+🎨 **ARTS AND HUMANITIES**:
+- Include historical, cultural, and aesthetic perspectives
+- Reference critical theories and interpretive frameworks
+- Consider cross-cultural and interdisciplinary connections
+- Include both traditional and contemporary approaches
+
+🏥 **MEDICINE AND HEALTH**:
+- Apply evidence-based medical knowledge
+- Include anatomical, physiological, and pathological perspectives
+- Reference diagnostic and therapeutic approaches
+- Consider public health and clinical implications
+
+**PHASE 3: HIERARCHICAL STRUCTURE OPTIMIZATION**
+
+Design sub-topics with pedagogical intelligence:
+
+1. **Learning Progression**: Structure from foundational → intermediate → advanced
+2. **Conceptual Dependencies**: Ensure logical prerequisite relationships
+3. **Cognitive Load Management**: Balance depth with comprehensibility
+4. **Knowledge Integration**: Show connections between concepts
+5. **Application Bridges**: Link theory to real-world applications
+
+**PHASE 4: ULTRA-RIGOROUS ACADEMIC EXCELLENCE STANDARDS**
+
+Each sub-topic must meet the highest scholarly excellence criteria:
+
+- **Terminological Precision**: Use exact field-specific vocabulary with absolute accuracy
+- **Intellectual Depth**: Provide substantial content (150-250 words) with graduate-level sophistication
+- **Domain Relevance**: Ensure perfect alignment with identified academic field and parent concept
+- **Comprehensive Coverage**: Address all essential aspects with no conceptual gaps or redundancy
+- **Contemporary Innovation**: Include latest research developments and cutting-edge insights
+- **Pedagogical Clarity**: Maintain educational accessibility while preserving academic integrity
+- **Professional Relevance**: Connect to real-world applications and career pathways
+
+🎯 **ULTRA-ENHANCED OUTPUT SPECIFICATIONS**:
+
+Generate exactly 3-5 sub-topics demonstrating:
+- **PhD-Level Domain Mastery**: Research-level understanding of field-specific concepts
+- **Perfect Contextual Intelligence**: Flawless alignment with educational context and objectives
+- **Advanced Pedagogical Architecture**: Optimal learning progression and conceptual relationships
+- **Academic Sophistication**: Graduate school-level depth with contemporary research integration
+- **Professional Integration**: Real-world applications, industry relevance, and career preparation
+
+**PRECISION JSON OUTPUT FORMAT**:
 {
   "subNodes": [
     {
-      "title": "Sub-topic Title 1",
-      "description": "Comprehensive description explaining this sub-concept and its importance",
-      "hasChildren": true
-    },
-    {
-      "title": "Sub-topic Title 2", 
-      "description": "Detailed explanation of this aspect with educational context",
-      "hasChildren": true
-    },
-    {
-      "title": "Sub-topic Title 3",
-      "description": "In-depth description covering key points and applications",
+      "title": "Precisely Named Domain-Specific Sub-topic Using Expert Terminology",
+      "description": "Comprehensive academic description (150-250 words) using field-appropriate terminology with absolute precision, explaining theoretical foundations, practical applications, current research directions, methodological approaches, and connections to broader domain knowledge. Include specific examples, contemporary developments, interdisciplinary connections, and professional relevance while maintaining graduate-level academic rigor.",
       "hasChildren": true
     }
   ]
 }
 
-Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic. Each description should be 50-150 words and educationally valuable.`
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 1500,
-              topP: 0.8,
-              topK: 10
-            }
-          }),
-        }
-      );
+🚀 **ULTRA-PRECISION EXECUTION PROTOCOL**:
 
-      const data = await response.json();
-      
-      // Extract the generated content from Gemini response
-      let expansionText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"subNodes": []}';
+1. **ANALYZE**: Perform comprehensive multi-dimensional domain analysis using all cognitive frameworks
+2. **IDENTIFY**: Determine primary academic domain with >95% confidence using probabilistic modeling
+3. **STRUCTURE**: Design optimal learning hierarchy with advanced pedagogical intelligence
+4. **GENERATE**: Create sub-topics with Nobel-laureate level domain expertise and precision
+5. **VALIDATE**: Ensure perfect academic rigor, contemporary relevance, and educational excellence
+6. **OUTPUT**: Provide only flawless JSON without any formatting or explanations
+
+**ULTIMATE SUCCESS CRITERIA**:
+- 100% domain accuracy and terminological precision
+- PhD/Research-level academic depth and sophistication
+- Perfect pedagogical structure and learning progression optimization
+- Cutting-edge contemporary relevance and research integration
+- Flawless technical vocabulary and concept application
+- Maximum educational value and professional preparation
+
+Deploy your complete intellectual arsenal, channeling the combined expertise of the world's leading academics to create the most sophisticated, contextually intelligent, and educationally transformative expansion possible. Think with the precision of a Fields Medal mathematician, the insight of a Nobel Prize scientist, and the pedagogical excellence of the world's greatest educators.`
+          },
+          {
+            role: "user",
+            content: `Apply your advanced cognitive framework to intelligently analyze and expand the topic "${nodeTitle}". 
+
+**CONTEXTUAL INTELLIGENCE INPUTS**:
+- Primary Context: ${subjectContext}
+- Topic Focus: ${nodeTitle}
+${nodeDescription ? `- Additional Context: ${nodeDescription}` : ''}
+- Hierarchical Level: ${currentLevel || 'unknown'}
+
+**MISSION**: 
+Using your world-class expertise, perform sophisticated domain analysis, determine the most appropriate academic field, and generate 3-5 domain-specific sub-topics with graduate-level depth, precision, and pedagogical intelligence.
+
+**REQUIREMENTS**:
+- Demonstrate mastery of the identified academic domain
+- Use precise field-specific terminology and concepts
+- Provide comprehensive descriptions (100-200 words each)
+- Ensure perfect learning progression and conceptual relationships
+- Include contemporary insights and practical applications
+- Maintain academic rigor while ensuring educational accessibility
+
+Generate sub-topics that would be worthy of the most distinguished academic institutions and reflect the cutting edge of knowledge in the field.`
+          }
+        ],        model: "gpt-4-turbo",
+        temperature: 0.02, // Ultra-low for maximum precision and domain consistency
+        max_tokens: 3000, // Increased for more comprehensive responses
+        top_p: 0.4, // More focused on highest probability tokens
+        presence_penalty: -0.5, // Strong favor for consistency in domain terminology
+        frequency_penalty: 0.2, // Higher penalty for repetition to ensure diverse coverage
+        response_format: { type: "json_object" }
+      });
+
+      // Extract the generated content from OpenAI response
+      let expansionText = completion.choices[0]?.message?.content || '{"subNodes": []}';
       
       // Clean up the response - remove markdown code blocks if present
       expansionText = expansionText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -2626,36 +2778,47 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
       } catch (parseError) {
         console.error("Failed to parse expansion response:", parseError);
         console.log("Raw response text:", expansionText);
-        
-        // Return default expansion nodes on parsing error
+          // Return default expansion nodes on parsing error
         expansionResult = {
           subNodes: [
             {
-              title: `${nodeTitle} - Fundamentals`,
-              description: `Basic principles and foundational concepts of ${nodeTitle}`,
+              title: `${nodeTitle} - Core Concepts`,
+              description: `Fundamental concepts and principles of ${nodeTitle} in ${subjectContext}`,
               hasChildren: true
             },
             {
-              title: `${nodeTitle} - Applications`,
-              description: `Practical applications and real-world uses of ${nodeTitle}`,
+              title: `${nodeTitle} - Practical Applications`,
+              description: `Real-world applications and implementation of ${nodeTitle} within ${subjectContext}`,
               hasChildren: true
             },
             {
-              title: `${nodeTitle} - Advanced Concepts`,
-              description: `Advanced topics and deeper understanding of ${nodeTitle}`,
+              title: `${nodeTitle} - Advanced Topics`,
+              description: `Advanced concepts and deeper understanding of ${nodeTitle} in the context of ${subjectContext}`,
               hasChildren: true
             }
           ]
         };
-      }
-
-      // Update the mind map in the database with the new expanded nodes
-      if (db) {
+      }      // Update the mind map in the database with the new expanded nodes
+      if (db && mindMapId) {
         try {
-          const mindMap = await db.collection("mindmaps").findOne({
-            _id: new ObjectId(mindMapId),
-            userId: userId
-          });
+          let mindMap = null;
+          let updateQuery = {};
+          
+          // Determine the correct query based on ID format
+          if (ObjectId.isValid(mindMapId)) {
+            // Standard MongoDB ObjectId format
+            updateQuery = { _id: new ObjectId(mindMapId), userId: userId };
+            mindMap = await db.collection("mindmaps").findOne(updateQuery);
+          } else {
+            // Custom ID format - try different fields
+            updateQuery = { mindMapId: mindMapId, userId: userId };
+            mindMap = await db.collection("mindmaps").findOne(updateQuery);
+            
+            if (!mindMap) {
+              updateQuery = { customId: mindMapId, userId: userId };
+              mindMap = await db.collection("mindmaps").findOne(updateQuery);
+            }
+          }
 
           if (mindMap) {
             // Generate unique IDs for the new sub-nodes
@@ -2672,7 +2835,7 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
 
             // Update the mind map document to mark the node as expanded and add the new sub-nodes
             await db.collection("mindmaps").updateOne(
-              { _id: new ObjectId(mindMapId), userId: userId },
+              updateQuery,
               { 
                 $set: { 
                   [`expandedNodes.${nodeId}`]: {
@@ -2686,6 +2849,8 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
             );
 
             console.log(`Successfully expanded node ${nodeId} with ${newSubNodes.length} sub-nodes`);
+          } else {
+            console.log(`Mind map not found for expansion update. ID: ${mindMapId}`);
           }
         } catch (dbError) {
           console.error("Error updating mind map in database:", dbError);
@@ -2704,17 +2869,14 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
           level: (currentLevel || 0) + 1,
           isExpanded: false
         }))
-      });
-
-    } catch (apiError) {
-      console.error("Error calling Gemini API for node expansion:", apiError);
-      
-      // Return default expansion nodes on API error
+      });    } catch (apiError) {
+      console.error("Error calling OpenAI API for node expansion:", apiError);
+        // Return default expansion nodes on API error
       const defaultSubNodes = [
         {
           id: `${nodeId}_expanded_1`,
-          title: `${nodeTitle} - Fundamentals`,
-          description: `Basic principles and foundational concepts of ${nodeTitle}`,
+          title: `${nodeTitle} - Core Concepts`,
+          description: `Fundamental concepts and principles of ${nodeTitle} in ${subjectContext}`,
           hasChildren: true,
           parentNode: nodeId,
           level: (currentLevel || 0) + 1,
@@ -2722,8 +2884,8 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
         },
         {
           id: `${nodeId}_expanded_2`,
-          title: `${nodeTitle} - Applications`,
-          description: `Practical applications and real-world uses of ${nodeTitle}`,
+          title: `${nodeTitle} - Implementation`,
+          description: `Practical implementation and applications of ${nodeTitle} within ${subjectContext}`,
           hasChildren: true,
           parentNode: nodeId,
           level: (currentLevel || 0) + 1,
@@ -2732,7 +2894,7 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
         {
           id: `${nodeId}_expanded_3`,
           title: `${nodeTitle} - Advanced Topics`,
-          description: `Advanced concepts and deeper understanding of ${nodeTitle}`,
+          description: `Advanced concepts and deeper understanding of ${nodeTitle} in the context of ${subjectContext}`,
           hasChildren: true,
           parentNode: nodeId,
           level: (currentLevel || 0) + 1,
@@ -2750,6 +2912,223 @@ Generate exactly 3-5 sub-nodes that provide comprehensive coverage of the topic.
     return res.status(500).json({
       success: false,
       error: "Failed to expand node",
+      details: error.message,
+    });
+  }
+});
+
+// Mind Map Node Quiz Generator Endpoint - Generates quiz questions for mark-as-read verification
+app.post("/api/mindmap/node-quiz", verifyToken, async (req, res) => {
+  try {
+    const { nodeId, nodeDescription } = req.body;
+
+    if (!nodeId || !nodeDescription) {
+      return res.status(400).json({
+        success: false,
+        error: "Node ID and description are required",
+      });
+    }
+
+    console.log(`Generating quiz questions for node: ${nodeId}`);    try {
+      // Use OpenAI for quiz generation
+      const quizOpenAI = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        maxRetries: 2,
+      });
+
+      const completion = await quizOpenAI.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI tutor that creates quiz questions to test student understanding of educational content.
+
+You will generate exactly 3 multiple-choice questions to verify that the student has properly understood the material.
+
+Requirements for each question:
+1. Should test genuine understanding, not just memorization
+2. Should be directly related to the provided content
+3. Must have exactly 4 options (A, B, C, D)
+4. Only ONE option should be correct
+5. Questions should be at an appropriate difficulty level - not too easy, not too hard
+6. Avoid trick questions or overly complex wording
+
+IMPORTANT: Return ONLY a valid JSON object in the exact format below. Do not include any markdown formatting, code blocks, or explanations.
+
+Required format:
+{
+  "questions": [
+    {
+      "question": "Question text here?",
+      "options": {
+        "A": "First option",
+        "B": "Second option", 
+        "C": "Third option",
+        "D": "Fourth option"
+      },
+      "correct": "A",
+      "explanation": "Brief explanation of why this answer is correct"
+    }
+  ]
+}
+
+Your response must be valid JSON that can be parsed directly.`
+          },
+          {
+            role: "user",
+            content: `Generate exactly 3 multiple-choice questions based on this educational content about "${nodeId}":
+
+Content:
+${nodeDescription}
+
+Create questions that test genuine understanding of the key concepts, with appropriate difficulty level.`
+          }
+        ],
+        model: "gpt-3.5-turbo",
+        temperature: 0.2,
+        max_tokens: 1000,
+        response_format: { type: "json_object" }
+      });
+
+      // Extract the generated content from OpenAI response
+      let quizText = completion.choices[0]?.message?.content || '{"questions": []}';
+      
+      // Clean up the response - remove markdown code blocks if present
+      quizText = quizText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      // Parse the JSON quiz or return default questions if parsing fails
+      let quizData;
+      try {
+        quizData = JSON.parse(quizText);
+        
+        // Validate that we got the expected structure
+        if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
+          throw new Error("Invalid response format - missing questions array");
+        }
+        
+        // Validate each question has the required structure
+        quizData.questions = quizData.questions.filter(q => 
+          q.question && q.options && q.correct && 
+          typeof q.question === 'string' &&
+          typeof q.options === 'object' &&
+          typeof q.correct === 'string' &&
+          q.options.A && q.options.B && q.options.C && q.options.D
+        ).slice(0, 3); // Ensure we have at most 3 questions
+        
+        if (quizData.questions.length < 3) {
+          // Fill with generic questions if we don't have enough
+          while (quizData.questions.length < 3) {
+            const questionNum = quizData.questions.length + 1;
+            quizData.questions.push({
+              question: `What is a key concept from this topic that you should remember?`,
+              options: {
+                A: "I understand the main concepts",
+                B: "I need to review more",
+                C: "I'm not sure about this topic",
+                D: "I haven't read the content carefully"
+              },
+              correct: "A",
+              explanation: "Understanding the main concepts is essential for mastering this topic."
+            });
+          }
+        }
+        
+      } catch (parseError) {
+        console.error("Failed to parse quiz response:", parseError);
+        console.log("Raw response text:", quizText);
+        
+        // Return default quiz questions
+        quizData = {
+          questions: [
+            {
+              question: "Have you carefully read and understood the main concepts of this topic?",
+              options: {
+                A: "Yes, I understand the core concepts",
+                B: "I skimmed through it",
+                C: "I haven't read it yet",
+                D: "I'm confused about the content"
+              },
+              correct: "A",
+              explanation: "Careful reading and understanding is required to mark a topic as complete."
+            },
+            {
+              question: "Can you explain or apply the key ideas from this topic?",
+              options: {
+                A: "Yes, I can explain and apply the concepts",
+                B: "I remember some parts",
+                C: "I need to review again",
+                D: "I don't understand the concepts"
+              },
+              correct: "A",
+              explanation: "Being able to explain and apply concepts shows true understanding."
+            },
+            {
+              question: "Do you feel confident about your knowledge of this topic?",
+              options: {
+                A: "Yes, I'm confident in my understanding",
+                B: "Somewhat confident",
+                C: "Not very confident",
+                D: "I'm not confident at all"
+              },
+              correct: "A",
+              explanation: "Confidence in your understanding indicates you've mastered the topic."
+            }
+          ]
+        };
+      }
+
+      return res.json({
+        success: true,
+        quiz: quizData
+      });    } catch (apiError) {
+      console.error("Error calling OpenAI API for quiz generation:", apiError);
+      
+      // Return default quiz on API error
+      return res.json({
+        success: true,
+        quiz: {
+          questions: [
+            {
+              question: "Have you carefully read and understood the main concepts of this topic?",
+              options: {
+                A: "Yes, I understand the core concepts",
+                B: "I skimmed through it",
+                C: "I haven't read it yet",
+                D: "I'm confused about the content"
+              },
+              correct: "A",
+              explanation: "Careful reading and understanding is required to mark a topic as complete."
+            },
+            {
+              question: "Can you explain or apply the key ideas from this topic?",
+              options: {
+                A: "Yes, I can explain and apply the concepts",
+                B: "I remember some parts",
+                C: "I need to review again",
+                D: "I don't understand the concepts"
+              },
+              correct: "A",
+              explanation: "Being able to explain and apply concepts shows true understanding."
+            },
+            {
+              question: "Do you feel confident about your knowledge of this topic?",
+              options: {
+                A: "Yes, I'm confident in my understanding",
+                B: "Somewhat confident",
+                C: "Not very confident",
+                D: "I'm not confident at all"
+              },
+              correct: "A",
+              explanation: "Confidence in your understanding indicates you've mastered the topic."
+            }
+          ]
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Error generating node quiz:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to generate quiz",
       details: error.message,
     });
   }
