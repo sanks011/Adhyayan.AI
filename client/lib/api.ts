@@ -437,8 +437,17 @@ class ApiService {
       return { success: true, message: "Mind map removed from local storage only" };
     }
   }
-  // Not needed - we're using trackDeletedMindMap instead
-  // This is a duplicate of the private method defined above, so we'll remove it
+
+  // Method for expanding mind map nodes with AI-generated sub-nodes
+  async expandMindMapNode(mindMapId: string, nodeId: string, nodeTitle: string, nodeDescription?: string, currentLevel?: number) {
+    return this.post('/mindmap/expand-node', { 
+      mindMapId,
+      nodeId, 
+      nodeTitle,
+      nodeDescription,
+      currentLevel
+    });
+  }
 }
 
 // Ensure we're exporting the service properly
