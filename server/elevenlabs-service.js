@@ -11,9 +11,8 @@ class ElevenLabsService {
   constructor(apiKey, geminiApiKey) {
     this.apiKey = apiKey;
     this.geminiApiKey = geminiApiKey;
-    this.baseUrl = 'https://api.elevenlabs.io/v1';
-    this.defaultVoiceId = 'ErXwobaYiN019PkySvjV'; // Antoni - default male voice
-    this.femaleVoiceId = 'EXAVITQu4vr4xnSDxMaL'; // Bella - female voice
+    this.baseUrl = 'https://api.elevenlabs.io/v1';    this.defaultVoiceId = 'bIHbv24MWmeRgasZH58o'; // Will - available male voice
+    this.femaleVoiceId = 'EXAVITQu4vr4xnSDxMaL'; // Sarah - available female voice
     this.podcastDir = path.join(__dirname, 'public', 'podcasts');
   }
 
@@ -162,8 +161,7 @@ class ElevenLabsService {
 
       console.log(`Processing script for Sankk: ${SankkContent.length} chars`);
       console.log(`Processing script for Priya: ${priyaContent.length} chars`);
-      
-      // Generate audio for both speakers
+        // Generate audio for both speakers
       console.log('Generating audio for both speakers...');
       
       // Generate them sequentially to avoid overwhelming the API
@@ -194,7 +192,36 @@ class ElevenLabsService {
       throw new Error('Failed to convert script to audio');
     }
   }
-  // Generate speech using ElevenLabs API with retry mechanism
+  // Generate speech using OpenAI TTS as fallback when ElevenLabs fails
+  async generateSpeechWithOpenAI(text, voice = 'alloy') {
+    try {
+      console.log('Using OpenAI TTS as fallback...');
+      
+      const response = await axios({
+        method: 'post',
+        url: 'https://api.openai.com/v1/audio/speech',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          model: 'tts-1',
+          input: text.substring(0, 4000), // OpenAI TTS limit
+          voice: voice, // alloy, echo, fable, onyx, nova, shimmer
+          response_format: 'mp3'
+        },
+        responseType: 'arraybuffer'
+      });
+      
+      console.log('OpenAI TTS successful');
+      return response.data;
+    } catch (error) {
+      console.error('OpenAI TTS error:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  // Generate speech using ElevenLabs API with retry mechanism and OpenAI fallback
   async generateSpeech(text, voiceId = this.defaultVoiceId) {
     try {
       // If text is too long, we'll split it to avoid timeouts
@@ -294,10 +321,21 @@ class ElevenLabsService {
     // Otherwise, concatenate all buffers (for now, we'll just return the first chunk)
     // In a production environment, you'd want to properly concatenate the MP3 files
     console.log(`Returning first audio chunk of ${allAudioBuffers.length} total chunks`);
-    return allAudioBuffers[0];
-    } catch (error) {
+    return allAudioBuffers[0];    } catch (error) {
       console.error('Error generating speech with ElevenLabs:', error);
-      throw new Error('Failed to generate speech with ElevenLabs API');
+      
+      // If ElevenLabs fails (like free tier disabled), try OpenAI TTS
+      console.log('ElevenLabs failed, attempting OpenAI TTS fallback...');
+      try {
+        // Choose voice based on voiceId
+        const openaiVoice = voiceId === this.femaleVoiceId ? 'nova' : 'alloy';
+        const fallbackAudio = await this.generateSpeechWithOpenAI(text, openaiVoice);
+        console.log('Successfully generated speech using OpenAI TTS fallback');
+        return fallbackAudio;
+      } catch (fallbackError) {
+        console.error('OpenAI TTS fallback also failed:', fallbackError);
+        throw new Error('Both ElevenLabs and OpenAI TTS failed');
+      }
     }
   }
 
