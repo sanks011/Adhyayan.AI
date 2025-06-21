@@ -13,5 +13,8 @@ module.exports = {
     extend: {},
   },
   darkMode: "class",
-  plugins: [heroui()],
+  plugins: [
+    heroui(),
+    require('@tailwindcss/line-clamp')
+  ],
 };

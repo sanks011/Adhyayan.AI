@@ -7,7 +7,7 @@ import { FloatingDock } from "@/components/ui/floating-dock";
 import { MindMapSidebar } from "@/components/custom/MindMapSidebar";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
 import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
-import ContentFormatter from "@/components/ui/content-formatter";
+import { MultimediaContentDisplay } from "@/components/custom/MultimediaContentDisplay";
 import { cn } from "@/lib/utils";
 import { convertBackendDataToSidebarFormat, getFallbackData, generateFallbackMindMapData, BackendNode, BackendData, SidebarTopic, SidebarSubtopic } from "@/lib/mind-map-utils";
 import Head from 'next/head';
@@ -304,9 +304,9 @@ function MindMapContent() {
   const [isResizing, setIsResizing] = useState(false);  // Track chat messages for AI interaction
   const [chatMessages, setChatMessages] = useState<Array<{id: string, type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
-  
-  // Node descriptions state
+    // Node descriptions and multimedia content state
   const [nodeDescriptions, setNodeDescriptions] = useState<Record<string, string>>({});
+  const [nodeMultimedia, setNodeMultimedia] = useState<Record<string, any>>({});
   const [loadingDescription, setLoadingDescription] = useState<string | null>(null);
   
   // React Flow instance ref for controlling view
@@ -2082,14 +2082,25 @@ More detailed content will be available soon with comprehensive explanations, eq
               "", // No syllabus available here
               parentNode ? [{ id: parentNode.id, label: (parentNode.data.label as string) || parentNode.id }] : [],
               childNodes
-            );
-
-            if (response?.success && response.description) {
+            );            if (response?.success && response.description) {
               console.log('Description received:', response.description.substring(0, 50) + '...');
               setNodeDescriptions(prev => ({
                 ...prev,
                 [selectedNode]: response.description,
               }));
+              
+              // Store multimedia content if available
+              if (response.multimedia) {
+                console.log('Multimedia content received:', {
+                  images: response.multimedia.images?.length || 0,
+                  videos: response.multimedia.videos?.length || 0,
+                  references: response.multimedia.references?.length || 0
+                });
+                setNodeMultimedia(prev => ({
+                  ...prev,
+                  [selectedNode]: response.multimedia,
+                }));
+              }
             } else {
               console.error('Failed to get node description:', response?.error || 'Unknown error');
             }
@@ -2107,11 +2118,12 @@ More detailed content will be available soon with comprehensive explanations, eq
 
     // Return the content and related topics
     return (
-      <>
-        {/* Main Content Card with formatted content */}
-        <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-6">
-          <ContentFormatter content={String(nodeContent)} className="w-full" />
-        </div>
+      <>        {/* Main Content Card with multimedia content */}
+        <MultimediaContentDisplay 
+          content={String(nodeContent)}
+          multimedia={nodeMultimedia[selectedNode]}
+          className="w-full"
+        />
 
         {/* Read Status Toggle for Right Sidebar */}
         <div className="bg-neutral-800 border border-neutral-600 rounded-lg p-4">
