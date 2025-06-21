@@ -33,6 +33,7 @@ interface Room {
   questions: any[];
   participants: Participant[];
   createdAt: any;
+  isPublic: boolean;
   settings: {
     questionCount: number;
     timePerQuestion: number;
@@ -188,7 +189,8 @@ export async function POST(request: NextRequest) {
       maxParticipants = 8,
       hostId,
       hostName,
-      timePerQuestion = 30
+      timePerQuestion = 30,
+      isPublic = true
     } = body;
 
     // Validate required fields
@@ -261,6 +263,7 @@ export async function POST(request: NextRequest) {
       questions,
       participants: [hostParticipant],
       createdAt: serverTimestamp(),
+      isPublic,
       settings: {
         questionCount,
         timePerQuestion: timePerQuestion || (difficulty === 'easy' ? 30 : difficulty === 'medium' ? 25 : 20),

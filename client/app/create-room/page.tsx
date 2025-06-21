@@ -14,7 +14,8 @@ import {
   IconLogout,
   IconMap,
   IconDeviceGamepad2,
-  IconUsersGroup
+  IconUsersGroup,
+  IconWorld
 } from "@tabler/icons-react";
 
 export default function CreateRoom() {
@@ -103,12 +104,12 @@ export default function CreateRoom() {
               Choose Your Learning Path
             </h1>
             <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
-              Challenge yourself with a solo quiz, create a room for competition, or join an existing quiz
+              Challenge yourself with a solo quiz, create a room for competition, join an existing quiz, or play with random players
             </p>
           </div>
 
-          {/* Updated Options Container - Now 3 columns for larger screens */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl">
+          {/* Updated Options Container - Now 4 columns for larger screens, 2x2 grid for medium */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 w-full max-w-7xl">
             
             {/* Solo Quiz Option */}
             <div 
@@ -178,6 +179,30 @@ export default function CreateRoom() {
                 
                 <button className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-lg transition-all duration-300">
                   Join with Code
+                </button>
+              </div>
+            </div>
+
+            {/* Play with Random Option */}
+            <div 
+              onClick={() => router.push('/rooms/random')}
+              className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg p-8 cursor-pointer transition-all duration-300 hover:border-white/30"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-white/10 rounded-lg flex items-center justify-center">
+                  <IconWorld className="h-8 w-8 text-white" />
+                </div>
+                
+                <h3 className="text-2xl font-bold text-white mb-3">
+                  Play with Random
+                </h3>
+                
+                <p className="text-neutral-400 mb-6">
+                  Join public rooms and compete with random players from around the world.
+                </p>
+                
+                <button className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-3 px-6 rounded-lg transition-all duration-300">
+                  Find Random Match
                 </button>
               </div>
             </div>
