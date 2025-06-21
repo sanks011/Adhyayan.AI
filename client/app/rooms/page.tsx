@@ -40,6 +40,11 @@ export default function RoomsPage() {
     router.push('/rooms/join');
   };
 
+  const handlePlayWithRandom = () => {
+    console.log('Play with random clicked - navigating to /rooms/random');
+    router.push('/rooms/random');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -105,7 +110,7 @@ export default function RoomsPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
             
             {/* Create Room Option */}
             <div 
@@ -145,6 +150,48 @@ export default function RoomsPage() {
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   Create New Room
+                </button>
+              </div>
+            </div>
+
+            {/* Play with Random Option */}
+            <div 
+              onClick={handlePlayWithRandom}
+              className="group bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl cursor-pointer transition-all duration-500 hover:scale-[1.02] hover:border-orange-500/50 hover:bg-orange-500/5"
+            >
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <IconUsers className="h-10 w-10 text-white" />
+                </div>
+                
+                <h3 className="text-3xl font-bold text-white mb-4 group-hover:text-orange-400 transition-colors duration-300">
+                  Play with Random
+                </h3>
+                
+                <p className="text-neutral-400 text-lg mb-8 leading-relaxed">
+                  Get matched with random players worldwide. Join public rooms and compete instantly.
+                </p>
+                
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <span className="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-sm">
+                    Instant Match
+                  </span>
+                  <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                    Global Players
+                  </span>
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">
+                    Random Topics
+                  </span>
+                </div>
+                
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePlayWithRandom();
+                  }}
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform group-hover:scale-105 shadow-lg hover:shadow-xl"
+                >
+                  Find Random Match
                 </button>
               </div>
             </div>
@@ -199,7 +246,7 @@ export default function RoomsPage() {
             </p>
           </div>
 
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-2xl">
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 w-full max-w-3xl">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-400">2.5K+</div>
               <div className="text-neutral-400 text-sm">Rooms Created</div>
