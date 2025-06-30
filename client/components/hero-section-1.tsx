@@ -177,7 +177,43 @@ export function HeroSection() {
                             />
                         </AnimatedGroup>
                         <div aria-hidden className="absolute inset-0 -z-10 size-full [background:radial-gradient(125%_125%_at_50%_100%,transparent_0%,var(--background)_75%)]" />
-                        <div className="mx-auto max-w-7xl px-6">
+                        <div className="mx-auto max-w-7xl px-6 relative">
+                            {/* Logo positioned on the right side - Desktop */}
+                            <div className="absolute top-0 right-6 z-10 hidden md:block">
+                                <Link 
+                                    href="https://bolt.new/" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block hover:scale-110 transition-transform duration-300"
+                                >
+                                    <Image
+                                        src="/black_circle_360x360.png"
+                                        alt="Adhyayan AI Logo"
+                                        width={80}
+                                        height={80}
+                                        className="rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300"
+                                    />
+                                </Link>
+                            </div>
+                            
+                            {/* Logo positioned on the right side - Mobile */}
+                            <div className="absolute top-0 right-6 z-10 md:hidden">
+                                <Link 
+                                    href="https://bolt.new/" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block hover:scale-110 transition-transform duration-300"
+                                >
+                                    <Image
+                                        src="/black_circle_360x360.png"
+                                        alt="Adhyayan AI Logo"
+                                        width={60}
+                                        height={60}
+                                        className="rounded-full shadow-lg hover:shadow-xl transition-shadow duration-300"
+                                    />
+                                </Link>
+                            </div>
+                            
                             <div className="text-center sm:mx-auto lg:mr-auto lg:mt-0">
                                 <AnimatedGroup variants={transitionVariants}>
 
